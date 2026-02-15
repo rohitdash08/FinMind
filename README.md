@@ -59,6 +59,19 @@ See `backend/app/db/schema.sql`. Key tables:
   - On expense/bill create/update/delete -> delete affected monthly_summary, upcoming_bills, insights
 - Rate limiting (optional): `rl:{userId}:{endpoint}:{minute}` with short TTL
 
+## Redis Configuration
+- Production: uses real Redis.
+- Tests (`TESTING=True`): uses `fakeredis`; falls back to `InMemoryRedis` if `fakeredis` is unavailable.
+- Environment precedence:
+  1. `REDIS_URL`
+  2. `REDIS_HOST` / `REDIS_PORT` / `REDIS_DB`
+  3. default `localhost:6379`, DB `0`
+- Example:
+  - `REDIS_URL=redis://redis:6379/0`
+  - `REDIS_HOST=localhost`
+  - `REDIS_PORT=6379`
+  - `REDIS_DB=0`
+
 ## API Endpoints
 OpenAPI: `backend/app/openapi.yaml`
 - Auth: `/auth/register`, `/auth/login`, `/auth/refresh`

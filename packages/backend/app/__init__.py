@@ -1,6 +1,6 @@
 from flask import Flask, jsonify
 from .config import Settings
-from .extensions import db, jwt
+from .extensions import db, jwt, init_redis
 from .routes import register_routes
 from flask_cors import CORS
 import click
@@ -12,6 +12,10 @@ from datetime import timedelta
 def create_app(settings: Settings | None = None) -> Flask:
     app = Flask(__name__)
     cfg = settings or Settings()
+    is_testing = (
+        bool(getattr(cfg, "testing", False))
+        or os.getenv("FLASK_ENV", "").lower() == "testing"
+    )
 
     # Config
     app.config.update(
@@ -27,6 +31,11 @@ def create_app(settings: Settings | None = None) -> Flask:
         TWILIO_AUTH_TOKEN=cfg.twilio_auth_token,
         TWILIO_WHATSAPP_FROM=cfg.twilio_whatsapp_from,
         EMAIL_FROM=cfg.email_from,
+        TESTING=is_testing,
+        REDIS_URL=cfg.redis_url,
+        REDIS_HOST=cfg.redis_host,
+        REDIS_PORT=cfg.redis_port,
+        REDIS_DB=cfg.redis_db,
     )
 
     # Logging
@@ -41,6 +50,7 @@ def create_app(settings: Settings | None = None) -> Flask:
     # Extensions
     db.init_app(app)
     jwt.init_app(app)
+    init_redis(app)
     # CORS for local dev frontend
     CORS(app, resources={r"*": {"origins": "*"}}, supports_credentials=True)
 

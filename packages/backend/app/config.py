@@ -6,7 +6,10 @@ class Settings(BaseSettings):
     database_url: str = Field(
         default="postgresql+psycopg2://finmind:finmind@postgres:5432/finmind"
     )
-    redis_url: str = Field(default="redis://redis:6379/0")
+    redis_url: str | None = Field(default=None)
+    redis_host: str = Field(default="localhost")
+    redis_port: int = Field(default=6379)
+    redis_db: int = Field(default=0)
 
     jwt_secret: str = Field(default="dev-secret-change")
     jwt_access_minutes: int = 15
