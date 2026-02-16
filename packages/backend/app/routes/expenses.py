@@ -7,6 +7,7 @@ from ..extensions import db
 from ..models import Expense
 from ..services.cache import cache_delete_patterns, monthly_summary_key
 from ..services import expense_import
+from ..services.event_emitter import emit
 import logging
 
 bp = Blueprint("expenses", __name__)
@@ -82,6 +83,8 @@ def create_expense():
             f"insights:{uid}:*",
         ]
     )
+    # Emit webhook event
+    emit(uid, "expense.created", _expense_to_dict(e))
     return jsonify(_expense_to_dict(e)), 201
 
 
@@ -114,6 +117,8 @@ def update_expense(expense_id: int):
         e.spent_at = date.fromisoformat(raw_date)
     db.session.commit()
     _invalidate_expense_cache(uid, e.spent_at.isoformat())
+    # Emit webhook event
+    emit(uid, "expense.updated", _expense_to_dict(e))
     return jsonify(_expense_to_dict(e))
 
 
@@ -124,10 +129,13 @@ def delete_expense(expense_id: int):
     e = db.session.get(Expense, expense_id)
     if not e or e.user_id != uid:
         return jsonify(error="not found"), 404
+    expense_data = _expense_to_dict(e)
     spent_at = e.spent_at.isoformat()
     db.session.delete(e)
     db.session.commit()
     _invalidate_expense_cache(uid, spent_at)
+    # Emit webhook event
+    emit(uid, "expense.deleted", expense_data)
     return jsonify(message="deleted")
 
 
@@ -190,6 +198,8 @@ def import_commit():
     db.session.commit()
     for ym in touched_months:
         _invalidate_expense_cache(uid, ym + "-01")
+    # Emit webhook event for import completion
+    emit(uid, "import.completed", {"inserted": inserted, "duplicates": duplicates})
     return jsonify(inserted=inserted, duplicates=duplicates), 201
 
 

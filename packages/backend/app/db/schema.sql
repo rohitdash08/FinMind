@@ -90,3 +90,37 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   action VARCHAR(100) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+-- ─── Webhook Event System ────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS webhooks (
+  id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  url VARCHAR(2048) NOT NULL,
+  secret VARCHAR(255) NOT NULL,
+  events TEXT NOT NULL DEFAULT '["*"]',
+  active BOOLEAN NOT NULL DEFAULT TRUE,
+  failure_count INT NOT NULL DEFAULT 0,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_webhooks_user_active ON webhooks(user_id, active);
+
+CREATE TABLE IF NOT EXISTS webhook_deliveries (
+  id SERIAL PRIMARY KEY,
+  webhook_id INT NOT NULL REFERENCES webhooks(id) ON DELETE CASCADE,
+  delivery_id VARCHAR(36) UNIQUE NOT NULL,
+  event_type VARCHAR(50) NOT NULL,
+  payload TEXT NOT NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'pending',
+  attempts INT NOT NULL DEFAULT 0,
+  max_retries INT NOT NULL DEFAULT 5,
+  next_retry_at TIMESTAMP,
+  last_status_code INT,
+  last_response_ms INT,
+  last_error TEXT,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  completed_at TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_deliveries_webhook ON webhook_deliveries(webhook_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_deliveries_retry ON webhook_deliveries(status, next_retry_at) WHERE status = 'pending';
