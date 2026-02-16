@@ -4,6 +4,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..extensions import db
 from ..models import Reminder
 from ..services.reminders import send_reminder
+from ..services.webhook import emit_event
 import logging
 
 bp = Blueprint("reminders", __name__)
@@ -69,6 +70,19 @@ def run_due():
     for r in items:
         send_reminder(r)
         r.sent = True
+        try:
+            emit_event(
+                uid,
+                "reminder.triggered",
+                {
+                    "id": r.id,
+                    "message": r.message,
+                    "channel": r.channel,
+                    "send_at": r.send_at.isoformat(),
+                },
+            )
+        except Exception:
+            logger.debug("Webhook emit failed for reminder.triggered", exc_info=True)
     db.session.commit()
     logger.info("Processed due reminders user=%s count=%s", uid, len(items))
     return jsonify(processed=len(items))

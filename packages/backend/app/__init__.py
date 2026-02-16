@@ -48,6 +48,10 @@ def create_app(settings: Settings | None = None) -> Flask:
     # Blueprint routes
     register_routes(app)
 
+    # Webhook delivery worker (APScheduler)
+    if not app.config.get("TESTING"):
+        _start_webhook_worker(app)
+
     @app.get("/health")
     def health():
         return jsonify(status="ok"), 200
@@ -69,3 +73,32 @@ def create_app(settings: Settings | None = None) -> Flask:
                 conn.close()
 
     return app
+
+
+def _start_webhook_worker(app: Flask):
+    """Start background jobs for webhook event delivery and retries."""
+    try:
+        from apscheduler.schedulers.background import BackgroundScheduler
+
+        scheduler = BackgroundScheduler(daemon=True)
+
+        def _run_queue():
+            with app.app_context():
+                from .services.webhook import process_event_queue
+
+                process_event_queue()
+
+        def _run_retries():
+            with app.app_context():
+                from .services.webhook import process_retries
+
+                process_retries()
+
+        scheduler.add_job(_run_queue, "interval", seconds=5, id="wh_queue")
+        scheduler.add_job(_run_retries, "interval", seconds=30, id="wh_retry")
+        scheduler.start()
+        logging.getLogger("finmind").info("Webhook worker started")
+    except Exception:
+        logging.getLogger("finmind").warning(
+            "Could not start webhook worker", exc_info=True
+        )

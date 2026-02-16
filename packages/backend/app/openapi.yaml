@@ -12,6 +12,7 @@ tags:
   - name: Bills
   - name: Reminders
   - name: Insights
+  - name: Webhooks
 paths:
   /auth/register:
     post:
@@ -350,6 +351,192 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
 
+  /webhooks:
+    post:
+      summary: Create webhook subscription
+      tags: [Webhooks]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewWebhookSubscription'
+            example:
+              url: https://example.com/webhook
+              event_types: ["expense.created", "bill.paid"]
+      responses:
+        '201':
+          description: Subscription created (secret is only returned once)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookSubscriptionWithSecret'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+    get:
+      summary: List webhook subscriptions
+      tags: [Webhooks]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: List of subscriptions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WebhookSubscription'
+
+  /webhooks/{subscriptionId}:
+    patch:
+      summary: Update webhook subscription
+      tags: [Webhooks]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: subscriptionId
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                url: { type: string }
+                event_types:
+                  type: array
+                  items: { type: string }
+                active: { type: boolean }
+      responses:
+        '200':
+          description: Updated subscription
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookSubscription'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+    delete:
+      summary: Delete webhook subscription
+      tags: [Webhooks]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: subscriptionId
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /webhooks/{subscriptionId}/deliveries:
+    get:
+      summary: List delivery logs for a subscription
+      tags: [Webhooks]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: subscriptionId
+          required: true
+          schema: { type: integer }
+        - in: query
+          name: page
+          schema: { type: integer, default: 1 }
+        - in: query
+          name: page_size
+          schema: { type: integer, default: 50, maximum: 100 }
+      responses:
+        '200':
+          description: List of delivery logs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WebhookDeliveryLog'
+
+  /webhooks/{subscriptionId}/test:
+    post:
+      summary: Send a test ping to verify connectivity
+      tags: [Webhooks]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: subscriptionId
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Test result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  status_code: { type: integer }
+                  latency_ms: { type: integer }
+                  error: { type: string }
+
+  /webhooks/event-types:
+    get:
+      summary: List supported webhook event types
+      tags: [Webhooks]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Supported event types
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  event_types:
+                    type: array
+                    items: { type: string }
+              example:
+                event_types:
+                  - expense.created
+                  - expense.updated
+                  - expense.deleted
+                  - bill.created
+                  - bill.paid
+                  - reminder.triggered
+                  - budget.suggestion_generated
+
+  /webhooks/metrics:
+    get:
+      summary: Webhook delivery metrics
+      tags: [Webhooks]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Aggregated delivery stats
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookMetrics'
+
 components:
   securitySchemes:
     bearerAuth:
@@ -427,3 +614,59 @@ components:
         message: { type: string }
         send_at: { type: string, format: date-time }
         channel: { type: string, enum: [email, whatsapp], default: email }
+    NewWebhookSubscription:
+      type: object
+      required: [url, event_types]
+      properties:
+        url: { type: string, format: uri }
+        event_types:
+          type: array
+          items: { type: string }
+          example: ["expense.created", "bill.paid"]
+    WebhookSubscription:
+      type: object
+      properties:
+        id: { type: integer }
+        url: { type: string }
+        event_types:
+          type: array
+          items: { type: string }
+        active: { type: boolean }
+        consecutive_failures: { type: integer }
+        disabled_at: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+    WebhookSubscriptionWithSecret:
+      allOf:
+        - $ref: '#/components/schemas/WebhookSubscription'
+        - type: object
+          properties:
+            secret:
+              type: string
+              description: HMAC secret (only returned on creation)
+    WebhookDeliveryLog:
+      type: object
+      properties:
+        id: { type: integer }
+        event_id: { type: integer }
+        event_type: { type: string }
+        correlation_id: { type: string, format: uuid }
+        status: { type: string, enum: [pending, delivered, dead_letter] }
+        status_code: { type: integer, nullable: true }
+        attempt: { type: integer }
+        latency_ms: { type: integer, nullable: true }
+        failure_class: { type: string, nullable: true, enum: [timeout, connection_error, http_4xx, http_5xx, ssl_error, unknown] }
+        next_retry_at: { type: string, format: date-time, nullable: true }
+        delivered_at: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+    WebhookMetrics:
+      type: object
+      properties:
+        total_deliveries: { type: integer }
+        delivered: { type: integer }
+        failed: { type: integer }
+        dead_letter: { type: integer }
+        pending_retries: { type: integer }
+        avg_latency_ms: { type: number, nullable: true }
+        failure_breakdown:
+          type: object
+          additionalProperties: { type: integer }

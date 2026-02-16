@@ -7,6 +7,7 @@ from ..extensions import db
 from ..models import Expense
 from ..services.cache import cache_delete_patterns, monthly_summary_key
 from ..services import expense_import
+from ..services.webhook import emit_event
 import logging
 
 bp = Blueprint("expenses", __name__)
@@ -82,6 +83,10 @@ def create_expense():
             f"insights:{uid}:*",
         ]
     )
+    try:
+        emit_event(uid, "expense.created", _expense_to_dict(e))
+    except Exception:
+        logger.debug("Webhook emit failed for expense.created", exc_info=True)
     return jsonify(_expense_to_dict(e)), 201
 
 
@@ -114,6 +119,10 @@ def update_expense(expense_id: int):
         e.spent_at = date.fromisoformat(raw_date)
     db.session.commit()
     _invalidate_expense_cache(uid, e.spent_at.isoformat())
+    try:
+        emit_event(uid, "expense.updated", _expense_to_dict(e))
+    except Exception:
+        logger.debug("Webhook emit failed for expense.updated", exc_info=True)
     return jsonify(_expense_to_dict(e))
 
 
@@ -124,10 +133,15 @@ def delete_expense(expense_id: int):
     e = db.session.get(Expense, expense_id)
     if not e or e.user_id != uid:
         return jsonify(error="not found"), 404
+    expense_data = _expense_to_dict(e)
     spent_at = e.spent_at.isoformat()
     db.session.delete(e)
     db.session.commit()
     _invalidate_expense_cache(uid, spent_at)
+    try:
+        emit_event(uid, "expense.deleted", expense_data)
+    except Exception:
+        logger.debug("Webhook emit failed for expense.deleted", exc_info=True)
     return jsonify(message="deleted")
 
 

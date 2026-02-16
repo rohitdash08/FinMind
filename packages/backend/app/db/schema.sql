@@ -90,3 +90,48 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   action VARCHAR(100) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+-- Webhook Event System
+CREATE TABLE IF NOT EXISTS webhook_subscriptions (
+  id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  url VARCHAR(2048) NOT NULL,
+  secret VARCHAR(64) NOT NULL,
+  event_types TEXT NOT NULL,
+  active BOOLEAN NOT NULL DEFAULT TRUE,
+  consecutive_failures INT NOT NULL DEFAULT 0,
+  disabled_at TIMESTAMP,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_webhook_subs_user_active
+  ON webhook_subscriptions(user_id, active);
+
+CREATE TABLE IF NOT EXISTS webhook_events (
+  id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  event_type VARCHAR(100) NOT NULL,
+  event_version VARCHAR(10) NOT NULL DEFAULT '1',
+  payload TEXT NOT NULL,
+  correlation_id VARCHAR(36) UNIQUE NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_webhook_events_user
+  ON webhook_events(user_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS webhook_delivery_logs (
+  id SERIAL PRIMARY KEY,
+  event_id INT NOT NULL REFERENCES webhook_events(id) ON DELETE CASCADE,
+  subscription_id INT NOT NULL REFERENCES webhook_subscriptions(id) ON DELETE CASCADE,
+  status VARCHAR(20) NOT NULL DEFAULT 'pending',
+  status_code INT,
+  response_body TEXT,
+  attempt INT NOT NULL DEFAULT 1,
+  latency_ms INT,
+  failure_class VARCHAR(50),
+  next_retry_at TIMESTAMP,
+  delivered_at TIMESTAMP,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_webhook_delivery_pending
+  ON webhook_delivery_logs(status, next_retry_at)
+  WHERE status = 'pending' AND next_retry_at IS NOT NULL;

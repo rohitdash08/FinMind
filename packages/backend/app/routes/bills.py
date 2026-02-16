@@ -4,6 +4,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..extensions import db
 from ..models import Bill, BillCadence
 from ..services.cache import cache_delete_patterns
+from ..services.webhook import emit_event
 import logging
 
 bp = Blueprint("bills", __name__)
@@ -59,6 +60,21 @@ def create_bill():
     cache_delete_patterns(
         [f"user:{uid}:upcoming_bills*", f"user:{uid}:dashboard_summary:*"]
     )
+    try:
+        emit_event(
+            uid,
+            "bill.created",
+            {
+                "id": b.id,
+                "name": b.name,
+                "amount": float(b.amount),
+                "currency": b.currency,
+                "next_due_date": b.next_due_date.isoformat(),
+                "cadence": b.cadence.value,
+            },
+        )
+    except Exception:
+        logger.debug("Webhook emit failed for bill.created", exc_info=True)
     return jsonify(id=b.id), 201
 
 
@@ -85,4 +101,17 @@ def mark_paid(bill_id: int):
     logger.info(
         "Marked bill paid id=%s user=%s next_due_date=%s", b.id, uid, b.next_due_date
     )
+    try:
+        emit_event(
+            uid,
+            "bill.paid",
+            {
+                "id": b.id,
+                "name": b.name,
+                "amount": float(b.amount),
+                "next_due_date": b.next_due_date.isoformat(),
+            },
+        )
+    except Exception:
+        logger.debug("Webhook emit failed for bill.paid", exc_info=True)
     return jsonify(message="updated")

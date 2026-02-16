@@ -105,3 +105,50 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+# ---------------------------------------------------------------------------
+# Webhook Event System
+# ---------------------------------------------------------------------------
+
+
+class WebhookSubscription(db.Model):
+    __tablename__ = "webhook_subscriptions"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    url = db.Column(db.String(2048), nullable=False)
+    secret = db.Column(db.String(64), nullable=False)
+    event_types = db.Column(db.Text, nullable=False)  # JSON array
+    active = db.Column(db.Boolean, default=True, nullable=False)
+    consecutive_failures = db.Column(db.Integer, default=0, nullable=False)
+    disabled_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class WebhookEvent(db.Model):
+    __tablename__ = "webhook_events"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    event_type = db.Column(db.String(100), nullable=False)
+    event_version = db.Column(db.String(10), default="1", nullable=False)
+    payload = db.Column(db.Text, nullable=False)  # JSON
+    correlation_id = db.Column(db.String(36), unique=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class WebhookDeliveryLog(db.Model):
+    __tablename__ = "webhook_delivery_logs"
+    id = db.Column(db.Integer, primary_key=True)
+    event_id = db.Column(db.Integer, db.ForeignKey("webhook_events.id"), nullable=False)
+    subscription_id = db.Column(
+        db.Integer, db.ForeignKey("webhook_subscriptions.id"), nullable=False
+    )
+    status = db.Column(db.String(20), default="pending", nullable=False)
+    status_code = db.Column(db.Integer, nullable=True)
+    response_body = db.Column(db.Text, nullable=True)
+    attempt = db.Column(db.Integer, default=1, nullable=False)
+    latency_ms = db.Column(db.Integer, nullable=True)
+    failure_class = db.Column(db.String(50), nullable=True)
+    next_retry_at = db.Column(db.DateTime, nullable=True)
+    delivered_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
