@@ -353,7 +353,7 @@ export default function Expenses() {
               ))}
             </select>
           </div>
-          <Button onClick={onSubmit} disabled={saving}>Save Expense</Button>
+          <Button onClick={() => {}} disabled={saving}>Save Expense</Button>
         </div>
 
         <div className="card card-interactive p-4 space-y-3 fade-in-up">
