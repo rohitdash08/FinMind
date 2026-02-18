@@ -101,3 +101,7 @@ def _ensure_schema_compatibility(app: Flask) -> None:
         conn.rollback()
     finally:
         conn.close()
+
+# Lines 1-103 of packages/backend/app/__init__.py
+
+# No changes needed for this section
