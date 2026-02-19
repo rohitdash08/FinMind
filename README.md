@@ -66,6 +66,7 @@ OpenAPI: `backend/app/openapi.yaml`
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
 - Insights: `/insights/monthly`, `/insights/budget-suggestion`
+- Digest: `/digest/weekly?week=YYYY-WNN` — weekly spending summary with category breakdown, week-over-week trends, and smart insights
 
 ## MVP UI/UX Plan
 - Auth screens: register/login.
@@ -75,6 +76,7 @@ OpenAPI: `backend/app/openapi.yaml`
   - AI budget suggestion card.
 - Expenses page: add expense (amount, category, notes, date), list & filter.
 - Bills page: create bill (name, amount, cadence, due date, channel), toggle WhatsApp/email.
+- **Digest page**: weekly summary with total spent, category breakdown bars, week-over-week change badges, trends, and AI insights. Navigate between weeks.
 - Settings: profile, categories, reminders default channel, export (premium).
 
 ## Monetization Plan
