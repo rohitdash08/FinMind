@@ -106,3 +106,45 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class WebhookEventType(str, Enum):
+    """Webhook event types"""
+    EXPENSE_CREATED = "expense.created"
+    EXPENSE_UPDATED = "expense.updated"
+    EXPENSE_DELETED = "expense.deleted"
+    BILL_CREATED = "bill.created"
+    BILL_UPDATED = "bill.updated"
+    BILL_DELETED = "bill.deleted"
+    BILL_PAID = "bill.paid"
+    CATEGORY_CREATED = "category.created"
+    CATEGORY_UPDATED = "category.updated"
+    CATEGORY_DELETED = "category.deleted"
+    REMINDER_CREATED = "reminder.created"
+    REMINDER_SENT = "reminder.sent"
+
+
+class Webhook(db.Model):
+    __tablename__ = "webhooks"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    url = db.Column(db.String(2048), nullable=False)
+    secret = db.Column(db.String(255), nullable=False)
+    events = db.Column(db.String(2000), nullable=False)  # JSON array of event types
+    active = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+
+class WebhookEvent(db.Model):
+    __tablename__ = "webhook_events"
+    id = db.Column(db.Integer, primary_key=True)
+    webhook_id = db.Column(db.Integer, db.ForeignKey("webhooks.id"), nullable=False)
+    event_type = db.Column(db.String(100), nullable=False)
+    payload = db.Column(db.Text, nullable=False)  # JSON payload
+    status = db.Column(db.String(50), default="pending", nullable=False)  # pending, delivered, failed
+    delivery_attempts = db.Column(db.Integer, default=0, nullable=False)
+    last_error = db.Column(db.String(500), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    last_attempted_at = db.Column(db.DateTime, nullable=True)
+    delivered_at = db.Column(db.DateTime, nullable=True)

@@ -76,6 +76,19 @@ def create_app(settings: Settings | None = None) -> Flask:
             finally:
                 conn.close()
 
+    @app.cli.command("deliver-webhooks")
+    @click.option("--batch-size", default=100, help="Number of events to process")
+    @click.option("--delay-minutes", default=0, help="Minimum minutes since last attempt before retry")
+    def deliver_webhooks(batch_size: int, delay_minutes: int):
+        """Process pending webhook events for delivery."""
+        from .services.webhooks import deliver_webhook_events
+        
+        with app.app_context():
+            stats = deliver_webhook_events(batch_size=batch_size, delay_minutes=delay_minutes)
+            click.echo(f"Processed: {stats['processed']}, Delivered: {stats['delivered']}, Failed: {stats['failed']}")
+            if stats['errors']:
+                click.echo(f"Errors: {stats['errors']}")
+
     return app
 
 
