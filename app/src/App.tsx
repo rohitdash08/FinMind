@@ -16,6 +16,7 @@ import NotFound from "./pages/NotFound";
 import { Landing } from "./pages/Landing";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
 import Account from "./pages/Account";
+import Household from "./pages/Household";
 import Savings from "./pages/Savings";
 import Household from "./pages/Household";
 
@@ -98,6 +99,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Savings />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="household"
+              element={
+                <ProtectedRoute>
+                  <Household />
                 </ProtectedRoute>
               }
             />
