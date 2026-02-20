@@ -12,7 +12,9 @@ const navigation = [
   { name: 'Bills', href: '/bills' },
   { name: 'Reminders', href: '/reminders' },
   { name: 'Expenses', href: '/expenses' },
+  { name: 'Savings', href: '/savings' },
   { name: 'Analytics', href: '/analytics' },
+  { name: 'Household', href: '/household' },
 ];
 
 export function Navbar() {

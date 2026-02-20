@@ -37,6 +37,7 @@ class Expense(db.Model):
     expense_type = db.Column(db.String(20), default="EXPENSE", nullable=False)
     notes = db.Column(db.String(500), nullable=True)
     spent_at = db.Column(db.Date, default=date.today, nullable=False)
+    household_id = db.Column(db.Integer, db.ForeignKey("households.id"), nullable=True)
     source_recurring_id = db.Column(
         db.Integer, db.ForeignKey("recurring_expenses.id"), nullable=True
     )
@@ -125,6 +126,60 @@ class UserSubscription(db.Model):
     )
     active = db.Column(db.Boolean, default=False, nullable=False)
     started_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class SavingsGoal(db.Model):
+    __tablename__ = "savings_goals"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    name = db.Column(db.String(200), nullable=False)
+    target_amount = db.Column(db.Numeric(12, 2), nullable=False)
+    current_amount = db.Column(db.Numeric(12, 2), default=0, nullable=False)
+    currency = db.Column(db.String(10), default="INR", nullable=False)
+    deadline = db.Column(db.Date, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    milestones = db.relationship(
+        "SavingsMilestone", backref="goal", cascade="all, delete-orphan", lazy=True
+    )
+
+
+class SavingsMilestone(db.Model):
+    __tablename__ = "savings_milestones"
+    id = db.Column(db.Integer, primary_key=True)
+    goal_id = db.Column(
+        db.Integer, db.ForeignKey("savings_goals.id"), nullable=False
+    )
+    name = db.Column(db.String(100), nullable=False)
+    amount = db.Column(db.Numeric(12, 2), nullable=False)
+    reached_at = db.Column(db.DateTime, nullable=True)
+
+
+class HouseholdRole(str, Enum):
+    OWNER = "OWNER"
+    MEMBER = "MEMBER"
+
+
+class Household(db.Model):
+    __tablename__ = "households"
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(200), nullable=False)
+    invite_code = db.Column(db.String(64), unique=True, nullable=False)
+    created_by = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    members = db.relationship("HouseholdMember", backref="household", lazy="dynamic")
+
+
+class HouseholdMember(db.Model):
+    __tablename__ = "household_members"
+    id = db.Column(db.Integer, primary_key=True)
+    household_id = db.Column(db.Integer, db.ForeignKey("households.id"), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    role = db.Column(db.String(20), default=HouseholdRole.MEMBER.value, nullable=False)
+    joined_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    __table_args__ = (
+        db.UniqueConstraint("household_id", "user_id", name="uq_household_user"),
+    )
 
 
 class AuditLog(db.Model):

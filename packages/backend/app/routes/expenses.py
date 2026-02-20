@@ -5,7 +5,7 @@ from decimal import Decimal, InvalidOperation
 from flask import Blueprint, current_app, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..extensions import db
-from ..models import Expense, RecurringCadence, RecurringExpense, User
+from ..models import Expense, HouseholdMember, RecurringCadence, RecurringExpense, User
 from ..services.cache import cache_delete_patterns, monthly_summary_key
 from ..services import expense_import
 import logging
@@ -65,12 +65,20 @@ def create_expense():
     description = (data.get("description") or data.get("notes") or "").strip()
     if not description:
         return jsonify(error="description required"), 400
+    household_id = data.get("household_id")
+    if household_id:
+        membership = db.session.query(HouseholdMember).filter_by(
+            user_id=uid, household_id=int(household_id)
+        ).first()
+        if not membership:
+            return jsonify(error="not a member of this household"), 403
     e = Expense(
         user_id=uid,
         amount=amount,
         currency=(data.get("currency") or (user.preferred_currency if user else "INR")),
         expense_type=str(data.get("expense_type") or "EXPENSE").upper(),
         category_id=data.get("category_id"),
+        household_id=int(household_id) if household_id else None,
         notes=description,
         spent_at=date.fromisoformat(raw_date) if raw_date else date.today(),
     )
