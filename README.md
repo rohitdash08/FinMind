@@ -140,9 +140,26 @@ finmind/
 ```
 
 ## Deployment
-- Backend: Dockerized Flask to Railway/Render free tier (Postgres & Redis managed or via Compose locally).
-- Frontend: Vercel.
-- Secrets: use environment variables (.env locally, platform secrets in cloud).
+
+### 🚀 Quick Deploy
+
+FinMind supports multiple deployment options:
+
+- **Local Development:** Docker Compose (fastest setup)
+- **Cloud PaaS:** Railway, Heroku, Render, Fly.io, DigitalOcean
+- **Container Platforms:** AWS ECS, GCP Cloud Run, Azure Container Apps
+- **Kubernetes:** Production-ready Helm chart with auto-scaling
+- **Frontend CDN:** Vercel, Netlify
+
+**Quick Start:** See [DEPLOYMENT_QUICKSTART.md](DEPLOYMENT_QUICKSTART.md)
+
+**Complete Guide:** See [deploy/DEPLOYMENT.md](deploy/DEPLOYMENT.md)
+
+### One-Click Deploy Buttons
+
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/new/template?template=https://github.com/rohitdash08/FinMind)
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/rohitdash08/FinMind)
+[![Deploy to Heroku](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy?template=https://github.com/rohitdash08/FinMind)
 
 ## Local Development
 1) Prereqs: Docker, Docker Compose, Node 20+, Python 3.11+

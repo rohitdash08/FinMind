@@ -56,6 +56,18 @@ def create_app(settings: Settings | None = None) -> Flask:
     def health():
         return jsonify(status="ok"), 200
 
+    @app.get("/ready")
+    def ready():
+        """Readiness probe - checks if app can handle requests"""
+        try:
+            # Check database connection
+            db.session.execute(db.text("SELECT 1"))
+            db.session.commit()
+            return jsonify(status="ready", database="connected"), 200
+        except Exception as e:
+            logger.error("Readiness check failed: %s", str(e))
+            return jsonify(status="not ready", error=str(e)), 503
+
     @app.errorhandler(500)
     def internal_error(_error):
         return jsonify(error="internal server error"), 500

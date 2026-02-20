@@ -1,0 +1,58 @@
+properties:
+  managedEnvironmentId: /subscriptions/SUBSCRIPTION_ID/resourceGroups/finmind-rg/providers/Microsoft.App/managedEnvironments/finmind-env
+  configuration:
+    ingress:
+      external: true
+      targetPort: 8000
+      transport: auto
+      traffic:
+        - weight: 100
+          latestRevision: true
+    secrets:
+      - name: database-url
+        value: postgresql://user:pass@host:5432/finmind
+      - name: redis-url
+        value: redis://host:6379/0
+      - name: jwt-secret
+        value: change-me-in-production
+    registries:
+      - server: finmind.azurecr.io
+        username: finmind
+        passwordSecretRef: registry-password
+  template:
+    containers:
+      - image: finmind.azurecr.io/backend:latest
+        name: backend
+        env:
+          - name: DATABASE_URL
+            secretRef: database-url
+          - name: REDIS_URL
+            secretRef: redis-url
+          - name: JWT_SECRET
+            secretRef: jwt-secret
+          - name: LOG_LEVEL
+            value: INFO
+        resources:
+          cpu: 0.5
+          memory: 1Gi
+        probes:
+          - type: Liveness
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          - type: Readiness
+            httpGet:
+              path: /ready
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+    scale:
+      minReplicas: 1
+      maxReplicas: 10
+      rules:
+        - name: http-scaling
+          http:
+            metadata:
+              concurrentRequests: "50"

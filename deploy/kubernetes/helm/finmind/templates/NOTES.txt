@@ -1,0 +1,121 @@
+╔════════════════════════════════════════════════════════════╗
+║          FinMind Deployed Successfully! 🎉                 ║
+╚════════════════════════════════════════════════════════════╝
+
+Release: {{ .Release.Name }}
+Namespace: {{ .Values.namespace }}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔍 Check Deployment Status:
+
+  kubectl get pods -n {{ .Values.namespace }}
+  kubectl get svc -n {{ .Values.namespace }}
+  kubectl get ingress -n {{ .Values.namespace }}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📦 Deployed Components:
+
+  ✓ Backend ({{ .Values.backend.replicaCount }} replicas)
+  {{- if .Values.backend.autoscaling.enabled }}
+  ✓ Backend HPA ({{ .Values.backend.autoscaling.minReplicas }}-{{ .Values.backend.autoscaling.maxReplicas }} replicas)
+  {{- end }}
+  ✓ Frontend ({{ .Values.frontend.replicaCount }} replicas)
+  {{- if .Values.frontend.autoscaling.enabled }}
+  ✓ Frontend HPA ({{ .Values.frontend.autoscaling.minReplicas }}-{{ .Values.frontend.autoscaling.maxReplicas }} replicas)
+  {{- end }}
+  {{- if .Values.postgresql.enabled }}
+  ✓ PostgreSQL (StatefulSet)
+  {{- end }}
+  {{- if .Values.redis.enabled }}
+  ✓ Redis (Cache)
+  {{- end }}
+  {{- if .Values.ingress.enabled }}
+  ✓ Ingress
+  {{- end }}
+  {{- if .Values.monitoring.enabled }}
+  ✓ ServiceMonitor (Prometheus)
+  {{- end }}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🌐 Access Your Application:
+
+{{- if .Values.ingress.enabled }}
+{{- range .Values.ingress.hosts }}
+
+  External URL: https://{{ .host }}
+{{- end }}
+
+{{- else }}
+
+  Port-forward to access services:
+
+  # Backend
+  kubectl port-forward -n {{ .Values.namespace }} svc/{{ include "finmind.fullname" . }}-backend 8000:8000
+
+  # Frontend
+  kubectl port-forward -n {{ .Values.namespace }} svc/{{ include "finmind.fullname" . }}-frontend 3000:80
+
+  Then access:
+  - Frontend: http://localhost:3000
+  - Backend:  http://localhost:8000
+{{- end }}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📊 Monitoring:
+
+  # View logs
+  kubectl logs -n {{ .Values.namespace }} -l app.kubernetes.io/component=backend --tail=50
+  kubectl logs -n {{ .Values.namespace }} -l app.kubernetes.io/component=frontend --tail=50
+
+  # Check autoscaling
+  kubectl get hpa -n {{ .Values.namespace }}
+
+  # Check pod resource usage
+  kubectl top pods -n {{ .Values.namespace }}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔧 Troubleshooting:
+
+  # Describe a pod
+  kubectl describe pod -n {{ .Values.namespace }} <pod-name>
+
+  # View events
+  kubectl get events -n {{ .Values.namespace }} --sort-by='.lastTimestamp'
+
+  # Test database connection
+  kubectl exec -n {{ .Values.namespace }} {{ include "finmind.fullname" . }}-postgresql-0 -- psql -U {{ .Values.postgresql.auth.username }} -c "SELECT 1"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📚 Documentation:
+
+  Deployment Guide: https://github.com/rohitdash08/FinMind/blob/main/deploy/DEPLOYMENT.md
+  Helm Chart README: https://github.com/rohitdash08/FinMind/blob/main/deploy/kubernetes/helm/finmind/README.md
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎯 Next Steps:
+
+  1. Verify deployment health:
+     kubectl get pods -n {{ .Values.namespace }}
+
+  2. Test endpoints:
+     curl http://your-backend/health
+     curl http://your-backend/ready
+
+  3. Configure ingress/TLS if needed
+
+  4. Set up monitoring and alerts
+
+  5. Configure backups for PostgreSQL
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Need help? Open an issue: https://github.com/rohitdash08/FinMind/issues
+
+Happy budgeting! 💰
