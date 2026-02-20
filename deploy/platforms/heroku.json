@@ -1,0 +1,46 @@
+{
+  "name": "finmind",
+  "description": "AI-Powered Budget & Bill Tracking Application",
+  "repository": "https://github.com/rohitdash08/FinMind",
+  "keywords": [
+    "fintech",
+    "budgeting",
+    "flask",
+    "react",
+    "ai"
+  ],
+  "stack": "container",
+  "formation": {
+    "web": {
+      "quantity": 1,
+      "size": "basic"
+    }
+  },
+  "addons": [
+    {
+      "plan": "heroku-postgresql:mini"
+    },
+    {
+      "plan": "heroku-redis:mini"
+    }
+  ],
+  "buildpacks": [],
+  "env": {
+    "LOG_LEVEL": {
+      "description": "Logging level (DEBUG, INFO, WARNING, ERROR)",
+      "value": "INFO"
+    },
+    "JWT_SECRET": {
+      "description": "Secret key for JWT token signing",
+      "generator": "secret"
+    },
+    "OPENAI_API_KEY": {
+      "description": "OpenAI API key for AI insights",
+      "required": false
+    },
+    "GEMINI_API_KEY": {
+      "description": "Google Gemini API key for AI insights",
+      "required": false
+    }
+  }
+}

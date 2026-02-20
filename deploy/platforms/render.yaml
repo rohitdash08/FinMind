@@ -1,0 +1,40 @@
+services:
+  - type: web
+    name: finmind-backend
+    env: docker
+    dockerfilePath: ./packages/backend/Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: finmind-db
+          property: connectionString
+      - key: REDIS_URL
+        fromDatabase:
+          name: finmind-redis
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: LOG_LEVEL
+        value: INFO
+    scaling:
+      minInstances: 1
+      maxInstances: 3
+      targetCPUPercent: 70
+
+  - type: web
+    name: finmind-frontend
+    env: docker
+    dockerfilePath: ./app/Dockerfile
+    envVars:
+      - key: VITE_API_URL
+        value: https://finmind-backend.onrender.com
+
+databases:
+  - name: finmind-db
+    databaseName: finmind
+    user: finmind
+    plan: free
+
+  - name: finmind-redis
+    plan: free

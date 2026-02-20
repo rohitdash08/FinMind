@@ -1,0 +1,16 @@
+apiVersion: v2
+name: finmind
+description: AI-Powered Budget & Bill Tracking Application
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - fintech
+  - budget
+  - finance
+  - ai
+home: https://github.com/rohitdash08/FinMind
+maintainers:
+  - name: FinMind Team
+    email: support@finmind.app
+dependencies: []
