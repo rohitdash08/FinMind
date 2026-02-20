@@ -127,6 +127,33 @@ class UserSubscription(db.Model):
     started_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
 
+class SavingsGoal(db.Model):
+    __tablename__ = "savings_goals"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    name = db.Column(db.String(200), nullable=False)
+    target_amount = db.Column(db.Numeric(12, 2), nullable=False)
+    current_amount = db.Column(db.Numeric(12, 2), default=0, nullable=False)
+    currency = db.Column(db.String(10), default="INR", nullable=False)
+    deadline = db.Column(db.Date, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    milestones = db.relationship(
+        "SavingsMilestone", backref="goal", cascade="all, delete-orphan", lazy=True
+    )
+
+
+class SavingsMilestone(db.Model):
+    __tablename__ = "savings_milestones"
+    id = db.Column(db.Integer, primary_key=True)
+    goal_id = db.Column(
+        db.Integer, db.ForeignKey("savings_goals.id"), nullable=False
+    )
+    name = db.Column(db.String(100), nullable=False)
+    amount = db.Column(db.Numeric(12, 2), nullable=False)
+    reached_at = db.Column(db.DateTime, nullable=True)
+
+
 class AuditLog(db.Model):
     __tablename__ = "audit_logs"
     id = db.Column(db.Integer, primary_key=True)
