@@ -123,3 +123,23 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   action VARCHAR(100) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+-- Household tables for shared family budgeting
+CREATE TABLE IF NOT EXISTS households (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(200) NOT NULL,
+  owner_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS household_members (
+  id SERIAL PRIMARY KEY,
+  household_id INT NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  role VARCHAR(20) NOT NULL DEFAULT 'MEMBER',
+  joined_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  UNIQUE (household_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_household_members_user ON household_members(user_id);
+CREATE INDEX IF NOT EXISTS idx_household_members_household ON household_members(household_id);
