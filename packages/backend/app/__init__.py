@@ -44,6 +44,8 @@ def create_app(settings: Settings | None = None) -> Flask:
     # Extensions
     db.init_app(app)
     jwt.init_app(app)
+    if not scheduler.running:
+        scheduler.start()
     app.extensions["observability"] = Observability()
     # CORS for local dev frontend
     CORS(app, resources={r"*": {"origins": "*"}}, supports_credentials=True)
