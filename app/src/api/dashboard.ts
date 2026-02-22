@@ -37,7 +37,11 @@ export type DashboardSummary = {
   errors?: string[];
 };
 
-export async function getDashboardSummary(month?: string): Promise<DashboardSummary> {
-  const query = month ? `?month=${encodeURIComponent(month)}` : '';
-  return api<DashboardSummary>(`/dashboard/summary${query}`);
+export async function getDashboardSummary(month?: string, accountId?: number): Promise<DashboardSummary> {
+  const params = new URLSearchParams();
+  if (month) params.append('month', month);
+  if (accountId !== undefined) params.append('account_id', accountId.toString());
+  const query = params.toString();
+  const suffix = query ? `?${query}` : '';
+  return api<DashboardSummary>(`/dashboard/summary${suffix}`);
 }

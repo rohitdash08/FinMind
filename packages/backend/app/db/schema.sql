@@ -18,6 +18,25 @@ CREATE TABLE IF NOT EXISTS categories (
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
+
+DO $$ BEGIN
+  CREATE TYPE account_type AS ENUM ('BANK', 'CREDIT_CARD', 'INVESTMENT', 'CASH', 'OTHER');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
+
+CREATE TABLE IF NOT EXISTS financial_accounts (
+  id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name VARCHAR(100) NOT NULL,
+  type account_type NOT NULL DEFAULT 'BANK',
+  currency VARCHAR(10) NOT NULL DEFAULT 'INR',
+  balance NUMERIC(12,2) DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_financial_accounts_user ON financial_accounts(user_id);
+
+
 CREATE TABLE IF NOT EXISTS expenses (
   id SERIAL PRIMARY KEY,
   user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -64,6 +83,7 @@ DO $$ BEGIN
 EXCEPTION
   WHEN duplicate_object THEN NULL;
 END $$;
+
 
 CREATE TABLE IF NOT EXISTS bills (
   id SERIAL PRIMARY KEY,
@@ -123,3 +143,11 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   action VARCHAR(100) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE expenses
+  ADD COLUMN IF NOT EXISTS account_id INT REFERENCES financial_accounts(id) ON DELETE SET NULL;
+ALTER TABLE recurring_expenses
+  ADD COLUMN IF NOT EXISTS account_id INT REFERENCES financial_accounts(id) ON DELETE SET NULL;
+ALTER TABLE bills
+  ADD COLUMN IF NOT EXISTS account_id INT REFERENCES financial_accounts(id) ON DELETE SET NULL;
+

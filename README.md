@@ -67,6 +67,8 @@ OpenAPI: `backend/app/openapi.yaml`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
 - Insights: `/insights/monthly`, `/insights/budget-suggestion`
 
+- Dashboard: `/dashboard/summary?month=YYYY-MM&account_id=<id>` – overview for a specific financial account (or all accounts if omitted).
+- Financial Accounts: CRUD at `/accounts` (list, create, update, delete).
 ## MVP UI/UX Plan
 - Auth screens: register/login.
 - Dashboard:

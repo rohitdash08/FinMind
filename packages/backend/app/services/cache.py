@@ -19,7 +19,9 @@ def insights_key(user_id: int, ym: str) -> str:
     return f"insights:{user_id}:{ym}"
 
 
-def dashboard_summary_key(user_id: int, ym: str) -> str:
+def dashboard_summary_key(user_id: int, ym: str, account_id: int | None = None) -> str:
+    if account_id is not None:
+        return f"user:{user_id}:dashboard_summary:{ym}:account:{account_id}"
     return f"user:{user_id}:dashboard_summary:{ym}"
 
 

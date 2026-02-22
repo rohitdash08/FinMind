@@ -27,6 +27,26 @@ class Category(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
 
+
+class AccountType(str, Enum):
+    BANK = "BANK"
+    CREDIT_CARD = "CREDIT_CARD"
+    INVESTMENT = "INVESTMENT"
+    CASH = "CASH"
+    OTHER = "OTHER"
+
+
+class FinancialAccount(db.Model):
+    __tablename__ = "financial_accounts"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    name = db.Column(db.String(100), nullable=False)
+    type = db.Column(SAEnum(AccountType), default=AccountType.BANK, nullable=False)
+    currency = db.Column(db.String(10), default="INR", nullable=False)
+    balance = db.Column(db.Numeric(12, 2), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
 class Expense(db.Model):
     __tablename__ = "expenses"
     id = db.Column(db.Integer, primary_key=True)
@@ -38,6 +58,7 @@ class Expense(db.Model):
     notes = db.Column(db.String(500), nullable=True)
     spent_at = db.Column(db.Date, default=date.today, nullable=False)
     source_recurring_id = db.Column(
+    account_id = db.Column(db.Integer, db.ForeignKey("financial_accounts.id"), nullable=True)
         db.Integer, db.ForeignKey("recurring_expenses.id"), nullable=True
     )
     created_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
@@ -55,6 +76,7 @@ class RecurringExpense(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     category_id = db.Column(db.Integer, db.ForeignKey("categories.id"), nullable=True)
+    account_id = db.Column(db.Integer, db.ForeignKey("financial_accounts.id"), nullable=True)
     amount = db.Column(db.Numeric(12, 2), nullable=False)
     currency = db.Column(db.String(10), default="INR", nullable=False)
     expense_type = db.Column(db.String(20), default="EXPENSE", nullable=False)
@@ -77,6 +99,7 @@ class Bill(db.Model):
     __tablename__ = "bills"
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    account_id = db.Column(db.Integer, db.ForeignKey("financial_accounts.id"), nullable=True)
     name = db.Column(db.String(200), nullable=False)
     amount = db.Column(db.Numeric(12, 2), nullable=False)
     currency = db.Column(db.String(10), default="INR", nullable=False)

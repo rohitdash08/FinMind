@@ -20,7 +20,6 @@ import {
   Plus,
 } from 'lucide-react';
 import { getDashboardSummary, type DashboardSummary } from '@/api/dashboard';
-import { listAccounts, type FinancialAccount as ApiFinancialAccount } from '@/api/accounts';
 import { useNavigate } from 'react-router-dom';
 import { formatMoney } from '@/lib/currency';
 
@@ -34,32 +33,13 @@ export function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7));
-  const [accounts, setAccounts] = useState<ApiFinancialAccount[]>([]);
-  const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
-  const [accountsLoading, setAccountsLoading] = useState(false);
 
-  // Load accounts
-  useEffect(() => {
-    (async () => {
-      setAccountsLoading(true);
-      try {
-        const accs = await listAccounts();
-        setAccounts(accs);
-      } catch (error: unknown) {
-        console.error('Failed to load accounts', error);
-      } finally {
-        setAccountsLoading(false);
-      }
-    })();
-  }, []);
-
-  // Load dashboard data
   useEffect(() => {
     (async () => {
       setLoading(true);
       setError(null);
       try {
-        const res = await getDashboardSummary(month, selectedAccountId || undefined);
+        const res = await getDashboardSummary(month);
         setData(res);
       } catch (error: unknown) {
         setError(error instanceof Error ? error.message : 'Failed to load dashboard');
@@ -67,7 +47,7 @@ export function Dashboard() {
         setLoading(false);
       }
     })();
-  }, [month, selectedAccountId]);
+  }, [month]);
 
   const summary = useMemo(() => {
     if (!data) {
@@ -139,19 +119,6 @@ export function Dashboard() {
               value={month}
               onChange={(e) => setMonth(e.target.value)}
             />
-            <select
-              className="input h-9 w-[180px]"
-              value={selectedAccountId ?? ''}
-              onChange={(e) => setSelectedAccountId(e.target.value ? parseInt(e.target.value) : null)}
-              disabled={accountsLoading}
-            >
-              <option value="">All Accounts</option>
-              {accounts.map((acc) => (
-                <option key={acc.id} value={acc.id}>
-                  {acc.name} ({acc.type})
-                </option>
-              ))}
-            </select>
             <Button variant="outline" size="sm" onClick={() => setMonth(new Date().toISOString().slice(0, 7))}>
               <Calendar className="w-4 h-4" />
               This Month

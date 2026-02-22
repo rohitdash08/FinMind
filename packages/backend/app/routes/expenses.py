@@ -5,7 +5,7 @@ from decimal import Decimal, InvalidOperation
 from flask import Blueprint, current_app, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..extensions import db
-from ..models import Expense, RecurringCadence, RecurringExpense, User
+from ..models import Expense, RecurringCadence, RecurringExpense, User, FinancialAccount
 from ..services.cache import cache_delete_patterns, monthly_summary_key
 from ..services import expense_import
 import logging
@@ -65,12 +65,19 @@ def create_expense():
     description = (data.get("description") or data.get("notes") or "").strip()
     if not description:
         return jsonify(error="description required"), 400
+    account_id = data.get("account_id")
+    account = None
+    if account_id is not None:
+        account = db.session.get(FinancialAccount, account_id)
+        if not account or account.user_id != uid:
+            return jsonify(error="account not found"), 404
     e = Expense(
         user_id=uid,
         amount=amount,
         currency=(data.get("currency") or (user.preferred_currency if user else "INR")),
         expense_type=str(data.get("expense_type") or "EXPENSE").upper(),
         category_id=data.get("category_id"),
+        account_id=account_id,
         notes=description,
         spent_at=date.fromisoformat(raw_date) if raw_date else date.today(),
     )
@@ -317,6 +324,7 @@ def _expense_to_dict(e: Expense) -> dict:
         "amount": float(e.amount),
         "currency": e.currency,
         "category_id": e.category_id,
+        "account_id": e.account_id,
         "expense_type": e.expense_type,
         "description": e.notes or "",
         "date": e.spent_at.isoformat(),
