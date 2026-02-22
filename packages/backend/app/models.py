@@ -133,3 +133,37 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class WebhookEventType(str, Enum):
+    EXPENSE_CREATED = "expense.created"
+    EXPENSE_UPDATED = "expense.updated"
+    EXPENSE_DELETED = "expense.deleted"
+    BILL_CREATED = "bill.created"
+    BILL_PAID = "bill.paid"
+    BUDGET_EXCEEDED = "budget.exceeded"
+    GOAL_COMPLETED = "goal.completed"
+
+
+class WebhookEndpoint(db.Model):
+    __tablename__ = "webhook_endpoints"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    url = db.Column(db.String(2048), nullable=False)
+    secret = db.Column(db.String(64), nullable=False)
+    events = db.Column(db.Text, nullable=False)  # JSON array of event types
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class WebhookDelivery(db.Model):
+    __tablename__ = "webhook_deliveries"
+    id = db.Column(db.Integer, primary_key=True)
+    endpoint_id = db.Column(db.Integer, db.ForeignKey("webhook_endpoints.id"), nullable=False)
+    event_type = db.Column(db.String(50), nullable=False)
+    payload = db.Column(db.Text, nullable=False)
+    response_status = db.Column(db.Integer, nullable=True)
+    success = db.Column(db.Boolean, default=False, nullable=False)
+    attempts = db.Column(db.Integer, default=0, nullable=False)
+    last_attempt_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
