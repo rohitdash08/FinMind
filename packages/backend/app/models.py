@@ -133,3 +133,42 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class BankConnectionStatus(str, Enum):
+    ACTIVE = "ACTIVE"
+    DISCONNECTED = "DISCONNECTED"
+    ERROR = "ERROR"
+
+
+class BankConnection(db.Model):
+    """Stores a user's connection to a bank provider."""
+    __tablename__ = "bank_connections"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    provider = db.Column(db.String(50), nullable=False)  # e.g. "mock", "plaid", "teller"
+    external_id = db.Column(db.String(255), nullable=True)  # provider-specific ID
+    account_name = db.Column(db.String(200), nullable=True)
+    status = db.Column(db.String(20), default=BankConnectionStatus.ACTIVE.value, nullable=False)
+    credentials = db.Column(db.Text, nullable=True)  # encrypted JSON
+    last_sync_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class BankTransaction(db.Model):
+    """Raw transactions imported from bank providers."""
+    __tablename__ = "bank_transactions"
+    id = db.Column(db.Integer, primary_key=True)
+    connection_id = db.Column(db.Integer, db.ForeignKey("bank_connections.id"), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    external_id = db.Column(db.String(255), nullable=True)  # dedup key
+    amount = db.Column(db.Numeric(14, 2), nullable=False)
+    currency = db.Column(db.String(10), default="USD", nullable=False)
+    description = db.Column(db.String(500), nullable=True)
+    category = db.Column(db.String(100), nullable=True)
+    transaction_date = db.Column(db.Date, nullable=False)
+    imported_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        db.UniqueConstraint("connection_id", "external_id", name="uq_bank_tx_external"),
+    )
