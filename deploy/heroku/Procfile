@@ -1,0 +1,2 @@
+web: gunicorn -w 2 -k gthread -b 0.0.0.0:$PORT wsgi:app
+release: python -m flask --app wsgi:app init-db

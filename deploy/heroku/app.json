@@ -1,0 +1,44 @@
+{
+  "name": "FinMind",
+  "description": "AI-powered personal finance management platform",
+  "repository": "https://github.com/rohitdash08/FinMind",
+  "logo": "",
+  "keywords": ["finance", "python", "flask", "react"],
+  "stack": "container",
+  "addons": [
+    {
+      "plan": "heroku-postgresql:essential-0",
+      "as": "DATABASE"
+    },
+    {
+      "plan": "heroku-redis:mini",
+      "as": "REDIS"
+    }
+  ],
+  "env": {
+    "JWT_SECRET": {
+      "description": "Secret key for JWT token signing",
+      "generator": "secret"
+    },
+    "VITE_API_URL": {
+      "description": "Backend API URL (set after first deploy)",
+      "value": ""
+    },
+    "LOG_LEVEL": {
+      "description": "Logging level",
+      "value": "INFO"
+    }
+  },
+  "formation": {
+    "web": {
+      "quantity": 1,
+      "size": "basic"
+    }
+  },
+  "scripts": {
+    "postdeploy": "python -m flask --app wsgi:app init-db"
+  },
+  "buildpacks": [
+    { "url": "heroku/python" }
+  ]
+}

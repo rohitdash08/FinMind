@@ -1,0 +1,14 @@
+apiVersion: v2
+name: finmind
+description: AI-powered personal finance management platform
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - finance
+  - flask
+  - react
+  - kubernetes
+maintainers:
+  - name: FinMind
+    url: https://github.com/rohitdash08/FinMind
