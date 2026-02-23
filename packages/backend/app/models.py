@@ -133,3 +133,42 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class LoginEvent(db.Model):
+    __tablename__ = "login_events"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    email = db.Column(db.String(255), nullable=False)
+    ip_address = db.Column(db.String(45), nullable=False)
+    user_agent = db.Column(db.String(500), nullable=True)
+    success = db.Column(db.Boolean, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class AnomalyType(str, Enum):
+    NEW_IP = "NEW_IP"
+    NEW_DEVICE = "NEW_DEVICE"
+    BRUTE_FORCE = "BRUTE_FORCE"
+    ODD_HOUR = "ODD_HOUR"
+
+
+class Severity(str, Enum):
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+    CRITICAL = "CRITICAL"
+
+
+class LoginAnomaly(db.Model):
+    __tablename__ = "login_anomalies"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    login_event_id = db.Column(
+        db.Integer, db.ForeignKey("login_events.id"), nullable=True
+    )
+    anomaly_type = db.Column(db.String(30), nullable=False)
+    severity = db.Column(db.String(10), nullable=False)
+    details = db.Column(db.String(1000), nullable=False)
+    acknowledged = db.Column(db.Boolean, default=False, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)

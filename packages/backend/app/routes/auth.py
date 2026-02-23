@@ -52,13 +52,34 @@ def register():
 
 @bp.post("/login")
 def login():
+    from ..services.login_anomaly import record_login_event
+
     data = request.get_json() or {}
     email = data.get("email")
     password = data.get("password")
+    ip_address = request.remote_addr or "unknown"
+    user_agent = request.headers.get("User-Agent")
+
     user = db.session.query(User).filter_by(email=email).first()
     if not user or not check_password_hash(user.password_hash, password):
         logger.warning("Login failed for email=%s", email)
+        record_login_event(
+            email=email or "",
+            ip_address=ip_address,
+            user_agent=user_agent,
+            success=False,
+            user_id=user.id if user else None,
+        )
         return jsonify(error="invalid credentials"), 401
+
+    record_login_event(
+        email=email,
+        ip_address=ip_address,
+        user_agent=user_agent,
+        success=True,
+        user_id=user.id,
+    )
+
     access = create_access_token(identity=str(user.id))
     refresh = create_refresh_token(identity=str(user.id))
     _store_refresh_session(refresh, str(user.id))
