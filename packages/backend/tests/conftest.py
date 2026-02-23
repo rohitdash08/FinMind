@@ -1,9 +1,10 @@
 import os
+from unittest.mock import MagicMock
 import pytest
 from app import create_app
 from app.config import Settings
 from app.extensions import db
-from app.extensions import redis_client
+import app.extensions as extensions
 from app import models  # noqa: F401 - ensure models are registered
 
 
@@ -12,6 +13,14 @@ class TestSettings(Settings):
     database_url: str = "sqlite+pysqlite:///:memory:"
     redis_url: str = "redis://localhost:6379/15"  # not used in tests
     jwt_secret: str = "test-secret"
+
+
+def _redis_available():
+    try:
+        extensions.redis_client.ping()
+        return True
+    except Exception:
+        return False
 
 
 def _setup_db(app):
@@ -31,16 +40,30 @@ def app_fixture():
     app = create_app(settings)
     app.config.update(TESTING=True)
     _setup_db(app)
-    try:
-        redis_client.flushdb()
-    except Exception:
-        pass
+
+    # Mock Redis if not available to allow tests to run without Docker
+    if not _redis_available():
+        mock_redis = MagicMock()
+        mock_redis.get.return_value = "1"
+        mock_redis.setex.return_value = True
+        mock_redis.delete.return_value = True
+        mock_redis.flushdb.return_value = True
+        extensions.redis_client = mock_redis
+        # Also patch in auth module which imports redis_client by name
+        import app.routes.auth as auth_mod
+        auth_mod.redis_client = mock_redis
+    else:
+        try:
+            extensions.redis_client.flushdb()
+        except Exception:
+            pass
+
     yield app
     with app.app_context():
         db.session.remove()
         db.drop_all()
     try:
-        redis_client.flushdb()
+        extensions.redis_client.flushdb()
     except Exception:
         pass
 
