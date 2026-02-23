@@ -1,0 +1,134 @@
+# FinMind Helm Chart Values
+
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+
+# Backend (Flask API)
+backend:
+  replicaCount: 2
+  image:
+    repository: finmind-api
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8000
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+  env:
+    LOG_LEVEL: INFO
+  healthCheck:
+    path: /health
+    initialDelaySeconds: 30
+    periodSeconds: 15
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+# Frontend (React/Nginx)
+frontend:
+  replicaCount: 2
+  image:
+    repository: finmind-web
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 80
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 80
+
+# PostgreSQL
+postgresql:
+  enabled: true
+  auth:
+    username: finmind
+    password: ""  # Set via --set or secrets
+    database: finmind
+  primary:
+    persistence:
+      size: 10Gi
+    resources:
+      requests:
+        cpu: 250m
+        memory: 256Mi
+
+# Redis
+redis:
+  enabled: true
+  architecture: standalone
+  auth:
+    enabled: false
+  master:
+    persistence:
+      size: 1Gi
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+
+# Ingress
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+  hosts:
+    - host: finmind.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+          service: frontend
+        - path: /api
+          pathType: Prefix
+          service: backend
+        - path: /auth
+          pathType: Prefix
+          service: backend
+        - path: /health
+          pathType: Exact
+          service: backend
+  tls:
+    - secretName: finmind-tls
+      hosts:
+        - finmind.example.com
+
+# Secrets (override via --set or external secrets)
+secrets:
+  jwtSecret: ""       # REQUIRED: set via --set secrets.jwtSecret=xxx
+  databaseUrl: ""     # Auto-generated if postgresql.enabled=true
+  redisUrl: ""        # Auto-generated if redis.enabled=true
+
+# Observability
+monitoring:
+  enabled: false
+  prometheus:
+    scrape: true
+    port: 8000
+    path: /metrics
+  serviceMonitor:
+    enabled: false
+    interval: 30s
