@@ -1,9 +1,13 @@
 import os
 import pytest
+import fakeredis
+import unittest.mock as mock
 from app import create_app
 from app.config import Settings
 from app.extensions import db
-from app.extensions import redis_client
+import app.extensions as _ext
+import app.routes.auth as _auth_routes
+import app.services.cache as _cache_svc
 from app import models  # noqa: F401 - ensure models are registered
 
 
@@ -20,7 +24,18 @@ def _setup_db(app):
 
 
 @pytest.fixture()
-def app_fixture():
+def fake_redis():
+    """Provide an in-process FakeRedis instance, patched into all modules."""
+    fr = fakeredis.FakeRedis(decode_responses=True)
+    with mock.patch.object(_ext, "redis_client", fr), \
+         mock.patch.object(_auth_routes, "redis_client", fr), \
+         mock.patch.object(_cache_svc, "redis_client", fr):
+        yield fr
+    fr.flushall()
+
+
+@pytest.fixture()
+def app_fixture(fake_redis):
     # Ensure a clean env for tests
     os.environ.setdefault("FLASK_ENV", "testing")
     settings = TestSettings(
@@ -31,18 +46,12 @@ def app_fixture():
     app = create_app(settings)
     app.config.update(TESTING=True)
     _setup_db(app)
-    try:
-        redis_client.flushdb()
-    except Exception:
-        pass
+    fake_redis.flushdb()
     yield app
     with app.app_context():
         db.session.remove()
         db.drop_all()
-    try:
-        redis_client.flushdb()
-    except Exception:
-        pass
+    fake_redis.flushdb()
 
 
 @pytest.fixture()
