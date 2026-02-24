@@ -7,6 +7,8 @@ from .insights import bp as insights_bp
 from .categories import bp as categories_bp
 from .docs import bp as docs_bp
 from .dashboard import bp as dashboard_bp
+from .devices import bp_devices
+from .export import bp_export
 
 
 def register_routes(app: Flask):
@@ -18,3 +20,5 @@ def register_routes(app: Flask):
     app.register_blueprint(categories_bp, url_prefix="/categories")
     app.register_blueprint(docs_bp, url_prefix="/docs")
     app.register_blueprint(dashboard_bp, url_prefix="/dashboard")
+    app.register_blueprint(bp_devices, url_prefix="/devices")
+    app.register_blueprint(bp_export, url_prefix="/export")

@@ -63,7 +63,22 @@ def login():
     refresh = create_refresh_token(identity=str(user.id))
     _store_refresh_session(refresh, str(user.id))
     logger.info("Login success user_id=%s", user.id)
-    return jsonify(access_token=access, refresh_token=refresh)
+    # Record device for trust tracking
+    try:
+        from ..services.device_trust import record_login as _record_device
+        device_info = _record_device(
+            user.id,
+            request.headers.get("User-Agent"),
+            request.remote_addr,
+            db.session,
+        )
+    except Exception:
+        device_info = {}
+    return jsonify(
+        access_token=access,
+        refresh_token=refresh,
+        new_device=device_info.get("is_new", False),
+    )
 
 
 @bp.get("/me")

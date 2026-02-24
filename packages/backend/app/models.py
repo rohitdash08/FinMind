@@ -1,6 +1,6 @@
 from datetime import datetime, date
 from enum import Enum
-from sqlalchemy import Enum as SAEnum
+from sqlalchemy import Enum as SAEnum, Index
 from .extensions import db
 
 
@@ -133,3 +133,22 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class TrustedDevice(db.Model):
+    """Tracks devices that have been used to log in, enabling trust management."""
+    __tablename__ = "trusted_devices"
+    id                 = db.Column(db.Integer, primary_key=True)
+    user_id            = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    device_fingerprint = db.Column(db.String(64), nullable=False)   # SHA-256 hex
+    user_agent         = db.Column(db.String(500), nullable=True)
+    ip_address         = db.Column(db.String(45),  nullable=True)   # IPv6-safe
+    device_name        = db.Column(db.String(100), nullable=True)
+    trusted            = db.Column(db.Boolean, default=False, nullable=False)
+    first_seen_at      = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    last_seen_at       = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    __table_args__ = (
+        db.UniqueConstraint("user_id", "device_fingerprint", name="uq_device_user_fp"),
+        Index("ix_device_user",    "user_id"),
+        Index("ix_device_trusted", "user_id", "trusted"),
+    )
