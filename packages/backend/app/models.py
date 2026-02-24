@@ -1,6 +1,6 @@
 from datetime import datetime, date
 from enum import Enum
-from sqlalchemy import Enum as SAEnum
+from sqlalchemy import Enum as SAEnum, Index
 from .extensions import db
 
 
@@ -133,3 +133,27 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class SpendingType(str, Enum):
+    ESSENTIAL     = "ESSENTIAL"
+    DISCRETIONARY = "DISCRETIONARY"
+    UNCATEGORISED = "UNCATEGORISED"
+
+
+class CategoryClassification(db.Model):
+    """User-defined override of essential/discretionary for a category."""
+    __tablename__ = "category_classifications"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    category_id = db.Column(db.Integer, db.ForeignKey("categories.id"), nullable=False)
+    classification = db.Column(
+        db.String(20),
+        nullable=False,
+        default=SpendingType.UNCATEGORISED.value,
+    )
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    __table_args__ = (
+        db.UniqueConstraint("user_id", "category_id", name="uq_classification_user_category"),
+        Index("ix_classification_user", "user_id"),
+    )

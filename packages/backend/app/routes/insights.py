@@ -2,6 +2,9 @@ from datetime import date
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..services.ai import monthly_budget_suggestion
+from ..services.spending_breakdown import get_spending_breakdown as _get_breakdown
+from ..services.cache import cache_get, cache_set
+from ..extensions import db
 import logging
 
 bp = Blueprint("insights", __name__)
@@ -23,3 +26,22 @@ def budget_suggestion():
     )
     logger.info("Budget suggestion served user=%s month=%s", uid, ym)
     return jsonify(suggestion)
+
+
+@bp.get("/spending-breakdown")
+@jwt_required()
+def spending_breakdown():
+    """
+    Essential vs discretionary spending breakdown for a given month.
+    Query params: month=YYYY-MM (default: current month)
+    """
+    uid = int(get_jwt_identity())
+    ym = request.args.get("month") or date.today().strftime("%Y-%m")
+    cache_key = f"user:{uid}:breakdown:{ym}"
+    cached = cache_get(cache_key)
+    if cached:
+        return jsonify(cached)
+    result = _get_breakdown(uid, db.session, ym=ym)
+    cache_set(cache_key, result, ttl_seconds=600)
+    logger.info("Spending breakdown served user=%s month=%s", uid, ym)
+    return jsonify(result)
