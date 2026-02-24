@@ -6,7 +6,7 @@ from flask import Blueprint, current_app, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..extensions import db
 from ..models import Expense, RecurringCadence, RecurringExpense, User
-from ..services.cache import cache_delete_patterns, monthly_summary_key
+from ..services.cache import cache_delete_patterns, invalidate_user_caches, monthly_summary_key
 from ..services import expense_import
 import logging
 
@@ -84,6 +84,7 @@ def create_expense():
             f"insights:{uid}:*",
         ]
     )
+    invalidate_user_caches(uid)  # cascade-invalidate analytics caches
     return jsonify(_expense_to_dict(e)), 201
 
 
@@ -393,3 +394,4 @@ def _invalidate_expense_cache(uid: int, at: str):
             f"user:{uid}:dashboard_summary:*",
         ]
     )
+    invalidate_user_caches(uid)  # cascade-invalidate analytics caches
