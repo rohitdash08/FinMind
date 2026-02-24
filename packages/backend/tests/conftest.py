@@ -1,9 +1,10 @@
 import os
 import pytest
+import fakeredis
+from unittest.mock import patch
 from app import create_app
 from app.config import Settings
 from app.extensions import db
-from app.extensions import redis_client
 from app import models  # noqa: F401 - ensure models are registered
 
 
@@ -28,21 +29,27 @@ def app_fixture():
         redis_url="redis://localhost:6379/15",
         jwt_secret="test-secret-with-32-plus-chars-1234567890",
     )
+    # Swap in an in-process fake Redis so tests run without a real Redis server.
+    # We patch every module that imported redis_client by name.
+    fake_redis = fakeredis.FakeRedis(decode_responses=True)
+    patches = [
+        patch("app.routes.auth.redis_client", fake_redis),
+        patch("app.services.cache.redis_client", fake_redis),
+    ]
+    for p in patches:
+        p.start()
+
     app = create_app(settings)
     app.config.update(TESTING=True)
     _setup_db(app)
-    try:
-        redis_client.flushdb()
-    except Exception:
-        pass
+    fake_redis.flushdb()
     yield app
     with app.app_context():
         db.session.remove()
         db.drop_all()
-    try:
-        redis_client.flushdb()
-    except Exception:
-        pass
+    fake_redis.flushdb()
+    for p in patches:
+        p.stop()
 
 
 @pytest.fixture()
