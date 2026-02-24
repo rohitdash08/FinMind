@@ -1,0 +1,101 @@
+## Global settings
+global:
+  imageRegistry: ghcr.io/rohitdash08
+
+## Backend configuration
+backend:
+  replicaCount: 2
+  image:
+    repository: ghcr.io/rohitdash08/finmind-backend
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8000
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+  env:
+    LOG_LEVEL: INFO
+    GEMINI_MODEL: gemini-1.5-flash
+    REDIS_URL: redis://redis:6379/0
+
+## Frontend configuration
+frontend:
+  replicaCount: 2
+  image:
+    repository: ghcr.io/rohitdash08/finmind-frontend
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 80
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 70
+
+## PostgreSQL
+postgres:
+  enabled: true
+  image: postgres:16
+  storage: 10Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+## Redis
+redis:
+  enabled: true
+  image: redis:7
+
+## Ingress
+ingress:
+  enabled: true
+  className: nginx
+  annotations: {}
+  hosts:
+    - host: finmind.local
+      paths:
+        - path: /api
+          pathType: Prefix
+          service: backend
+          port: 8000
+        - path: /
+          pathType: Prefix
+          service: frontend
+          port: 80
+  tls: []
+  #  - secretName: finmind-tls
+  #    hosts:
+  #      - finmind.example.com
+
+## Secrets (override via --set or external secret manager)
+secrets:
+  postgresUser: finmind
+  postgresPassword: changeme
+  postgresDb: finmind
+  jwtSecret: changeme
+  geminiApiKey: ""

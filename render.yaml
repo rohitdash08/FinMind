@@ -1,0 +1,43 @@
+services:
+  - type: web
+    name: finmind-backend
+    runtime: docker
+    dockerfilePath: packages/backend/Dockerfile
+    dockerContext: packages/backend
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: finmind-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: finmind-redis
+          type: redis
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: LOG_LEVEL
+        value: INFO
+    healthCheckPath: /health
+
+  - type: web
+    name: finmind-frontend
+    runtime: docker
+    dockerfilePath: app/Dockerfile
+    dockerContext: app
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          name: finmind-backend
+          type: web
+          property: host
+
+databases:
+  - name: finmind-db
+    engine: postgres
+    version: "16"
+
+  - name: finmind-redis
+    engine: redis

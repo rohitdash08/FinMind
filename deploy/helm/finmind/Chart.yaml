@@ -1,0 +1,13 @@
+apiVersion: v2
+name: finmind
+description: FinMind - AI-powered personal finance manager
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords:
+  - finmind
+  - finance
+  - ai
+maintainers:
+  - name: FinMind Team
+    url: https://github.com/rohitdash08/FinMind

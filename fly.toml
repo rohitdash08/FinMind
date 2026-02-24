@@ -1,0 +1,36 @@
+app = "finmind"
+primary_region = "iad"
+kill_signal = "SIGINT"
+kill_timeout = 5
+
+[build]
+  dockerfile = "packages/backend/Dockerfile"
+
+[env]
+  LOG_LEVEL = "INFO"
+  GEMINI_MODEL = "gemini-1.5-flash"
+  PORT = "8000"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [http_service.concurrency]
+    type = "requests"
+    hard_limit = 250
+    soft_limit = 200
+
+[[http_service.checks]]
+  interval = "15s"
+  timeout = "2s"
+  grace_period = "10s"
+  method = "GET"
+  path = "/health"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 512

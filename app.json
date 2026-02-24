@@ -1,0 +1,39 @@
+{
+  "name": "FinMind",
+  "description": "AI-powered personal finance manager",
+  "repository": "https://github.com/rohitdash08/FinMind",
+  "logo": "https://raw.githubusercontent.com/rohitdash08/FinMind/main/app/public/vite.svg",
+  "keywords": ["finance", "ai", "flask", "react"],
+  "stack": "container",
+  "env": {
+    "JWT_SECRET": {
+      "description": "Secret key for JWT token signing",
+      "generator": "secret"
+    },
+    "GEMINI_API_KEY": {
+      "description": "Google Gemini API key for AI features",
+      "required": false
+    },
+    "GEMINI_MODEL": {
+      "description": "Gemini model to use",
+      "value": "gemini-1.5-flash"
+    },
+    "LOG_LEVEL": {
+      "description": "Application log level",
+      "value": "INFO"
+    }
+  },
+  "formation": {
+    "web": {
+      "quantity": 1,
+      "size": "basic"
+    }
+  },
+  "addons": [
+    "heroku-postgresql:essential-0",
+    "heroku-redis:mini"
+  ],
+  "buildpacks": [],
+  "scripts": {},
+  "environments": {}
+}

@@ -1,0 +1,99 @@
+{{- if .Values.postgres.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Release.Name }}-postgres-data
+  labels:
+    {{- include "finmind.labels" . | nindent 4 }}
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: {{ .Values.postgres.storage }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-postgres
+  labels:
+    {{- include "finmind.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- $_ := set . "component" "postgres" }}
+      {{- include "finmind.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "finmind.selectorLabels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: postgres
+          image: {{ .Values.postgres.image }}
+          ports:
+            - containerPort: 5432
+          envFrom:
+            - secretRef:
+                name: {{ .Release.Name }}-secrets
+          resources:
+            {{- toYaml .Values.postgres.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ .Release.Name }}-postgres-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-postgres
+  labels:
+    {{- include "finmind.labels" . | nindent 4 }}
+spec:
+  selector:
+    {{- include "finmind.selectorLabels" . | nindent 4 }}
+  ports:
+    - port: 5432
+      targetPort: 5432
+{{- end }}
+---
+{{- if .Values.redis.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-redis
+  labels:
+    {{- include "finmind.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- $_ := set . "component" "redis" }}
+      {{- include "finmind.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "finmind.selectorLabels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: redis
+          image: {{ .Values.redis.image }}
+          ports:
+            - containerPort: 6379
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-redis
+  labels:
+    {{- include "finmind.labels" . | nindent 4 }}
+spec:
+  selector:
+    {{- include "finmind.selectorLabels" . | nindent 4 }}
+  ports:
+    - port: 6379
+      targetPort: 6379
+{{- end }}
