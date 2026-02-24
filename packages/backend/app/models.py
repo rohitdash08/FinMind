@@ -1,6 +1,6 @@
 from datetime import datetime, date
 from enum import Enum
-from sqlalchemy import Enum as SAEnum
+from sqlalchemy import Enum as SAEnum, Index
 from .extensions import db
 
 
@@ -133,3 +133,24 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class ReminderDeliveryLog(db.Model):
+    """Records each delivery attempt for a reminder, enabling reliability metrics."""
+    __tablename__ = "reminder_delivery_logs"
+    id = db.Column(db.Integer, primary_key=True)
+    reminder_id = db.Column(
+        db.Integer,
+        db.ForeignKey("reminders.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    channel = db.Column(db.String(20), nullable=False)
+    attempted_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    success = db.Column(db.Boolean, nullable=False)
+    error_message = db.Column(db.String(500), nullable=True)
+    latency_seconds = db.Column(db.Integer, nullable=True)
+    __table_args__ = (
+        Index("ix_delivery_log_reminder", "reminder_id"),
+        Index("ix_delivery_log_attempted", "attempted_at"),
+        Index("ix_delivery_log_success", "success"),
+    )

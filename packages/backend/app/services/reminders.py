@@ -1,7 +1,7 @@
 import smtplib
 from email.message import EmailMessage
 from ..config import Settings
-from ..models import Reminder
+from ..models import Reminder, ReminderDeliveryLog
 
 try:
     from twilio.rest import Client as TwilioClient
@@ -56,7 +56,8 @@ def send_whatsapp(to_number: str, body: str):
         return False
 
 
-def send_reminder(r: Reminder):
+def _do_send(r: Reminder) -> bool:
+    """Core send logic — email or whatsapp dispatch (no logging here)."""
     # Channel holds 'email' or 'whatsapp:<number>'
     if r.channel == "whatsapp":
         return False
@@ -69,3 +70,38 @@ def send_reminder(r: Reminder):
         to = r.channel if "@" in r.channel else (_settings.email_from or "")
         subject = "Bill Reminder"
         return send_email(to, subject, r.message)
+
+
+def send_reminder(r: Reminder) -> bool:
+    """Send a reminder and log the delivery attempt to ReminderDeliveryLog."""
+    from datetime import datetime as _dt
+
+    attempt_time = _dt.utcnow()
+    success = False
+    error_msg = None
+    try:
+        success = _do_send(r)
+    except Exception as exc:
+        error_msg = str(exc)[:500]
+        success = False
+    finally:
+        try:
+            from ..extensions import db as _db
+
+            latency = None
+            if hasattr(r, "send_at") and r.send_at:
+                delta = attempt_time - r.send_at
+                latency = int(delta.total_seconds())
+            log = ReminderDeliveryLog(
+                reminder_id=r.id,
+                channel=r.channel or "email",
+                attempted_at=attempt_time,
+                success=success,
+                error_message=error_msg,
+                latency_seconds=latency,
+            )
+            _db.session.add(log)
+            _db.session.commit()
+        except Exception:
+            pass  # never let logging break the scheduler
+    return success

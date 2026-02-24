@@ -221,3 +221,23 @@ def _create_reminder_if_missing(
         )
     )
     return True
+
+
+from ..services.reminder_metrics import get_reminder_metrics  # noqa: E402
+
+
+@bp.get("/metrics")
+@jwt_required()
+def reminder_metrics():
+    """
+    Return delivery reliability metrics for the current user's reminders.
+    Query params: days (int, 1-365, default 30)
+    """
+    uid = int(get_jwt_identity())
+    try:
+        days = int(request.args.get("days", 30))
+        days = max(1, min(365, days))
+    except (ValueError, TypeError):
+        days = 30
+    result = get_reminder_metrics(uid, db.session, days=days)
+    return jsonify(result)
