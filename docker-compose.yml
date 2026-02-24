@@ -18,6 +18,11 @@ services:
     image: redis:7
     ports: ["6379:6379"]
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
   backend:
     build: ./packages/backend
@@ -27,7 +32,7 @@ services:
       postgres:
         condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
     ports: ["8000:8000"]
     volumes:
       - ./packages/backend/app:/app/app
@@ -36,14 +41,27 @@ services:
       - ./.flake8:/app/.flake8:ro
       - ./.bandit:/app/.bandit:ro
     command: sh -c "python -m flask --app wsgi:app init-db && export PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus_multiproc && rm -rf $$PROMETHEUS_MULTIPROC_DIR && mkdir -p $$PROMETHEUS_MULTIPROC_DIR && gunicorn --reload --workers=2 --threads=4 --bind 0.0.0.0:8000 wsgi:app"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:8000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
     restart: unless-stopped
 
   nginx:
     image: nginx:1.27-alpine
-    depends_on: [backend]
+    depends_on:
+      backend:
+        condition: service_healthy
     ports: ["8080:80"]
     volumes:
       - ./monitoring/nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost/nginx_status || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
     restart: unless-stopped
 
   frontend-dev:
@@ -58,8 +76,16 @@ services:
       - ./app:/app
       - /app/node_modules
     ports: ["5173:5173"]
-    depends_on: [backend]
+    depends_on:
+      backend:
+        condition: service_healthy
     command: sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 5173"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:5173 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
     restart: unless-stopped
 
   prometheus:
@@ -128,7 +154,9 @@ services:
     image: oliver006/redis_exporter:v1.63.0
     environment:
       REDIS_ADDR: redis://redis:6379
-    depends_on: [redis]
+    depends_on:
+      redis:
+        condition: service_healthy
     restart: unless-stopped
 
   nginx-exporter:
