@@ -1,6 +1,7 @@
 export const TOKEN_KEY = 'fm_token';
 export const REFRESH_TOKEN_KEY = 'fm_refresh_token';
 export const CURRENCY_KEY = 'fm_currency';
+export const LOCALE_KEY = 'fm_locale';
 
 export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
@@ -38,4 +39,13 @@ export function getCurrency(): string {
 export function setCurrency(currency: string) {
   localStorage.setItem(CURRENCY_KEY, currency);
   window.dispatchEvent(new Event('currency_changed'));
+}
+
+export function getLocale(): string {
+  return localStorage.getItem(LOCALE_KEY) || 'en-IN';
+}
+
+export function setLocale(locale: string) {
+  localStorage.setItem(LOCALE_KEY, locale);
+  window.dispatchEvent(new Event('locale_changed'));
 }

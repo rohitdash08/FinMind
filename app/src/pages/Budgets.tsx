@@ -1,108 +1,117 @@
-import { useState } from 'react';
-import { FinancialCard, FinancialCardContent, FinancialCardDescription, FinancialCardFooter, FinancialCardHeader, FinancialCardTitle } from '@/components/ui/financial-card';
+import { useEffect, useState } from 'react';
+import {
+  FinancialCard,
+  FinancialCardContent,
+  FinancialCardDescription,
+  FinancialCardFooter,
+  FinancialCardHeader,
+  FinancialCardTitle,
+} from '@/components/ui/financial-card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, DollarSign, Plus, PieChart, TrendingDown, TrendingUp, Target, AlertCircle, Settings } from 'lucide-react';
+import {
+  Calendar,
+  DollarSign,
+  Plus,
+  PieChart,
+  Target,
+  AlertCircle,
+  AlertTriangle,
+  Settings,
+  Trash2,
+} from 'lucide-react';
+import {
+  listBudgets,
+  createBudget,
+  deleteBudget,
+  getBudgetWarnings,
+  type Budget,
+  type BudgetWarning,
+} from '@/api/budgets';
+import { api } from '@/api/client';
+import { formatMoney } from '@/lib/currency';
 
-const budgetCategories = [
-  {
-    id: 1,
-    name: 'Housing',
-    allocated: 2000,
-    spent: 1850,
-    remaining: 150,
-    color: 'bg-primary',
-    trend: 'up',
-    change: '+2.3%'
-  },
-  {
-    id: 2,
-    name: 'Food & Dining',
-    allocated: 800,
-    spent: 720,
-    remaining: 80,
-    color: 'bg-success',
-    trend: 'down',
-    change: '-5.1%'
-  },
-  {
-    id: 3,
-    name: 'Transportation',
-    allocated: 400,
-    spent: 445,
-    remaining: -45,
-    color: 'bg-destructive',
-    trend: 'up',
-    change: '+11.3%'
-  },
-  {
-    id: 4,
-    name: 'Entertainment',
-    allocated: 300,
-    spent: 185,
-    remaining: 115,
-    color: 'bg-accent',
-    trend: 'down',
-    change: '-8.2%'
-  },
-  {
-    id: 5,
-    name: 'Healthcare',
-    allocated: 250,
-    spent: 165,
-    remaining: 85,
-    color: 'bg-warning',
-    trend: 'up',
-    change: '+3.1%'
-  },
-  {
-    id: 6,
-    name: 'Shopping',
-    allocated: 500,
-    spent: 380,
-    remaining: 120,
-    color: 'bg-secondary',
-    trend: 'down',
-    change: '-12.4%'
-  }
-];
+type Category = { id: number; name: string };
 
-const budgetGoals = [
-  {
-    id: 1,
-    title: 'Emergency Fund',
-    target: 10000,
-    current: 7250,
-    deadline: 'Dec 2025',
-    monthlyTarget: 458,
-    status: 'on-track'
-  },
-  {
-    id: 2,
-    title: 'Vacation Fund',
-    target: 3000,
-    current: 1850,
-    deadline: 'Jun 2025',
-    monthlyTarget: 383,
-    status: 'behind'
-  },
-  {
-    id: 3,
-    title: 'New Car',
-    target: 25000,
-    current: 15600,
-    deadline: 'Mar 2026',
-    monthlyTarget: 625,
-    status: 'ahead'
-  }
-];
+function currency(n: number) {
+  return formatMoney(Number(n || 0));
+}
 
 export function Budgets() {
-  const [selectedPeriod] = useState('monthly');
-  
-  const totalAllocated = budgetCategories.reduce((sum, cat) => sum + cat.allocated, 0);
-  const totalSpent = budgetCategories.reduce((sum, cat) => sum + cat.spent, 0);
-  const totalRemaining = totalAllocated - totalSpent;
+  const [budgets, setBudgets] = useState<Budget[]>([]);
+  const [warnings, setWarnings] = useState<BudgetWarning[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // New budget form
+  const [showForm, setShowForm] = useState(false);
+  const [formCatId, setFormCatId] = useState<number | ''>('');
+  const [formAmount, setFormAmount] = useState('');
+  const [formPeriod, setFormPeriod] = useState<'MONTHLY' | 'WEEKLY'>('MONTHLY');
+  const [formError, setFormError] = useState<string | null>(null);
+
+  const fetchData = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [b, w, c] = await Promise.all([
+        listBudgets(),
+        getBudgetWarnings(),
+        api<Category[]>('/categories'),
+      ]);
+      setBudgets(b);
+      setWarnings(w);
+      setCategories(c);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to load budgets');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const handleCreate = async () => {
+    setFormError(null);
+    if (!formCatId || !formAmount) {
+      setFormError('Category and amount are required');
+      return;
+    }
+    try {
+      await createBudget({
+        category_id: Number(formCatId),
+        amount: parseFloat(formAmount),
+        period: formPeriod,
+      });
+      setShowForm(false);
+      setFormCatId('');
+      setFormAmount('');
+      await fetchData();
+    } catch (e: unknown) {
+      setFormError(e instanceof Error ? e.message : 'Failed to create budget');
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    try {
+      await deleteBudget(id);
+      await fetchData();
+    } catch {
+      // ignore
+    }
+  };
+
+  const catName = (id: number) =>
+    categories.find((c) => c.id === id)?.name || 'Unknown';
+
+  const totalAllocated = budgets.reduce((s, b) => s + b.amount, 0);
+  const totalWarningSpent = warnings.reduce((s, w) => s + w.spent, 0);
+
+  const exceededWarnings = warnings.filter((w) => w.level === 'exceeded');
+  const approachingWarnings = warnings.filter((w) => w.level === 'warning');
 
   return (
     <div className="page-wrap">
@@ -111,225 +120,354 @@ export function Budgets() {
           <div>
             <h1 className="page-title">Budget Management</h1>
             <p className="page-subtitle">
-              Track your spending and stay on top of your financial goals
+              Track your spending limits and get early warnings
             </p>
           </div>
           <div className="flex gap-3">
-            <Button variant="outline" size="sm">
-              <Calendar className="w-4 h-4" />
-              {selectedPeriod === 'monthly' ? 'Monthly' : 'Weekly'}
-            </Button>
-            <Button variant="financial" size="sm">
+            <Button
+              variant="financial"
+              size="sm"
+              onClick={() => setShowForm(!showForm)}
+            >
               <Plus className="w-4 h-4" />
-              New Category
+              New Budget
             </Button>
           </div>
         </div>
       </div>
 
-        {/* Budget Overview */}
-        <div className="grid gap-4 md:grid-cols-3 mb-8">
-          <FinancialCard variant="financial">
-            <FinancialCardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <FinancialCardTitle className="text-sm font-medium text-muted-foreground">
-                  Total Allocated
-                </FinancialCardTitle>
-                <Target className="w-5 h-5 text-muted-foreground" />
-              </div>
-            </FinancialCardHeader>
-            <FinancialCardContent>
-              <div className="metric-value text-foreground mb-1">
-                ${totalAllocated.toLocaleString()}
-              </div>
-              <div className="text-sm text-muted-foreground">
-                This month's budget
-              </div>
-            </FinancialCardContent>
-          </FinancialCard>
+      {error && <div className="error mb-6">{error}</div>}
 
-          <FinancialCard variant="financial">
-            <FinancialCardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <FinancialCardTitle className="text-sm font-medium text-muted-foreground">
-                  Total Spent
-                </FinancialCardTitle>
-                <DollarSign className="w-5 h-5 text-muted-foreground" />
-              </div>
-            </FinancialCardHeader>
-            <FinancialCardContent>
-              <div className="metric-value text-foreground mb-1">
-                ${totalSpent.toLocaleString()}
-              </div>
-              <div className="text-sm text-muted-foreground">
-                {((totalSpent / totalAllocated) * 100).toFixed(1)}% of budget used
-              </div>
-            </FinancialCardContent>
-          </FinancialCard>
-
-          <FinancialCard variant={totalRemaining < 0 ? "destructive" : "success"}>
-            <FinancialCardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <FinancialCardTitle className="text-sm font-medium">
-                  {totalRemaining < 0 ? 'Over Budget' : 'Remaining'}
-                </FinancialCardTitle>
-                {totalRemaining < 0 ? (
+      {/* Overspend Warning Cards */}
+      {(exceededWarnings.length > 0 || approachingWarnings.length > 0) && (
+        <div className="grid gap-4 md:grid-cols-2 mb-8">
+          {exceededWarnings.map((w) => (
+            <FinancialCard
+              key={`exceeded-${w.budget_id}`}
+              variant="destructive"
+              className="fade-in-up"
+            >
+              <FinancialCardHeader className="pb-3">
+                <div className="flex items-center gap-2">
                   <AlertCircle className="w-5 h-5" />
-                ) : (
-                  <PieChart className="w-5 h-5" />
-                )}
-              </div>
-            </FinancialCardHeader>
-            <FinancialCardContent>
-              <div className="metric-value mb-1">
-                ${Math.abs(totalRemaining).toLocaleString()}
-              </div>
-              <div className="text-sm opacity-80">
-                {totalRemaining < 0 ? 'Overspent this month' : 'Available to spend'}
-              </div>
-            </FinancialCardContent>
-          </FinancialCard>
-        </div>
-
-        {/* Budget Categories */}
-        <div className="grid gap-6 lg:grid-cols-3 mb-8">
-          <div className="lg:col-span-2">
-            <FinancialCard variant="financial" className="fade-in-up">
-              <FinancialCardHeader>
-                <div className="flex items-center justify-between">
-                  <FinancialCardTitle className="section-title">Budget Categories</FinancialCardTitle>
-                  <Button variant="ghost" size="sm">
-                    <Settings className="w-4 h-4" />
-                  </Button>
+                  <FinancialCardTitle className="text-sm font-semibold">
+                    Budget Exceeded
+                  </FinancialCardTitle>
                 </div>
-                <FinancialCardDescription>
-                  Track spending across different categories
-                </FinancialCardDescription>
               </FinancialCardHeader>
               <FinancialCardContent>
-                <div className="space-y-6">
-                  {budgetCategories.map((category) => {
-                    const percentage = (category.spent / category.allocated) * 100;
-                    const isOverBudget = category.remaining < 0;
-                    
-                    return (
-                      <div key={category.id} className="space-y-3 interactive-row">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-3">
-                            <div className={`w-4 h-4 rounded-full ${category.color}`}></div>
-                            <div>
-                              <div className="font-medium text-foreground">{category.name}</div>
-                              <div className="text-sm text-muted-foreground">
-                                ${category.spent} of ${category.allocated}
-                              </div>
-                            </div>
+                <div className="font-medium mb-1">{w.category_name}</div>
+                <div className="text-sm opacity-90">
+                  Spent {currency(w.spent)} of {currency(w.budget_amount)} (
+                  {w.percentage.toFixed(0)}%)
+                </div>
+                <div className="chart-track mt-2 bg-destructive-light">
+                  <div
+                    className="chart-fill-danger h-2"
+                    style={{ width: `${Math.min(w.percentage, 100)}%` }}
+                  />
+                </div>
+              </FinancialCardContent>
+            </FinancialCard>
+          ))}
+          {approachingWarnings.map((w) => (
+            <FinancialCard
+              key={`warning-${w.budget_id}`}
+              className="fade-in-up border-warning"
+            >
+              <FinancialCardHeader className="pb-3">
+                <div className="flex items-center gap-2 text-warning">
+                  <AlertTriangle className="w-5 h-5" />
+                  <FinancialCardTitle className="text-sm font-semibold text-warning">
+                    Approaching Limit
+                  </FinancialCardTitle>
+                </div>
+              </FinancialCardHeader>
+              <FinancialCardContent>
+                <div className="font-medium mb-1">{w.category_name}</div>
+                <div className="text-sm text-muted-foreground">
+                  Spent {currency(w.spent)} of {currency(w.budget_amount)} (
+                  {w.percentage.toFixed(0)}%)
+                </div>
+                <div className="chart-track mt-2">
+                  <div
+                    className="chart-fill-primary h-2"
+                    style={{ width: `${Math.min(w.percentage, 100)}%` }}
+                  />
+                </div>
+              </FinancialCardContent>
+            </FinancialCard>
+          ))}
+        </div>
+      )}
+
+      {/* New Budget Form */}
+      {showForm && (
+        <FinancialCard variant="financial" className="mb-8 fade-in-up">
+          <FinancialCardHeader>
+            <FinancialCardTitle className="section-title">
+              Create Budget
+            </FinancialCardTitle>
+          </FinancialCardHeader>
+          <FinancialCardContent>
+            {formError && (
+              <div className="text-sm text-destructive mb-3">{formError}</div>
+            )}
+            <div className="flex flex-wrap gap-4 items-end">
+              <div>
+                <label
+                  htmlFor="budget-category"
+                  className="text-sm text-muted-foreground block mb-1"
+                >
+                  Category
+                </label>
+                <select
+                  id="budget-category"
+                  className="input h-9 w-[180px]"
+                  value={formCatId}
+                  onChange={(e) =>
+                    setFormCatId(e.target.value ? Number(e.target.value) : '')
+                  }
+                >
+                  <option value="">Select...</option>
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label
+                  htmlFor="budget-amount"
+                  className="text-sm text-muted-foreground block mb-1"
+                >
+                  Amount
+                </label>
+                <input
+                  id="budget-amount"
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  className="input h-9 w-[140px]"
+                  placeholder="500.00"
+                  value={formAmount}
+                  onChange={(e) => setFormAmount(e.target.value)}
+                />
+              </div>
+              <div>
+                <label
+                  htmlFor="budget-period"
+                  className="text-sm text-muted-foreground block mb-1"
+                >
+                  Period
+                </label>
+                <select
+                  id="budget-period"
+                  className="input h-9 w-[130px]"
+                  value={formPeriod}
+                  onChange={(e) =>
+                    setFormPeriod(e.target.value as 'MONTHLY' | 'WEEKLY')
+                  }
+                >
+                  <option value="MONTHLY">Monthly</option>
+                  <option value="WEEKLY">Weekly</option>
+                </select>
+              </div>
+              <Button variant="financial" size="sm" onClick={handleCreate}>
+                Save
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowForm(false)}
+              >
+                Cancel
+              </Button>
+            </div>
+          </FinancialCardContent>
+        </FinancialCard>
+      )}
+
+      {/* Overview Cards */}
+      <div className="grid gap-4 md:grid-cols-3 mb-8">
+        <FinancialCard variant="financial">
+          <FinancialCardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <FinancialCardTitle className="text-sm font-medium text-muted-foreground">
+                Total Budgeted
+              </FinancialCardTitle>
+              <Target className="w-5 h-5 text-muted-foreground" />
+            </div>
+          </FinancialCardHeader>
+          <FinancialCardContent>
+            <div className="metric-value text-foreground mb-1">
+              {loading ? '...' : currency(totalAllocated)}
+            </div>
+            <div className="text-sm text-muted-foreground">
+              {budgets.length} budget(s) set
+            </div>
+          </FinancialCardContent>
+        </FinancialCard>
+
+        <FinancialCard variant="financial">
+          <FinancialCardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <FinancialCardTitle className="text-sm font-medium text-muted-foreground">
+                Active Warnings
+              </FinancialCardTitle>
+              <AlertTriangle className="w-5 h-5 text-muted-foreground" />
+            </div>
+          </FinancialCardHeader>
+          <FinancialCardContent>
+            <div className="metric-value text-foreground mb-1">
+              {loading ? '...' : warnings.length}
+            </div>
+            <div className="text-sm text-muted-foreground">
+              {exceededWarnings.length} exceeded, {approachingWarnings.length}{' '}
+              approaching
+            </div>
+          </FinancialCardContent>
+        </FinancialCard>
+
+        <FinancialCard
+          variant={exceededWarnings.length > 0 ? 'destructive' : 'success'}
+        >
+          <FinancialCardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <FinancialCardTitle className="text-sm font-medium">
+                {exceededWarnings.length > 0 ? 'Over Budget' : 'On Track'}
+              </FinancialCardTitle>
+              {exceededWarnings.length > 0 ? (
+                <AlertCircle className="w-5 h-5" />
+              ) : (
+                <PieChart className="w-5 h-5" />
+              )}
+            </div>
+          </FinancialCardHeader>
+          <FinancialCardContent>
+            <div className="metric-value mb-1">
+              {loading
+                ? '...'
+                : exceededWarnings.length > 0
+                  ? `${exceededWarnings.length} categor${exceededWarnings.length === 1 ? 'y' : 'ies'}`
+                  : 'All good'}
+            </div>
+            <div className="text-sm opacity-80">
+              {exceededWarnings.length > 0
+                ? 'Needs attention'
+                : 'Spending within limits'}
+            </div>
+          </FinancialCardContent>
+        </FinancialCard>
+      </div>
+
+      {/* Budget List */}
+      <FinancialCard variant="financial" className="fade-in-up">
+        <FinancialCardHeader>
+          <div className="flex items-center justify-between">
+            <FinancialCardTitle className="section-title">
+              Your Budgets
+            </FinancialCardTitle>
+          </div>
+          <FinancialCardDescription>
+            Category spending limits and current status
+          </FinancialCardDescription>
+        </FinancialCardHeader>
+        <FinancialCardContent>
+          {loading ? (
+            <div className="text-sm text-muted-foreground">Loading...</div>
+          ) : budgets.length === 0 ? (
+            <div className="text-sm text-muted-foreground">
+              No budgets set yet. Click "New Budget" to get started.
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {budgets.map((b) => {
+                const w = warnings.find((w) => w.budget_id === b.id);
+                const pct = w ? w.percentage : 0;
+                const spent = w ? w.spent : 0;
+                const isExceeded = w?.level === 'exceeded';
+                const isWarning = w?.level === 'warning';
+
+                return (
+                  <div key={b.id} className="space-y-3 interactive-row">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <div
+                          className={`w-4 h-4 rounded-full ${
+                            isExceeded
+                              ? 'bg-destructive'
+                              : isWarning
+                                ? 'bg-warning'
+                                : 'bg-success'
+                          }`}
+                        />
+                        <div>
+                          <div className="font-medium text-foreground">
+                            {catName(b.category_id)}
                           </div>
-                          <div className="text-right">
-                            <div className={`font-semibold ${
-                              isOverBudget ? 'text-destructive' : 'text-foreground'
-                            }`}>
-                              {isOverBudget ? '-' : ''}${Math.abs(category.remaining)}
-                            </div>
-                            <div className="flex items-center text-sm">
-                              {category.trend === 'up' ? (
-                                <TrendingUp className="w-3 h-3 text-destructive mr-1" />
-                              ) : (
-                                <TrendingDown className="w-3 h-3 text-success mr-1" />
-                              )}
-                              <span className={
-                                category.trend === 'up' ? 'text-destructive' : 'text-success'
-                              }>
-                                {category.change}
-                              </span>
-                            </div>
+                          <div className="text-sm text-muted-foreground">
+                            {currency(spent)} of {currency(b.amount)} ·{' '}
+                            {b.period.toLowerCase()}
                           </div>
                         </div>
-                        <div className={`chart-track ${isOverBudget ? 'bg-destructive-light' : ''}`}>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className="text-right">
                           <div
-                            className={isOverBudget ? 'chart-fill-danger' : 'chart-fill-primary'}
-                            style={{ width: `${Math.min(percentage, 100)}%` }}
-                          />
-                        </div>
-                        {isOverBudget && (
-                          <Badge variant="destructive" className="text-xs">
-                            Over Budget
-                          </Badge>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </FinancialCardContent>
-            </FinancialCard>
-          </div>
-
-          {/* Savings Goals */}
-          <div>
-            <FinancialCard variant="financial" className="fade-in-up">
-              <FinancialCardHeader>
-                <div className="flex items-center justify-between">
-                  <FinancialCardTitle className="section-title">Savings Goals</FinancialCardTitle>
-                  <Button variant="ghost" size="sm">
-                    <Plus className="w-4 h-4" />
-                  </Button>
-                </div>
-                <FinancialCardDescription>
-                  Your financial objectives
-                </FinancialCardDescription>
-              </FinancialCardHeader>
-              <FinancialCardContent>
-                <div className="space-y-4">
-                  {budgetGoals.map((goal) => {
-                    const percentage = (goal.current / goal.target) * 100;
-                    
-                    return (
-                      <div key={goal.id} className="interactive-row p-3 rounded-lg border border-border">
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="font-medium text-foreground text-sm">
-                            {goal.title}
-                          </div>
-                          <Badge 
-                            variant={
-                              goal.status === 'on-track' ? 'default' :
-                              goal.status === 'ahead' ? 'secondary' : 'destructive'
-                            }
-                            className="text-xs"
+                            className={`font-semibold ${
+                              isExceeded
+                                ? 'text-destructive'
+                                : isWarning
+                                  ? 'text-warning'
+                                  : 'text-foreground'
+                            }`}
                           >
-                            {goal.status === 'on-track' ? 'On Track' :
-                             goal.status === 'ahead' ? 'Ahead' : 'Behind'}
-                          </Badge>
-                        </div>
-                        <div className="space-y-2">
-                          <div className="flex justify-between text-sm">
-                            <span className="text-muted-foreground">
-                              ${goal.current.toLocaleString()} / ${goal.target.toLocaleString()}
-                            </span>
-                            <span className="text-foreground font-medium">
-                              {percentage.toFixed(0)}%
-                            </span>
-                          </div>
-                          <div className="chart-track">
-                            <div className="chart-fill-success" style={{ width: `${Math.min(percentage, 100)}%` }} />
-                          </div>
-                          <div className="flex justify-between text-xs text-muted-foreground">
-                            <span>Target: {goal.deadline}</span>
-                            <span>${goal.monthlyTarget}/mo</span>
+                            {pct.toFixed(0)}%
                           </div>
                         </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDelete(b.id)}
+                          aria-label={`Delete budget for ${catName(b.category_id)}`}
+                        >
+                          <Trash2 className="w-4 h-4 text-muted-foreground" />
+                        </Button>
                       </div>
-                    );
-                  })}
-                </div>
-              </FinancialCardContent>
-              <FinancialCardFooter>
-                <Button variant="financial" size="sm" className="w-full">
-                  <Plus className="w-4 h-4" />
-                  Add New Goal
-                </Button>
-              </FinancialCardFooter>
-            </FinancialCard>
-          </div>
-        </div>
+                    </div>
+                    <div
+                      className={`chart-track ${isExceeded ? 'bg-destructive-light' : ''}`}
+                    >
+                      <div
+                        className={
+                          isExceeded
+                            ? 'chart-fill-danger h-2'
+                            : isWarning
+                              ? 'chart-fill-primary h-2'
+                              : 'chart-fill-success h-2'
+                        }
+                        style={{ width: `${Math.min(pct, 100)}%` }}
+                      />
+                    </div>
+                    {isExceeded && (
+                      <Badge variant="destructive" className="text-xs">
+                        Over Budget
+                      </Badge>
+                    )}
+                    {isWarning && (
+                      <Badge className="text-xs bg-warning text-warning-foreground">
+                        Approaching Limit
+                      </Badge>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </FinancialCardContent>
+      </FinancialCard>
     </div>
   );
 }
