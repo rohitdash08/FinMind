@@ -123,3 +123,20 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   action VARCHAR(100) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+DO $$ BEGIN
+  CREATE TYPE budget_period AS ENUM ('MONTHLY','WEEKLY');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
+
+CREATE TABLE IF NOT EXISTS budgets (
+  id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  category_id INT NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
+  amount NUMERIC(12,2) NOT NULL,
+  period budget_period NOT NULL DEFAULT 'MONTHLY',
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  CONSTRAINT uq_budget_user_cat_period UNIQUE (user_id, category_id, period)
+);
+CREATE INDEX IF NOT EXISTS idx_budgets_user ON budgets(user_id);
