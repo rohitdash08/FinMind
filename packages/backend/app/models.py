@@ -1,6 +1,6 @@
 from datetime import datetime, date
 from enum import Enum
-from sqlalchemy import Enum as SAEnum
+from sqlalchemy import Enum as SAEnum, Index
 from .extensions import db
 
 
@@ -26,6 +26,10 @@ class Category(db.Model):
     name = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
+    __table_args__ = (
+        Index('ix_category_user', 'user_id'),
+    )
+
 
 class Expense(db.Model):
     __tablename__ = "expenses"
@@ -41,6 +45,14 @@ class Expense(db.Model):
         db.Integer, db.ForeignKey("recurring_expenses.id"), nullable=True
     )
     created_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
+
+    __table_args__ = (
+        Index('ix_expense_user_date', 'user_id', 'spent_at'),
+        Index('ix_expense_user_currency', 'user_id', 'currency'),
+        Index('ix_expense_user_category', 'user_id', 'category_id'),
+        Index('ix_expense_user_type', 'user_id', 'expense_type'),
+        Index('ix_expense_created', 'created_at'),
+    )
 
 
 class RecurringCadence(str, Enum):
@@ -65,6 +77,11 @@ class RecurringExpense(db.Model):
     active = db.Column(db.Boolean, default=True, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
+    __table_args__ = (
+        Index('ix_recurring_user_active', 'user_id', 'active'),
+        Index('ix_recurring_user_dates', 'user_id', 'start_date', 'end_date'),
+    )
+
 
 class BillCadence(str, Enum):
     MONTHLY = "MONTHLY"
@@ -88,6 +105,11 @@ class Bill(db.Model):
     active = db.Column(db.Boolean, default=True, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
+    __table_args__ = (
+        Index('ix_bill_user_due', 'user_id', 'next_due_date'),
+        Index('ix_bill_user_active', 'user_id', 'active'),
+    )
+
 
 class Reminder(db.Model):
     __tablename__ = "reminders"
@@ -99,6 +121,11 @@ class Reminder(db.Model):
     sent = db.Column(db.Boolean, default=False, nullable=False)
     channel = db.Column(db.String(20), default="email", nullable=False)
 
+    __table_args__ = (
+        Index('ix_reminder_user_send_at', 'user_id', 'send_at'),
+        Index('ix_reminder_unsent', 'user_id', 'sent', 'send_at'),
+    )
+
 
 class AdImpression(db.Model):
     __tablename__ = "ad_impressions"
@@ -106,6 +133,10 @@ class AdImpression(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     placement = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        Index('ix_ad_user_created', 'user_id', 'created_at'),
+    )
 
 
 class SubscriptionPlan(db.Model):
@@ -126,6 +157,10 @@ class UserSubscription(db.Model):
     active = db.Column(db.Boolean, default=False, nullable=False)
     started_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
+    __table_args__ = (
+        Index('ix_subscription_user_active', 'user_id', 'active'),
+    )
+
 
 class AuditLog(db.Model):
     __tablename__ = "audit_logs"
@@ -133,3 +168,7 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        Index('ix_audit_user_created', 'user_id', 'created_at'),
+    )
