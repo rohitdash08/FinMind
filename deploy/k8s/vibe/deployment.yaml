@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: finmind-vibe-kanban
+  namespace: finmind
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vibe-kanban
+  template:
+    metadata:
+      labels:
+        app: vibe-kanban
+    spec:
+      containers:
+      - name: vibe-kanban
+        image: node:20-alpine
+        command: ["sh", "-c", "npx vibe-kanban"]
+        ports:
+        - containerPort: 3000
+        env:
+        - name: PORT
+          value: "3000"
