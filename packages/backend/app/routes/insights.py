@@ -2,6 +2,8 @@ from datetime import date
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..services.ai import monthly_budget_suggestion
+from ..services.inflation import detect_lifestyle_inflation
+from ..services.cache import cache_get, cache_set
 import logging
 
 bp = Blueprint("insights", __name__)
@@ -23,3 +25,31 @@ def budget_suggestion():
     )
     logger.info("Budget suggestion served user=%s month=%s", uid, ym)
     return jsonify(suggestion)
+
+
+@bp.get("/inflation")
+@jwt_required()
+def inflation_analysis():
+    """
+    Analyse lifestyle inflation over the past N months.
+
+    Query params:
+      months (int, 2-12, default 6) — lookback window
+    """
+    uid = int(get_jwt_identity())
+    try:
+        months = int(request.args.get("months", 6))
+        months = max(2, min(12, months))
+    except (ValueError, TypeError):
+        months = 6
+
+    cache_key = f"user:{uid}:inflation:{months}"
+    cached = cache_get(cache_key)
+    if cached:
+        return jsonify(cached)
+
+    from ..extensions import db
+    result = detect_lifestyle_inflation(uid, db.session, months=months)
+    cache_set(cache_key, result, ttl_seconds=600)
+    logger.info("Inflation analysis served user=%s months=%s", uid, months)
+    return jsonify(result)
