@@ -8,6 +8,8 @@ from .observability import (
     finalize_request,
     init_request_context,
 )
+from .connectors.registry import registry as connector_registry
+from .connectors.mock import MockBankConnector
 from flask_cors import CORS
 import click
 import os
@@ -49,6 +51,9 @@ def create_app(settings: Settings | None = None) -> Flask:
     CORS(app, resources={r"*": {"origins": "*"}}, supports_credentials=True)
 
     # Redis (already global)
+    # Bank-sync connectors
+    connector_registry.register("mock", MockBankConnector)
+
     # Blueprint routes
     register_routes(app)
 

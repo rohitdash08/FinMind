@@ -133,3 +133,55 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+# ------------------------------------------------------------------
+# Bank Sync
+# ------------------------------------------------------------------
+
+
+class ConnectionStatus(str, Enum):
+    ACTIVE = "ACTIVE"
+    DISCONNECTED = "DISCONNECTED"
+    ERROR = "ERROR"
+
+
+class BankConnection(db.Model):
+    """Tracks a user's linked bank account via a specific connector."""
+
+    __tablename__ = "bank_connections"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    provider = db.Column(db.String(50), nullable=False)
+    external_account_id = db.Column(db.String(255), nullable=False)
+    account_name = db.Column(db.String(255), nullable=False)
+    account_type = db.Column(db.String(50), default="SAVINGS", nullable=False)
+    currency = db.Column(db.String(10), default="INR", nullable=False)
+    status = db.Column(
+        db.String(20), default=ConnectionStatus.ACTIVE.value, nullable=False
+    )
+    last_sync_at = db.Column(db.DateTime, nullable=True)
+    sync_cursor = db.Column(db.String(500), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    sync_logs = db.relationship(
+        "SyncLog", backref="connection", lazy="dynamic", cascade="all, delete-orphan"
+    )
+
+
+class SyncLog(db.Model):
+    """Audit trail for every sync attempt against a bank connection."""
+
+    __tablename__ = "sync_logs"
+    id = db.Column(db.Integer, primary_key=True)
+    connection_id = db.Column(
+        db.Integer, db.ForeignKey("bank_connections.id"), nullable=False
+    )
+    sync_type = db.Column(db.String(20), nullable=False)  # "import" or "refresh"
+    status = db.Column(db.String(20), nullable=False)
+    records_imported = db.Column(db.Integer, default=0, nullable=False)
+    duplicates_skipped = db.Column(db.Integer, default=0, nullable=False)
+    error_message = db.Column(db.String(500), nullable=True)
+    started_at = db.Column(db.DateTime, nullable=False)
+    completed_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
