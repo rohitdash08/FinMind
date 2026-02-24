@@ -1,6 +1,6 @@
 from datetime import datetime, date
 from enum import Enum
-from sqlalchemy import Enum as SAEnum
+from sqlalchemy import Enum as SAEnum, Index
 from .extensions import db
 
 
@@ -66,6 +66,19 @@ class RecurringExpense(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
 
+class NotificationPriority(str, Enum):
+    LOW    = "LOW"
+    NORMAL = "NORMAL"
+    HIGH   = "HIGH"
+    URGENT = "URGENT"
+
+
+class NotificationType(str, Enum):
+    BILL_REMINDER = "BILL_REMINDER"
+    CUSTOM        = "CUSTOM"
+    SYSTEM        = "SYSTEM"
+
+
 class BillCadence(str, Enum):
     MONTHLY = "MONTHLY"
     WEEKLY = "WEEKLY"
@@ -91,6 +104,11 @@ class Bill(db.Model):
 
 class Reminder(db.Model):
     __tablename__ = "reminders"
+    __table_args__ = (
+        Index("ix_reminder_priority", "user_id", "priority"),
+        Index("ix_reminder_type",     "user_id", "notification_type"),
+        Index("ix_reminder_pending",  "user_id", "sent", "send_at"),
+    )
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     bill_id = db.Column(db.Integer, db.ForeignKey("bills.id"), nullable=True)
@@ -98,6 +116,8 @@ class Reminder(db.Model):
     send_at = db.Column(db.DateTime, nullable=False)
     sent = db.Column(db.Boolean, default=False, nullable=False)
     channel = db.Column(db.String(20), default="email", nullable=False)
+    priority = db.Column(db.String(10), default=NotificationPriority.NORMAL.value, nullable=False)
+    notification_type = db.Column(db.String(20), default=NotificationType.CUSTOM.value, nullable=False)
 
 
 class AdImpression(db.Model):
