@@ -133,3 +133,70 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class HouseholdRole(str, Enum):
+    OWNER = "OWNER"
+    MEMBER = "MEMBER"
+    VIEWER = "VIEWER"
+
+
+class Household(db.Model):
+    """A shared financial group for household budgeting."""
+
+    __tablename__ = "households"
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(200), nullable=False)
+    currency = db.Column(db.String(10), default="INR", nullable=False)
+    monthly_budget = db.Column(db.Numeric(12, 2), nullable=True)
+    created_by = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class HouseholdMember(db.Model):
+    """Association between users and households."""
+
+    __tablename__ = "household_members"
+    id = db.Column(db.Integer, primary_key=True)
+    household_id = db.Column(
+        db.Integer, db.ForeignKey("households.id"), nullable=False
+    )
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    role = db.Column(db.String(20), default=HouseholdRole.MEMBER.value, nullable=False)
+    joined_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    __table_args__ = (
+        db.UniqueConstraint("household_id", "user_id", name="uq_household_user"),
+    )
+
+
+class HouseholdInvite(db.Model):
+    """Pending invitations to join a household."""
+
+    __tablename__ = "household_invites"
+    id = db.Column(db.Integer, primary_key=True)
+    household_id = db.Column(
+        db.Integer, db.ForeignKey("households.id"), nullable=False
+    )
+    email = db.Column(db.String(255), nullable=False)
+    invited_by = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    accepted = db.Column(db.Boolean, default=False, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class HouseholdExpense(db.Model):
+    """Shared expense within a household."""
+
+    __tablename__ = "household_expenses"
+    id = db.Column(db.Integer, primary_key=True)
+    household_id = db.Column(
+        db.Integer, db.ForeignKey("households.id"), nullable=False
+    )
+    paid_by = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    category_id = db.Column(
+        db.Integer, db.ForeignKey("categories.id"), nullable=True
+    )
+    amount = db.Column(db.Numeric(12, 2), nullable=False)
+    currency = db.Column(db.String(10), default="INR", nullable=False)
+    notes = db.Column(db.String(500), nullable=True)
+    spent_at = db.Column(db.Date, default=date.today, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)

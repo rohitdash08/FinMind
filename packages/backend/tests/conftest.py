@@ -1,9 +1,10 @@
 import os
+import unittest.mock
 import pytest
+import fakeredis
 from app import create_app
 from app.config import Settings
 from app.extensions import db
-from app.extensions import redis_client
 from app import models  # noqa: F401 - ensure models are registered
 
 
@@ -28,21 +29,34 @@ def app_fixture():
         redis_url="redis://localhost:6379/15",
         jwt_secret="test-secret-with-32-plus-chars-1234567890",
     )
+    # Use fakeredis so tests don't need a running Redis server.
+    # Patch at every point of import: extensions, auth routes, and anomaly service.
+    fake_redis = fakeredis.FakeRedis()
+    patch_targets = [
+        "app.extensions.redis_client",
+        "app.routes.auth.redis_client",
+    ]
+    # Only patch login_anomaly if it exists (added in #124)
+    try:
+        import app.services.login_anomaly  # noqa: F401
+        patch_targets.append("app.services.login_anomaly.redis_client")
+    except (ImportError, AttributeError):
+        pass
+    patches = [unittest.mock.patch(t, fake_redis) for t in patch_targets]
+    for p in patches:
+        p.start()
+
     app = create_app(settings)
     app.config.update(TESTING=True)
     _setup_db(app)
-    try:
-        redis_client.flushdb()
-    except Exception:
-        pass
+    fake_redis.flushdb()
     yield app
     with app.app_context():
         db.session.remove()
         db.drop_all()
-    try:
-        redis_client.flushdb()
-    except Exception:
-        pass
+    fake_redis.flushdb()
+    for p in patches:
+        p.stop()
 
 
 @pytest.fixture()
