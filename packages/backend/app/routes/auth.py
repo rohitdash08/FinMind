@@ -10,6 +10,12 @@ from flask_jwt_extended import (
 )
 from ..extensions import db, redis_client
 from ..models import User
+from ..services.login_anomaly import (
+    record_login,
+    get_login_history,
+    get_security_alerts,
+    dismiss_alert,
+)
 import logging
 import time
 
@@ -55,15 +61,38 @@ def login():
     data = request.get_json() or {}
     email = data.get("email")
     password = data.get("password")
+    ip_address = request.remote_addr or "unknown"
+    user_agent = request.headers.get("User-Agent", "")
+
     user = db.session.query(User).filter_by(email=email).first()
     if not user or not check_password_hash(user.password_hash, password):
         logger.warning("Login failed for email=%s", email)
+        record_login(
+            email=email or "",
+            ip_address=ip_address,
+            user_agent=user_agent,
+            success=False,
+            user_id=user.id if user else None,
+        )
         return jsonify(error="invalid credentials"), 401
+
+    anomalies = record_login(
+        email=email,
+        ip_address=ip_address,
+        user_agent=user_agent,
+        success=True,
+        user_id=user.id,
+    )
+
     access = create_access_token(identity=str(user.id))
     refresh = create_refresh_token(identity=str(user.id))
     _store_refresh_session(refresh, str(user.id))
     logger.info("Login success user_id=%s", user.id)
-    return jsonify(access_token=access, refresh_token=refresh)
+
+    response = {"access_token": access, "refresh_token": refresh}
+    if anomalies:
+        response["security_alerts"] = anomalies
+    return jsonify(response)
 
 
 @bp.get("/me")
@@ -137,3 +166,34 @@ def _store_refresh_session(refresh_token: str, uid: str):
         return
     ttl = max(int(exp - time.time()), 1)
     redis_client.setex(_refresh_key(jti), ttl, uid)
+
+
+@bp.get("/login-history")
+@jwt_required()
+def login_history():
+    """Return recent login events for the authenticated user."""
+    uid = int(get_jwt_identity())
+    limit = request.args.get("limit", 50, type=int)
+    limit = min(max(limit, 1), 200)
+    events = get_login_history(uid, limit=limit)
+    return jsonify(events=events, total=len(events))
+
+
+@bp.get("/security-alerts")
+@jwt_required()
+def security_alerts():
+    """Return unresolved security alerts for the authenticated user."""
+    uid = int(get_jwt_identity())
+    include_dismissed = request.args.get("include_dismissed", "false").lower() == "true"
+    alerts = get_security_alerts(uid, include_dismissed=include_dismissed)
+    return jsonify(alerts=alerts, total=len(alerts))
+
+
+@bp.post("/security-alerts/<int:alert_id>/dismiss")
+@jwt_required()
+def dismiss_security_alert(alert_id: int):
+    """Dismiss a specific security alert."""
+    uid = int(get_jwt_identity())
+    if dismiss_alert(alert_id, uid):
+        return jsonify(message="alert dismissed")
+    return jsonify(error="alert not found"), 404

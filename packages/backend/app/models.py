@@ -133,3 +133,30 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class LoginEvent(db.Model):
+    """Records every authentication attempt for anomaly detection."""
+
+    __tablename__ = "login_events"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    email = db.Column(db.String(255), nullable=False)
+    ip_address = db.Column(db.String(45), nullable=False)
+    user_agent = db.Column(db.String(500), nullable=True)
+    success = db.Column(db.Boolean, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class SecurityAlert(db.Model):
+    """Stores login anomaly alerts for review by the user."""
+
+    __tablename__ = "security_alerts"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    alert_type = db.Column(db.String(50), nullable=False)
+    severity = db.Column(db.String(20), default="medium", nullable=False)
+    message = db.Column(db.String(500), nullable=False)
+    ip_address = db.Column(db.String(45), nullable=True)
+    dismissed = db.Column(db.Boolean, default=False, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
