@@ -27,6 +27,19 @@ SUPPORTED_CURRENCIES = {
     "JPY",
 }
 
+SUPPORTED_LOCALES = {
+    "en-US",
+    "en-IN",
+    "en-GB",
+    "en-AU",
+    "en-CA",
+    "en-SG",
+    "de-DE",
+    "fr-FR",
+    "ja-JP",
+    "ar-AE",
+}
+
 
 @bp.post("/register")
 def register():
@@ -39,10 +52,14 @@ def register():
     if db.session.query(User).filter_by(email=email).first():
         logger.info("Register email already used: %s", email)
         return jsonify(error="email already used"), 409
+    locale = str(data.get("locale") or "en-IN").strip()
+    if locale not in SUPPORTED_LOCALES:
+        locale = "en-IN"
     user = User(
         email=email,
         password_hash=generate_password_hash(password),
         preferred_currency="INR",
+        locale=locale,
     )
     db.session.add(user)
     db.session.commit()
@@ -77,6 +94,7 @@ def me():
         id=user.id,
         email=user.email,
         preferred_currency=user.preferred_currency or "INR",
+        locale=user.locale or "en-IN",
     )
 
 
@@ -93,11 +111,17 @@ def update_me():
         if cur not in SUPPORTED_CURRENCIES:
             return jsonify(error="unsupported preferred_currency"), 400
         user.preferred_currency = cur
+    if "locale" in data:
+        loc = str(data.get("locale") or "").strip()
+        if loc not in SUPPORTED_LOCALES:
+            return jsonify(error="unsupported locale"), 400
+        user.locale = loc
     db.session.commit()
     return jsonify(
         id=user.id,
         email=user.email,
         preferred_currency=user.preferred_currency or "INR",
+        locale=user.locale or "en-IN",
     )
 
 

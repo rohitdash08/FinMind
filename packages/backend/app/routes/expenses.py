@@ -8,6 +8,7 @@ from ..extensions import db
 from ..models import Expense, RecurringCadence, RecurringExpense, User
 from ..services.cache import cache_delete_patterns, monthly_summary_key
 from ..services import expense_import
+from ..services.auto_tag import match_rule
 import logging
 
 bp = Blueprint("expenses", __name__)
@@ -74,6 +75,11 @@ def create_expense():
         notes=description,
         spent_at=date.fromisoformat(raw_date) if raw_date else date.today(),
     )
+    # Auto-tag: if no category was explicitly provided, try rule-based matching
+    if e.category_id is None:
+        matched = match_rule(uid, description, amount)
+        if matched is not None:
+            e.category_id = matched
     db.session.add(e)
     db.session.commit()
     logger.info("Created expense id=%s user=%s amount=%s", e.id, uid, e.amount)
@@ -84,7 +90,18 @@ def create_expense():
             f"insights:{uid}:*",
         ]
     )
-    return jsonify(_expense_to_dict(e)), 201
+    result = _expense_to_dict(e)
+    # Auto-check budget warnings for the expense's category
+    if e.category_id:
+        try:
+            from .budgets import check_budget_warnings
+            warnings = check_budget_warnings(uid, e.spent_at)
+            cat_warnings = [w for w in warnings if w["category_id"] == e.category_id]
+            if cat_warnings:
+                result["budget_warnings"] = cat_warnings
+        except Exception:
+            logger.debug("Budget warning check skipped", exc_info=True)
+    return jsonify(result), 201
 
 
 @bp.get("/recurring")

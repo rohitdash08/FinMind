@@ -8,6 +8,7 @@ from .observability import (
     finalize_request,
     init_request_context,
 )
+from .compression import init_compression
 from flask_cors import CORS
 import click
 import os
@@ -51,6 +52,9 @@ def create_app(settings: Settings | None = None) -> Flask:
     # Redis (already global)
     # Blueprint routes
     register_routes(app)
+
+    # Response compression & ETag support
+    init_compression(app)
 
     # Backward-compatible schema patch for existing databases.
     with app.app_context():

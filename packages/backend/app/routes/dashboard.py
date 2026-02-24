@@ -4,8 +4,9 @@ from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from ..extensions import db
-from ..models import Bill, Expense, Category
+from ..models import Bill, Expense, Category, User
 from ..services.cache import cache_get, cache_set, dashboard_summary_key
+from ..services.locale_format import format_currency, format_date, format_number
 
 bp = Blueprint("dashboard", __name__)
 
@@ -21,6 +22,10 @@ def dashboard_summary():
     cached = cache_get(key)
     if cached:
         return jsonify(cached)
+
+    user = db.session.get(User, uid)
+    user_locale = user.locale if user else "en-IN"
+    user_currency = user.preferred_currency if user else "INR"
 
     payload = {
         "period": {"month": ym},
@@ -165,6 +170,20 @@ def dashboard_summary():
         payload["errors"].append("category_breakdown_unavailable")
 
     cache_set(key, payload, ttl_seconds=300)
+
+    # Add locale-formatted fields
+    s = payload["summary"]
+    payload["formatted"] = {
+        "locale": user_locale,
+        "currency": user_currency,
+        "summary": {
+            "net_flow": format_currency(s["net_flow"], user_currency, user_locale),
+            "monthly_income": format_currency(s["monthly_income"], user_currency, user_locale),
+            "monthly_expenses": format_currency(s["monthly_expenses"], user_currency, user_locale),
+            "upcoming_bills_total": format_currency(s["upcoming_bills_total"], user_currency, user_locale),
+        },
+    }
+
     return jsonify(payload)
 
 

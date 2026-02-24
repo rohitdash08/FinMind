@@ -15,6 +15,7 @@ class User(db.Model):
     email = db.Column(db.String(255), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
     preferred_currency = db.Column(db.String(10), default="INR", nullable=False)
+    locale = db.Column(db.String(20), default="en-IN", nullable=False)
     role = db.Column(db.String(20), default=Role.USER.value, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
@@ -125,6 +126,20 @@ class UserSubscription(db.Model):
     )
     active = db.Column(db.Boolean, default=False, nullable=False)
     started_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class AutoTagRule(db.Model):
+    __tablename__ = "auto_tag_rules"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    name = db.Column(db.String(200), nullable=False)
+    conditions = db.Column(db.JSON, nullable=False, default=list)
+    target_category_id = db.Column(
+        db.Integer, db.ForeignKey("categories.id"), nullable=False
+    )
+    priority = db.Column(db.Integer, default=0, nullable=False)
+    active = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
 
 class AuditLog(db.Model):
