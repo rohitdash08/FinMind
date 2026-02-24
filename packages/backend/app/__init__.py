@@ -9,6 +9,8 @@ from .observability import (
     init_request_context,
 )
 from flask_cors import CORS
+from flask_compress import Compress
+from .middleware.compression import add_etag_support
 import click
 import os
 import logging
@@ -48,6 +50,22 @@ def create_app(settings: Settings | None = None) -> Flask:
     # CORS for local dev frontend
     CORS(app, resources={r"*": {"origins": "*"}}, supports_credentials=True)
 
+    # Response compression (gzip/br for JSON and text responses)
+    compress = Compress()
+    app.config.update(
+        COMPRESS_REGISTER=True,
+        COMPRESS_MIMETYPES=[
+            'application/json',
+            'text/html',
+            'text/plain',
+            'text/css',
+            'application/javascript',
+        ],
+        COMPRESS_LEVEL=6,       # gzip level 6 — good balance of speed vs ratio
+        COMPRESS_MIN_SIZE=500,  # only compress responses > 500 bytes
+    )
+    compress.init_app(app)
+
     # Redis (already global)
     # Blueprint routes
     register_routes(app)
@@ -62,7 +80,8 @@ def create_app(settings: Settings | None = None) -> Flask:
 
     @app.after_request
     def _after_request(response):
-        return finalize_request(response)
+        response = finalize_request(response)
+        return add_etag_support(response)
 
     @app.get("/health")
     def health():
