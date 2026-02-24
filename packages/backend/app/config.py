@@ -23,6 +23,11 @@ class Settings(BaseSettings):
     email_from: str | None = None
     smtp_url: str | None = None  # e.g. smtp+ssl://user:pass@mail:465
 
+    # Setu Account Aggregator (Indian bank sync)
+    setu_client_id: str | None = None
+    setu_client_secret: str | None = None
+    setu_base_url: str = "https://fiu-sandbox.setu.co/v2"
+
     # pydantic-settings v2 configuration
     model_config = SettingsConfigDict(
         env_file=".env",

@@ -133,3 +133,40 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+# ---------------------------------------------------------------------------
+# Bank Sync Connector Architecture
+# ---------------------------------------------------------------------------
+
+
+class BankConnection(db.Model):
+    __tablename__ = "bank_connections"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    provider = db.Column(db.String(50), nullable=False)
+    account_id = db.Column(db.String(255), nullable=True)
+    account_label = db.Column(db.String(255), nullable=True)
+    status = db.Column(db.String(30), default="pending", nullable=False)
+    consent_handle = db.Column(db.String(255), nullable=True)
+    session_token = db.Column(db.Text, nullable=True)
+    last_sync_at = db.Column(db.DateTime, nullable=True)
+    sync_cursor = db.Column(db.String(500), nullable=True)
+    currency = db.Column(db.String(10), default="INR", nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class SyncLog(db.Model):
+    __tablename__ = "sync_logs"
+    id = db.Column(db.Integer, primary_key=True)
+    connection_id = db.Column(
+        db.Integer, db.ForeignKey("bank_connections.id"), nullable=False
+    )
+    sync_type = db.Column(db.String(20), nullable=False)  # full / refresh
+    status = db.Column(db.String(20), nullable=False)  # success / failed
+    records_fetched = db.Column(db.Integer, default=0, nullable=False)
+    records_imported = db.Column(db.Integer, default=0, nullable=False)
+    duplicates_skipped = db.Column(db.Integer, default=0, nullable=False)
+    error_message = db.Column(db.Text, nullable=True)
+    duration_ms = db.Column(db.Integer, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
