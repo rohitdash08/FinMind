@@ -1,0 +1,160 @@
+# This snippet should be added to the main openapi.yaml file under the paths section
+# Add after /insights/budget-suggestion and before components section
+
+  /digest/weekly:
+    get:
+      summary: Get weekly financial digest with trends and insights
+      tags: [Digest]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: week
+          required: false
+          schema: 
+            type: string
+            pattern: '^\d{4}-W\d{2}$'
+          description: Week in format YYYY-WNN (e.g., "2026-W08"). Defaults to current week.
+          example: "2026-W08"
+        - in: header
+          name: X-Gemini-Api-Key
+          required: false
+          schema:
+            type: string
+          description: Optional Gemini API key for AI-powered insights
+      responses:
+        '200':
+          description: Weekly digest with comprehensive financial summary
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  period:
+                    type: object
+                    properties:
+                      week: { type: string, example: "2026-W08" }
+                      start_date: { type: string, format: date, example: "2026-02-16" }
+                      end_date: { type: string, format: date, example: "2026-02-22" }
+                  expenses:
+                    type: object
+                    properties:
+                      total_income: { type: number, format: float, example: 5000.00 }
+                      total_expenses: { type: number, format: float, example: 3200.50 }
+                      net_flow: { type: number, format: float, example: 1799.50 }
+                      categories:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            category_id: { type: integer, nullable: true }
+                            category_name: { type: string }
+                            amount: { type: number, format: float }
+                            transaction_count: { type: integer }
+                      daily_spending:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            date: { type: string, format: date }
+                            amount: { type: number, format: float }
+                  bills:
+                    type: object
+                    properties:
+                      count: { type: integer, example: 2 }
+                      total_amount: { type: number, format: float, example: 450.00 }
+                      bills:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id: { type: integer }
+                            name: { type: string }
+                            amount: { type: number, format: float }
+                            due_date: { type: string, format: date }
+                            cadence: { type: string }
+                  comparison:
+                    type: object
+                    properties:
+                      current_week_expenses: { type: number, format: float, example: 3200.50 }
+                      previous_week_expenses: { type: number, format: float, example: 2800.00 }
+                      change_amount: { type: number, format: float, example: 400.50 }
+                      change_percentage: { type: number, format: float, example: 14.30 }
+                  insights:
+                    type: array
+                    items:
+                      type: string
+                    example:
+                      - "Great job! You saved 1799.50 this week. Keep up the positive cash flow!"
+                      - "Your spending increased by 14.3% compared to last week. Review your top categories."
+                  generated_at: { type: string, format: date-time }
+                  insight_method: { type: string, enum: [gemini, heuristic], example: "heuristic" }
+              example:
+                period:
+                  week: "2026-W08"
+                  start_date: "2026-02-16"
+                  end_date: "2026-02-22"
+                expenses:
+                  total_income: 5000.00
+                  total_expenses: 3200.50
+                  net_flow: 1799.50
+                  categories:
+                    - category_id: 1
+                      category_name: "Food"
+                      amount: 1200.00
+                      transaction_count: 15
+                    - category_id: 2
+                      category_name: "Transport"
+                      amount: 800.00
+                      transaction_count: 8
+                  daily_spending:
+                    - date: "2026-02-16"
+                      amount: 450.00
+                    - date: "2026-02-17"
+                      amount: 520.00
+                bills:
+                  count: 2
+                  total_amount: 450.00
+                  bills:
+                    - id: 5
+                      name: "Internet Bill"
+                      amount: 60.00
+                      due_date: "2026-02-18"
+                      cadence: "MONTHLY"
+                comparison:
+                  current_week_expenses: 3200.50
+                  previous_week_expenses: 2800.00
+                  change_amount: 400.50
+                  change_percentage: 14.30
+                insights:
+                  - "Great job! You saved 1799.50 this week. Keep up the positive cash flow!"
+                  - "Your spending increased by 14.3% compared to last week. Review your top categories."
+                  - "Food accounts for 37.5% of your weekly spending. Consider if this aligns with your priorities."
+                generated_at: "2026-02-24T16:00:00.000Z"
+                insight_method: "heuristic"
+        '400':
+          description: Invalid week format
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { error: "Invalid week format. Expected YYYY-WNN (e.g., 2026-W08)" }
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '500':
+          description: Failed to generate digest
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { error: "Failed to generate weekly digest" }
+
+# Also add "Digest" to the tags section at the top of the file:
+# tags:
+#   - name: Auth
+#   - name: Categories
+#   - name: Expenses
+#   - name: Bills
+#   - name: Reminders
+#   - name: Insights
+#   - name: Digest

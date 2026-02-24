@@ -54,9 +54,10 @@ See `backend/app/db/schema.sql`. Key tables:
   - `user:{id}:monthly_summary:{yyyy-mm}` — 30 min TTL
   - `user:{id}:categories` — 24h TTL
   - `user:{id}:upcoming_bills` — 15 min TTL
+  - `user:{id}:digest:weekly:{yyyy-Wnn}` — 1 hour TTL
   - `insights:{id}` — 24h TTL (invalidate on new expense/bill)
 - Invalidation
-  - On expense/bill create/update/delete -> delete affected monthly_summary, upcoming_bills, insights
+  - On expense/bill create/update/delete -> delete affected monthly_summary, upcoming_bills, insights, weekly digest
 - Rate limiting (optional): `rl:{userId}:{endpoint}:{minute}` with short TTL
 
 ## API Endpoints
@@ -66,6 +67,39 @@ OpenAPI: `backend/app/openapi.yaml`
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
 - Insights: `/insights/monthly`, `/insights/budget-suggestion`
+- **Digest: `/digest/weekly` — Weekly financial summary with trends and AI insights**
+
+## Features
+
+### Weekly Digest (NEW)
+Get comprehensive weekly financial summaries with:
+- **Income & Expense Tracking**: Total income, expenses, and net flow for the week
+- **Category Breakdown**: Spending by category with transaction counts
+- **Daily Spending Pattern**: Day-by-day spending visualization
+- **Bills Due**: Upcoming bills for the week
+- **Week-over-Week Comparison**: Compare current week with previous week
+- **AI-Powered Insights**: Smart recommendations using Gemini or heuristic analysis
+
+**Usage:**
+```bash
+# Get current week digest
+GET /digest/weekly
+
+# Get specific week digest
+GET /digest/weekly?week=2026-W08
+
+# Use custom Gemini API key for AI insights
+GET /digest/weekly
+Headers: X-Gemini-Api-Key: your-api-key
+```
+
+**Response includes:**
+- Period information (week, start/end dates)
+- Expense summary with category breakdown
+- Bills due during the week
+- Week-over-week comparison metrics
+- 3-5 actionable insights
+- Daily spending pattern
 
 ## MVP UI/UX Plan
 - Auth screens: register/login.
@@ -73,17 +107,18 @@ OpenAPI: `backend/app/openapi.yaml`
   - Monthly spend chart, category breakdown donut.
   - Upcoming bills list with due dates and pay status.
   - AI budget suggestion card.
+  - **Weekly digest card with trends and insights.**
 - Expenses page: add expense (amount, category, notes, date), list & filter.
 - Bills page: create bill (name, amount, cadence, due date, channel), toggle WhatsApp/email.
 - Settings: profile, categories, reminders default channel, export (premium).
 
 ## Monetization Plan
 - Free: ads in dashboard and list pages (lightweight, non-intrusive). Record impressions in `ad_impressions`.
-- Premium ($/mo): CSV/Excel export, multi-device sync, priority insights, remove ads.
+- Premium ($/mo): CSV/Excel export, multi-device sync, priority insights, remove ads, **advanced weekly digest analytics**.
 - Payments stubbed; swap in Stripe when moving off free tier.
 
 ## Organic Marketing Strategies
-- Content: budgeting tips, “FinMind monthly challenge” on socials.
+- Content: budgeting tips, "FinMind monthly challenge" on socials.
 - SEO: landing with calculators (50/30/20, debt snowball), schema markup.
 - Communities: Reddit PF, indie hackers build-in-public.
 - Referral: give 1 month premium for inviting 3 friends.
@@ -104,11 +139,13 @@ finmind/
         bills.py
         reminders.py
         insights.py
+        digest.py
       services/
         __init__.py
         ai.py
         cache.py
         reminders.py
+        digest.py
       db/
         schema.sql
       openapi.yaml
@@ -160,19 +197,23 @@ finmind/
 - PowerShell (Windows):
   - `./scripts/test-backend.ps1`
   - single file: `./scripts/test-backend.ps1 tests/test_dashboard.py`
+  - digest tests: `./scripts/test-backend.ps1 tests/test_digest.py`
 - POSIX shell:
   - `sh ./scripts/test-backend.sh`
   - single file: `sh ./scripts/test-backend.sh tests/test_dashboard.py`
+  - digest tests: `sh ./scripts/test-backend.sh tests/test_digest.py`
 
 ## Testing & CI
 - Backend: pytest, flake8, black. Frontend: vitest, eslint.
 - GitHub Actions `ci.yml` runs lint, tests, and builds both apps; optional docker build.
+- **New**: Comprehensive test suite for weekly digest feature with 10+ test cases
 
 ## Monitoring (Grafana OSS)
 - Backend exposes Prometheus metrics at `/metrics` with:
   - request count by endpoint/status
   - request duration histograms (latency, including dashboard p95 KPI)
   - reminder event counters (engagement KPI)
+  - **digest generation metrics (method, cache hits)**
 - Logs are emitted as JSON with `request_id` and shipped to Loki via Promtail.
 - Pre-provisioned Grafana dashboard: `FinMind Operations and KPI`.
 
