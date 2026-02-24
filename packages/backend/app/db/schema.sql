@@ -123,3 +123,35 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   action VARCHAR(100) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+-- Bank Sync
+CREATE TABLE IF NOT EXISTS bank_connections (
+  id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  provider VARCHAR(50) NOT NULL,
+  external_account_id VARCHAR(255) NOT NULL,
+  account_name VARCHAR(255) NOT NULL,
+  account_type VARCHAR(50) NOT NULL DEFAULT 'SAVINGS',
+  currency VARCHAR(10) NOT NULL DEFAULT 'INR',
+  status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
+  last_sync_at TIMESTAMP,
+  sync_cursor VARCHAR(500),
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_bank_connections_user
+  ON bank_connections(user_id);
+
+CREATE TABLE IF NOT EXISTS sync_logs (
+  id SERIAL PRIMARY KEY,
+  connection_id INT NOT NULL REFERENCES bank_connections(id) ON DELETE CASCADE,
+  sync_type VARCHAR(20) NOT NULL,
+  status VARCHAR(20) NOT NULL,
+  records_imported INT NOT NULL DEFAULT 0,
+  duplicates_skipped INT NOT NULL DEFAULT 0,
+  error_message VARCHAR(500),
+  started_at TIMESTAMP NOT NULL,
+  completed_at TIMESTAMP,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_sync_logs_connection
+  ON sync_logs(connection_id, created_at DESC);
