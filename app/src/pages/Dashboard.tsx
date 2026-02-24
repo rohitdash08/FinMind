@@ -22,6 +22,7 @@ import {
 import { getDashboardSummary, type DashboardSummary } from '@/api/dashboard';
 import { useNavigate } from 'react-router-dom';
 import { formatMoney } from '@/lib/currency';
+import { WeeklyDigest } from '@/components/WeeklyDigest';
 
 function currency(n: number, code?: string) {
   return formatMoney(Number(n || 0), code);
@@ -167,7 +168,9 @@ export function Dashboard() {
       </div>
 
       <div className="grid lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2 space-y-6">
+          <WeeklyDigest />
+          
           <FinancialCard variant="financial" className="fade-in-up">
             <FinancialCardHeader>
               <div className="flex items-center justify-between">
