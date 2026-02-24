@@ -19,3 +19,4 @@ black==24.8.0
 flake8==7.0.0
 bandit==1.7.9
 
+babel==2.14.0
