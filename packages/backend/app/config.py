@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     email_from: str | None = None
     smtp_url: str | None = None  # e.g. smtp+ssl://user:pass@mail:465
 
+    # Testing flag — set to True in test environments to suppress background scheduler
+    testing: bool = Field(default=False)
+
     # pydantic-settings v2 configuration
     model_config = SettingsConfigDict(
         env_file=".env",

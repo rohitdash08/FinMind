@@ -1,6 +1,6 @@
 from datetime import datetime, date
 from enum import Enum
-from sqlalchemy import Enum as SAEnum
+from sqlalchemy import Enum as SAEnum, Index
 from .extensions import db
 
 
@@ -133,3 +133,45 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class NotificationType(str, Enum):
+    EMAIL    = "EMAIL"
+    WHATSAPP = "WHATSAPP"
+    PUSH     = "PUSH"
+
+
+class ReminderDeliveryLog(db.Model):
+    """Tracks every delivery attempt for a reminder (success or failure)."""
+    __tablename__ = "reminder_delivery_logs"
+    id              = db.Column(db.Integer, primary_key=True)
+    reminder_id     = db.Column(db.Integer, db.ForeignKey("reminders.id"), nullable=False)
+    channel         = db.Column(db.String(20), nullable=False)
+    attempted_at    = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    success         = db.Column(db.Boolean, nullable=False, default=False)
+    error_message   = db.Column(db.String(500), nullable=True)
+    latency_seconds = db.Column(db.Float, nullable=True)
+
+
+class JobStatus(str, Enum):
+    RUNNING = "RUNNING"
+    SUCCESS = "SUCCESS"
+    FAILED  = "FAILED"
+    PARTIAL = "PARTIAL"
+
+
+class JobExecutionLog(db.Model):
+    """Tracks background job runs for monitoring and debugging."""
+    __tablename__ = "job_execution_logs"
+    id                = db.Column(db.Integer, primary_key=True)
+    job_name          = db.Column(db.String(100), nullable=False)
+    started_at        = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    finished_at       = db.Column(db.DateTime, nullable=True)
+    status            = db.Column(db.String(20), nullable=False, default=JobStatus.RUNNING.value)
+    records_processed = db.Column(db.Integer, default=0, nullable=False)
+    records_failed    = db.Column(db.Integer, default=0, nullable=False)
+    error_message     = db.Column(db.String(500), nullable=True)
+    __table_args__ = (
+        Index("ix_job_log_name",    "job_name"),
+        Index("ix_job_log_started", "started_at"),
+    )

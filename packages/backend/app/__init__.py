@@ -2,6 +2,7 @@ from flask import Flask, jsonify
 from .config import Settings
 from .extensions import db, jwt
 from .routes import register_routes
+from .services.scheduler import build_scheduler
 from .observability import (
     Observability,
     configure_logging,
@@ -21,6 +22,7 @@ def create_app(settings: Settings | None = None) -> Flask:
 
     # Config
     app.config.update(
+        TESTING=cfg.testing,
         SQLALCHEMY_DATABASE_URI=cfg.database_url,
         SQLALCHEMY_TRACK_MODIFICATIONS=False,
         JWT_SECRET_KEY=cfg.jwt_secret,
@@ -51,6 +53,16 @@ def create_app(settings: Settings | None = None) -> Flask:
     # Redis (already global)
     # Blueprint routes
     register_routes(app)
+
+    # Background scheduler (only start in non-testing environments)
+    if not app.config.get("TESTING") and os.environ.get("WERKZEUG_RUN_MAIN") != "false":
+        _scheduler = build_scheduler(app)
+        app.extensions["scheduler"] = _scheduler
+        try:
+            _scheduler.start()
+            logger.info("Background scheduler started")
+        except Exception as exc:
+            logger.warning("Scheduler failed to start: %s", exc)
 
     # Backward-compatible schema patch for existing databases.
     with app.app_context():
