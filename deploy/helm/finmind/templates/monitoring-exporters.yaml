@@ -1,0 +1,210 @@
+{{- if .Values.monitoring.exporters.nodeExporter.enabled }}
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ include "finmind.fullname" . }}-node-exporter
+  labels:
+    {{- include "finmind.labels" . | nindent 4 }}
+    app.kubernetes.io/component: node-exporter
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "finmind.name" . }}-node-exporter
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "finmind.name" . }}-node-exporter
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: node-exporter
+    spec:
+      hostNetwork: true
+      hostPID: true
+      containers:
+        - name: node-exporter
+          image: "{{ .Values.monitoring.exporters.nodeExporter.image.repository }}:{{ .Values.monitoring.exporters.nodeExporter.image.tag }}"
+          args:
+            - --path.rootfs=/host
+          ports:
+            - containerPort: 9100
+              hostPort: 9100
+          volumeMounts:
+            - name: root
+              mountPath: /host
+              readOnly: true
+      volumes:
+        - name: root
+          hostPath:
+            path: /
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "finmind.fullname" . }}-node-exporter
+  labels:
+    {{- include "finmind.labels" . | nindent 4 }}
+    app.kubernetes.io/component: node-exporter
+spec:
+  selector:
+    app.kubernetes.io/name: {{ include "finmind.name" . }}-node-exporter
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - port: 9100
+      targetPort: 9100
+      name: metrics
+{{- end }}
+---
+{{- if .Values.monitoring.exporters.postgresExporter.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "finmind.fullname" . }}-postgres-exporter
+  labels:
+    {{- include "finmind.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgres-exporter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "finmind.name" . }}-postgres-exporter
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "finmind.name" . }}-postgres-exporter
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: postgres-exporter
+    spec:
+      containers:
+        - name: postgres-exporter
+          image: "{{ .Values.monitoring.exporters.postgresExporter.image.repository }}:{{ .Values.monitoring.exporters.postgresExporter.image.tag }}"
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "finmind.secretName" . }}
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "finmind.secretName" . }}
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "finmind.secretName" . }}
+                  key: POSTGRES_DB
+            - name: DATA_SOURCE_NAME
+              value: "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@{{ include "finmind.fullname" . }}-postgres:5432/$(POSTGRES_DB)?sslmode=disable"
+          ports:
+            - containerPort: 9187
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "finmind.fullname" . }}-postgres-exporter
+  labels:
+    {{- include "finmind.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgres-exporter
+spec:
+  selector:
+    app.kubernetes.io/name: {{ include "finmind.name" . }}-postgres-exporter
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - port: 9187
+      targetPort: 9187
+      name: metrics
+{{- end }}
+---
+{{- if .Values.monitoring.exporters.redisExporter.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "finmind.fullname" . }}-redis-exporter
+  labels:
+    {{- include "finmind.labels" . | nindent 4 }}
+    app.kubernetes.io/component: redis-exporter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "finmind.name" . }}-redis-exporter
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "finmind.name" . }}-redis-exporter
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: redis-exporter
+    spec:
+      containers:
+        - name: redis-exporter
+          image: "{{ .Values.monitoring.exporters.redisExporter.image.repository }}:{{ .Values.monitoring.exporters.redisExporter.image.tag }}"
+          env:
+            - name: REDIS_ADDR
+              value: "redis://{{ include "finmind.fullname" . }}-redis:6379"
+          ports:
+            - containerPort: 9121
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "finmind.fullname" . }}-redis-exporter
+  labels:
+    {{- include "finmind.labels" . | nindent 4 }}
+    app.kubernetes.io/component: redis-exporter
+spec:
+  selector:
+    app.kubernetes.io/name: {{ include "finmind.name" . }}-redis-exporter
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - port: 9121
+      targetPort: 9121
+      name: metrics
+{{- end }}
+---
+{{- if .Values.monitoring.exporters.nginxExporter.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "finmind.fullname" . }}-nginx-exporter
+  labels:
+    {{- include "finmind.labels" . | nindent 4 }}
+    app.kubernetes.io/component: nginx-exporter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "finmind.name" . }}-nginx-exporter
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "finmind.name" . }}-nginx-exporter
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: nginx-exporter
+    spec:
+      containers:
+        - name: nginx-exporter
+          image: "{{ .Values.monitoring.exporters.nginxExporter.image.repository }}:{{ .Values.monitoring.exporters.nginxExporter.image.tag }}"
+          args:
+            - "-nginx.scrape-uri=http://{{ include "finmind.fullname" . }}-nginx/nginx_status"
+          ports:
+            - containerPort: 9113
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "finmind.fullname" . }}-nginx-exporter
+  labels:
+    {{- include "finmind.labels" . | nindent 4 }}
+    app.kubernetes.io/component: nginx-exporter
+spec:
+  selector:
+    app.kubernetes.io/name: {{ include "finmind.name" . }}-nginx-exporter
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - port: 9113
+      targetPort: 9113
+      name: metrics
+{{- end }}

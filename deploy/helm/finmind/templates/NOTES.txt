@@ -1,0 +1,71 @@
+FinMind has been deployed successfully!
+
+Release: {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+
+=== Application Components ===
+
+Backend:  {{ include "finmind.fullname" . }}-backend:{{ .Values.backend.service.port }}
+{{- if .Values.frontend.enabled }}
+Frontend: {{ include "finmind.fullname" . }}-frontend:{{ .Values.frontend.service.port }}
+{{- end }}
+{{- if .Values.nginx.enabled }}
+Nginx:    {{ include "finmind.fullname" . }}-nginx:{{ .Values.nginx.service.port }}
+{{- end }}
+
+=== Data Stores ===
+
+{{- if .Values.postgres.enabled }}
+PostgreSQL: {{ include "finmind.fullname" . }}-postgres:{{ .Values.postgres.port }}
+{{- end }}
+{{- if .Values.redis.enabled }}
+Redis:      {{ include "finmind.fullname" . }}-redis:{{ .Values.redis.port }}
+{{- end }}
+
+=== Ingress ===
+
+{{- if .Values.ingress.enabled }}
+{{- range .Values.ingress.hosts }}
+  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}
+{{- end }}
+{{- if .Values.ingress.tls }}
+  TLS is enabled via cert-manager ({{ (index .Values.ingress.annotations "cert-manager.io/cluster-issuer") }})
+{{- end }}
+{{- else }}
+  Ingress is disabled. Use port-forward to access services:
+  kubectl port-forward svc/{{ include "finmind.fullname" . }}-nginx 8080:80
+{{- end }}
+
+=== Monitoring ===
+
+{{- if .Values.monitoring.prometheus.enabled }}
+Prometheus: {{ include "finmind.fullname" . }}-prometheus:9090
+{{- end }}
+{{- if .Values.monitoring.grafana.enabled }}
+Grafana:    {{ include "finmind.fullname" . }}-grafana:3000
+  {{- if .Values.monitoring.grafana.ingress.enabled }}
+  URL: http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .Values.monitoring.grafana.ingress.host }}
+  {{- end }}
+{{- end }}
+{{- if .Values.monitoring.loki.enabled }}
+Loki:       {{ include "finmind.fullname" . }}-loki:3100
+{{- end }}
+
+=== HPA ===
+
+{{- if .Values.hpa.enabled }}
+Backend autoscaling: {{ .Values.hpa.minReplicas }}-{{ .Values.hpa.maxReplicas }} replicas (CPU target: {{ .Values.hpa.targetCPUUtilizationPercentage }}%)
+{{- else }}
+Autoscaling is disabled. Backend runs {{ .Values.backend.replicaCount }} replica(s).
+{{- end }}
+
+=== Quick Commands ===
+
+  # Check pod status
+  kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+
+  # View backend logs
+  kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/component=backend -f
+
+  # Port-forward Grafana
+  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "finmind.fullname" . }}-grafana 3000:3000

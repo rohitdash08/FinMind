@@ -1,0 +1,131 @@
+{{- if .Values.monitoring.prometheus.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "finmind.fullname" . }}-prometheus-config
+  labels:
+    {{- include "finmind.labels" . | nindent 4 }}
+    app.kubernetes.io/component: prometheus
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+
+    scrape_configs:
+      - job_name: prometheus
+        static_configs:
+          - targets: ['localhost:9090']
+
+      - job_name: backend
+        metrics_path: /metrics
+        static_configs:
+          - targets: ['{{ include "finmind.fullname" . }}-backend:{{ .Values.backend.service.port }}']
+
+      {{- if .Values.monitoring.exporters.postgresExporter.enabled }}
+      - job_name: postgres
+        static_configs:
+          - targets: ['{{ include "finmind.fullname" . }}-postgres-exporter:9187']
+      {{- end }}
+
+      {{- if .Values.monitoring.exporters.redisExporter.enabled }}
+      - job_name: redis
+        static_configs:
+          - targets: ['{{ include "finmind.fullname" . }}-redis-exporter:9121']
+      {{- end }}
+
+      {{- if .Values.monitoring.exporters.nginxExporter.enabled }}
+      - job_name: nginx
+        static_configs:
+          - targets: ['{{ include "finmind.fullname" . }}-nginx-exporter:9113']
+      {{- end }}
+
+      {{- if .Values.monitoring.exporters.nodeExporter.enabled }}
+      - job_name: node
+        static_configs:
+          - targets: ['{{ include "finmind.fullname" . }}-node-exporter:9100']
+      {{- end }}
+---
+{{- if .Values.monitoring.prometheus.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "finmind.fullname" . }}-prometheus-data
+  labels:
+    {{- include "finmind.labels" . | nindent 4 }}
+    app.kubernetes.io/component: prometheus
+spec:
+  accessModes: [ReadWriteOnce]
+  {{- if .Values.monitoring.prometheus.persistence.storageClass }}
+  storageClassName: {{ .Values.monitoring.prometheus.persistence.storageClass | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.monitoring.prometheus.persistence.size }}
+{{- end }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "finmind.fullname" . }}-prometheus
+  labels:
+    {{- include "finmind.labels" . | nindent 4 }}
+    app.kubernetes.io/component: prometheus
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "finmind.name" . }}-prometheus
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "finmind.name" . }}-prometheus
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: prometheus
+    spec:
+      containers:
+        - name: prometheus
+          image: "{{ .Values.monitoring.prometheus.image.repository }}:{{ .Values.monitoring.prometheus.image.tag }}"
+          args:
+            - --config.file=/etc/prometheus/prometheus.yml
+            - --storage.tsdb.retention.time={{ .Values.monitoring.prometheus.retention.time }}
+            - --storage.tsdb.retention.size={{ .Values.monitoring.prometheus.retention.size }}
+          ports:
+            - containerPort: 9090
+          volumeMounts:
+            - name: config
+              mountPath: /etc/prometheus/prometheus.yml
+              subPath: prometheus.yml
+            - name: data
+              mountPath: /prometheus
+          resources:
+            {{- toYaml .Values.monitoring.prometheus.resources | nindent 12 }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "finmind.fullname" . }}-prometheus-config
+        - name: data
+          {{- if .Values.monitoring.prometheus.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "finmind.fullname" . }}-prometheus-data
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "finmind.fullname" . }}-prometheus
+  labels:
+    {{- include "finmind.labels" . | nindent 4 }}
+    app.kubernetes.io/component: prometheus
+spec:
+  selector:
+    app.kubernetes.io/name: {{ include "finmind.name" . }}-prometheus
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - port: 9090
+      targetPort: 9090
+      name: http
+{{- end }}

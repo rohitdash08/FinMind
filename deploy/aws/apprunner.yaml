@@ -1,0 +1,49 @@
+# FinMind — AWS App Runner Configuration
+# ──────────────────────────────────────
+# Deploy:
+#   1. Push image to ECR
+#   2. aws apprunner create-service --cli-input-json file://deploy/aws/apprunner.yaml
+#   Or use the AWS Console → App Runner → Create Service
+
+version: 1.0
+runtime: python311
+
+build:
+  commands:
+    build:
+      - pip install -r requirements.txt
+
+run:
+  command: "sh -c 'python -m flask --app wsgi:app init-db && gunicorn --workers=2 --threads=4 --bind 0.0.0.0:8000 wsgi:app'"
+  network:
+    port: 8000
+    env: PORT
+  env:
+    - name: GEMINI_MODEL
+      value: "gemini-1.5-flash"
+    - name: LOG_LEVEL
+      value: "INFO"
+
+# Note: For image-based deployment, use the following AWS CLI:
+#
+# aws apprunner create-service \
+#   --service-name finmind-backend \
+#   --source-configuration '{
+#     "ImageRepository": {
+#       "ImageIdentifier": "ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/finmind-backend:latest",
+#       "ImageRepositoryType": "ECR",
+#       "ImageConfiguration": {
+#         "Port": "8000",
+#         "RuntimeEnvironmentSecrets": {
+#           "DATABASE_URL": "arn:aws:secretsmanager:us-east-1:ACCOUNT_ID:secret:finmind/database-url",
+#           "REDIS_URL": "arn:aws:secretsmanager:us-east-1:ACCOUNT_ID:secret:finmind/redis-url",
+#           "JWT_SECRET": "arn:aws:secretsmanager:us-east-1:ACCOUNT_ID:secret:finmind/jwt-secret"
+#         }
+#       }
+#     },
+#     "AuthenticationConfiguration": {
+#       "AccessRoleArn": "arn:aws:iam::ACCOUNT_ID:role/AppRunnerECRAccessRole"
+#     }
+#   }' \
+#   --instance-configuration '{"Cpu":"1024","Memory":"2048"}' \
+#   --health-check-configuration '{"Protocol":"HTTP","Path":"/health","Interval":10,"Timeout":5}'
