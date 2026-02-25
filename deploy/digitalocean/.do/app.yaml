@@ -1,7 +1,7 @@
-# FinMind â€” DigitalOcean App Platform
+# FinMind â€?DigitalOcean App Platform
 # Deploy:
 #   doctl apps create --spec deploy/digitalocean/.do/app.yaml
-# Or import via DO dashboard â†’ Apps â†’ Create App â†’ From Spec
+# Or import via DO dashboard â†?Apps â†?Create App â†?From Spec
 
 name: finmind
 region: nyc
@@ -10,7 +10,7 @@ services:
   - name: backend
     dockerfile_path: packages/backend/Dockerfile
     github:
-      repo: your-org/FinMind
+      repo: rohitdash08/FinMind
       branch: main
       deploy_on_push: true
     http_port: 8000
@@ -47,7 +47,7 @@ services:
   - name: frontend
     dockerfile_path: app/Dockerfile
     github:
-      repo: your-org/FinMind
+      repo: rohitdash08/FinMind
       branch: main
       deploy_on_push: true
     http_port: 80

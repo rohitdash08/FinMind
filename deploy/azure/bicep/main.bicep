@@ -1,11 +1,11 @@
-// FinMind — Azure Bicep Deployment Template
+// FinMind �?Azure Bicep Deployment Template
 // ──────────────────────────────────────────
 // Deploy:
 //   az deployment group create \
 //     --resource-group finmind-rg \
 //     --template-file deploy/azure/bicep/main.bicep \
-//     --parameters backendImage='ghcr.io/your-org/finmind-backend:latest' \
-//                  frontendImage='ghcr.io/your-org/finmind-frontend:latest' \
+//     --parameters backendImage='ghcr.io/rohitdash08/finmind-backend:latest' \
+//                  frontendImage='ghcr.io/rohitdash08/finmind-frontend:latest' \
 //                  jwtSecret='YOUR_SECRET' \
 //                  databaseUrl='postgresql://...' \
 //                  redisUrl='redis://...'

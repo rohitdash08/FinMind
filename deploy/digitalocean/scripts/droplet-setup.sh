@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# FinMind — DigitalOcean Droplet One-Click Setup
+# FinMind �?DigitalOcean Droplet One-Click Setup
 # ────────────────────────────────────────────────
 # Usage:
-#   curl -sSL https://raw.githubusercontent.com/your-org/FinMind/main/deploy/digitalocean/scripts/droplet-setup.sh | bash
+#   curl -sSL https://raw.githubusercontent.com/rohitdash08/FinMind/main/deploy/digitalocean/scripts/droplet-setup.sh | bash
 #
 # Or SSH into your droplet and run:
 #   bash droplet-setup.sh
@@ -14,38 +14,38 @@ set -euo pipefail
 
 # ── Configuration ──────────────────────────────────
 APP_DIR="/opt/finmind"
-REPO_URL="${FINMIND_REPO:-https://github.com/your-org/FinMind.git}"
+REPO_URL="${FINMIND_REPO:-https://github.com/rohitdash08/FinMind.git}"
 BRANCH="${FINMIND_BRANCH:-main}"
 DOMAIN="${FINMIND_DOMAIN:-}"
 EMAIL="${CERTBOT_EMAIL:-}"
 
 echo "╔══════════════════════════════════════════╗"
-echo "║   FinMind — Droplet One-Click Setup      ║"
+echo "�?  FinMind �?Droplet One-Click Setup      �?
 echo "╚══════════════════════════════════════════╝"
 
 # ── 1. System Update ──────────────────────────────
-echo "→ Updating system packages..."
+echo "�?Updating system packages..."
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
 apt-get upgrade -y -qq
 
 # ── 2. Install Docker ─────────────────────────────
 if ! command -v docker &>/dev/null; then
-    echo "→ Installing Docker..."
+    echo "�?Installing Docker..."
     curl -fsSL https://get.docker.com | sh
     systemctl enable --now docker
 else
-    echo "→ Docker already installed."
+    echo "�?Docker already installed."
 fi
 
 # ── 3. Install Docker Compose Plugin ──────────────
 if ! docker compose version &>/dev/null; then
-    echo "→ Installing Docker Compose plugin..."
+    echo "�?Installing Docker Compose plugin..."
     apt-get install -y -qq docker-compose-plugin
 fi
 
 # ── 4. Firewall ───────────────────────────────────
-echo "→ Configuring UFW firewall..."
+echo "�?Configuring UFW firewall..."
 ufw allow OpenSSH
 ufw allow 80/tcp
 ufw allow 443/tcp
@@ -53,19 +53,19 @@ ufw --force enable
 
 # ── 5. Clone Repository ──────────────────────────
 if [ -d "$APP_DIR" ]; then
-    echo "→ Updating existing installation..."
+    echo "�?Updating existing installation..."
     cd "$APP_DIR"
     git fetch origin "$BRANCH"
     git reset --hard "origin/$BRANCH"
 else
-    echo "→ Cloning FinMind repository..."
+    echo "�?Cloning FinMind repository..."
     git clone --branch "$BRANCH" "$REPO_URL" "$APP_DIR"
     cd "$APP_DIR"
 fi
 
 # ── 6. Environment File ──────────────────────────
 if [ ! -f .env ]; then
-    echo "→ Creating .env from template..."
+    echo "�?Creating .env from template..."
     cp .env.example .env
 
     # Generate secure secrets
@@ -77,21 +77,21 @@ if [ ! -f .env ]; then
     sed -i "s|POSTGRES_PASSWORD=\"finmind\"|POSTGRES_PASSWORD=\"${PG_PASS}\"|" .env
     sed -i "s|postgresql+psycopg2://finmind:finmind@|postgresql+psycopg2://finmind:${PG_PASS}@|" .env
 
-    echo "→ .env created with generated secrets."
-    echo "  ⚠  Edit /opt/finmind/.env to add API keys (GEMINI_API_KEY, etc.)"
+    echo "�?.env created with generated secrets."
+    echo "  �? Edit /opt/finmind/.env to add API keys (GEMINI_API_KEY, etc.)"
 fi
 
 # ── 7. Build & Start ─────────────────────────────
-echo "→ Building and starting services..."
+echo "�?Building and starting services..."
 docker compose build --no-cache
 docker compose up -d postgres redis
-echo "→ Waiting for PostgreSQL to be ready..."
+echo "�?Waiting for PostgreSQL to be ready..."
 sleep 10
 docker compose up -d
 
 # ── 8. Optional: SSL with Certbot ─────────────────
 if [ -n "$DOMAIN" ] && [ -n "$EMAIL" ]; then
-    echo "→ Setting up SSL for $DOMAIN..."
+    echo "�?Setting up SSL for $DOMAIN..."
     apt-get install -y -qq certbot python3-certbot-nginx nginx
 
     # Create nginx site config
@@ -118,9 +118,9 @@ NGINX
     nginx -t && systemctl reload nginx
 
     certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos -m "$EMAIL"
-    echo "→ SSL configured for $DOMAIN"
+    echo "�?SSL configured for $DOMAIN"
 else
-    echo "→ Skipping SSL (set FINMIND_DOMAIN and CERTBOT_EMAIL to enable)"
+    echo "�?Skipping SSL (set FINMIND_DOMAIN and CERTBOT_EMAIL to enable)"
 fi
 
 # ── 9. Systemd Service ───────────────────────────
@@ -148,14 +148,14 @@ systemctl enable finmind.service
 # ── Done ──────────────────────────────────────────
 echo ""
 echo "╔══════════════════════════════════════════╗"
-echo "║   ✅ FinMind deployed successfully!       ║"
+echo "�?  �?FinMind deployed successfully!       �?
 echo "╠══════════════════════════════════════════╣"
-echo "║   Backend:  http://$(hostname -I | awk '{print $1}'):8000    ║"
-echo "║   Frontend: http://$(hostname -I | awk '{print $1}'):5173    ║"
-echo "║   Nginx:    http://$(hostname -I | awk '{print $1}'):8080    ║"
-echo "║   Grafana:  http://$(hostname -I | awk '{print $1}'):3000    ║"
+echo "�?  Backend:  http://$(hostname -I | awk '{print $1}'):8000    �?
+echo "�?  Frontend: http://$(hostname -I | awk '{print $1}'):5173    �?
+echo "�?  Nginx:    http://$(hostname -I | awk '{print $1}'):8080    �?
+echo "�?  Grafana:  http://$(hostname -I | awk '{print $1}'):3000    �?
 echo "╠══════════════════════════════════════════╣"
-echo "║   Config:   /opt/finmind/.env            ║"
-echo "║   Logs:     docker compose logs -f       ║"
-echo "║   Restart:  systemctl restart finmind    ║"
+echo "�?  Config:   /opt/finmind/.env            �?
+echo "�?  Logs:     docker compose logs -f       �?
+echo "�?  Restart:  systemctl restart finmind    �?
 echo "╚══════════════════════════════════════════╝"

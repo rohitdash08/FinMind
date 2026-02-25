@@ -1,7 +1,7 @@
 {
   "name": "FinMind",
   "description": "AI-powered personal finance management platform",
-  "repository": "https://github.com/your-org/FinMind",
+  "repository": "https://github.com/rohitdash08/FinMind",
   "stack": "container",
   "env": {
     "JWT_SECRET": {

@@ -1,4 +1,4 @@
-# FinMind — Azure Container Apps Deployment
+# FinMind �?Azure Container Apps Deployment
 # ──────────────────────────────────────────
 # Deploy:
 #   az containerapp compose create \
@@ -12,7 +12,7 @@
 #   az containerapp create --name finmind-backend \
 #     --resource-group finmind-rg \
 #     --environment finmind-env \
-#     --image ghcr.io/your-org/finmind-backend:latest \
+#     --image ghcr.io/rohitdash08/finmind-backend:latest \
 #     --target-port 8000 \
 #     --ingress external \
 #     --min-replicas 0 --max-replicas 5 \
@@ -23,7 +23,7 @@
 # Docker Compose-compatible format for `az containerapp compose create`
 services:
   backend:
-    image: ghcr.io/your-org/finmind-backend:latest
+    image: ghcr.io/rohitdash08/finmind-backend:latest
     build:
       context: ../../packages/backend
       dockerfile: Dockerfile
@@ -37,7 +37,7 @@ services:
       gunicorn --workers=2 --threads=4 --bind 0.0.0.0:8000 wsgi:app'
 
   frontend:
-    image: ghcr.io/your-org/finmind-frontend:latest
+    image: ghcr.io/rohitdash08/finmind-frontend:latest
     build:
       context: ../../app
       dockerfile: Dockerfile

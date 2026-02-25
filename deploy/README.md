@@ -1,11 +1,11 @@
-# FinMind — 部署指南
+# FinMind — Deployment Guide
 
-FinMind 支持多种部署方式，从本地开发到生产级云平台。选择最适合你的方案。
+FinMind supports multiple deployment methods, from local development to production-grade cloud platforms. Choose the one that fits your needs.
 
-## 目录
+## Table of Contents
 
-- [本地开发 (Docker Compose)](#本地开发-docker-compose)
-- [本地 K8s (Tilt)](#本地-k8s-tilt)
+- [Local Development (Docker Compose)](#local-development-docker-compose)
+- [Local K8s (Tilt)](#local-k8s-tilt)
 - [Railway](#railway)
 - [Heroku](#heroku)
 - [Render](#render)
@@ -17,12 +17,12 @@ FinMind 支持多种部署方式，从本地开发到生产级云平台。选择
 - [AWS CloudFormation](#aws-cloudformation)
 - [GCP Cloud Run](#gcp-cloud-run)
 - [Azure Container Apps](#azure-container-apps)
-- [Netlify (前端)](#netlify-前端)
-- [Vercel (前端)](#vercel-前端)
+- [Netlify (Frontend)](#netlify-frontend)
+- [Vercel (Frontend)](#vercel-frontend)
 
 ---
 
-## 架构概览
+## Architecture Overview
 
 ```
 ┌─────────────┐     ┌─────────────┐
@@ -41,16 +41,16 @@ FinMind 支持多种部署方式，从本地开发到生产级云平台。选择
 
 ---
 
-## 本地开发 (Docker Compose)
+## Local Development (Docker Compose)
 
 ```bash
 cp .env.example .env
-# 编辑 .env 填入 API keys
+# Edit .env and fill in API keys
 docker compose up -d
 ```
 
-| 服务 | 地址 |
-|------|------|
+| Service | URL |
+|---------|-----|
 | Backend | http://localhost:8000 |
 | Frontend | http://localhost:5173 |
 | Nginx | http://localhost:8080 |
@@ -58,18 +58,18 @@ docker compose up -d
 
 ---
 
-## 本地 K8s (Tilt)
+## Local K8s (Tilt)
 
-前提：安装 [Tilt](https://docs.tilt.dev/install.html) + 本地 K8s 集群 (minikube/kind/Docker Desktop)
+Prerequisites: Install [Tilt](https://docs.tilt.dev/install.html) + a local K8s cluster (minikube/kind/Docker Desktop)
 
 ```bash
-# 1. 创建命名空间和密钥
+# 1. Create namespace and secrets
 kubectl apply -f deploy/k8s/namespace.yaml
 cp deploy/k8s/secrets.example.yaml deploy/k8s/secrets.yaml
-# 编辑 secrets.yaml 填入真实值
+# Edit secrets.yaml with real values
 kubectl apply -f deploy/k8s/secrets.yaml
 
-# 2. 启动 Tilt
+# 2. Start Tilt
 tilt up
 ```
 
@@ -80,58 +80,58 @@ Tilt Dashboard: http://localhost:10350
 ## Railway
 
 ```bash
-# 安装 Railway CLI: https://docs.railway.app/develop/cli
+# Install Railway CLI: https://docs.railway.app/develop/cli
 railway login
 railway init
 
-# 添加 PostgreSQL 和 Redis 插件
+# Add PostgreSQL and Redis plugins
 railway add --plugin postgresql
 railway add --plugin redis
 
-# 设置环境变量
+# Set environment variables
 railway variables set JWT_SECRET=$(openssl rand -hex 32)
 
-# 部署
+# Deploy
 railway up
 ```
 
-配置文件: `deploy/railway/railway.toml`
+Config file: `deploy/railway/railway.toml`
 
 ---
 
 ## Heroku
 
 ```bash
-# 安装 Heroku CLI
+# Install Heroku CLI
 heroku create finmind-app
 heroku stack:set container
 
-# 添加数据库
+# Add databases
 heroku addons:create heroku-postgresql:essential-0
 heroku addons:create heroku-redis:mini
 
-# 设置密钥
+# Set secrets
 heroku config:set JWT_SECRET=$(openssl rand -hex 32)
 heroku config:set GEMINI_API_KEY=your-key
 
-# 部署
+# Deploy
 cp deploy/heroku/heroku.yml .
 git push heroku main
 ```
 
-Review Apps: 在 Heroku Pipeline 中启用，使用 `deploy/heroku/app.json` 配置。
+Review Apps: Enable in Heroku Pipeline, configured via `deploy/heroku/app.json`.
 
 ---
 
 ## Render
 
-1. Fork 仓库到你的 GitHub
-2. 登录 [Render Dashboard](https://dashboard.render.com)
-3. New → Blueprint → 选择仓库
-4. Render 自动检测 `deploy/render/render.yaml`
-5. 填入环境变量 → Deploy
+1. Fork the repo to your GitHub
+2. Log in to [Render Dashboard](https://dashboard.render.com)
+3. New → Blueprint → select your repo
+4. Render auto-detects `deploy/render/render.yaml`
+5. Fill in environment variables → Deploy
 
-或使用 CLI:
+Or use the CLI:
 ```bash
 render blueprint launch --file deploy/render/render.yaml
 ```
@@ -141,10 +141,10 @@ render blueprint launch --file deploy/render/render.yaml
 ## Fly.io
 
 ```bash
-# 安装 flyctl: https://fly.io/docs/hands-on/install-flyctl/
+# Install flyctl: https://fly.io/docs/hands-on/install-flyctl/
 fly auth login
 
-# 部署后端
+# Deploy backend
 cd packages/backend
 fly launch --name finmind-backend --no-deploy
 fly secrets set JWT_SECRET=$(openssl rand -hex 32)
@@ -152,71 +152,71 @@ fly secrets set DATABASE_URL="postgres://..."
 fly secrets set REDIS_URL="redis://..."
 fly deploy --config ../../deploy/fly/fly.toml
 
-# 部署前端
+# Deploy frontend
 cd ../../app
 fly launch --name finmind-frontend --no-deploy
 fly deploy --config ../deploy/fly/fly-frontend.toml
 ```
 
-> 💡 Fly.io 提供免费的 PostgreSQL (fly postgres create) 和 Upstash Redis (fly redis create)
+> 💡 Fly.io offers free PostgreSQL (`fly postgres create`) and Upstash Redis (`fly redis create`)
 
 ---
 
 ## DigitalOcean App Platform
 
 ```bash
-# 安装 doctl: https://docs.digitalocean.com/reference/doctl/
+# Install doctl: https://docs.digitalocean.com/reference/doctl/
 doctl auth init
 doctl apps create --spec deploy/digitalocean/.do/app.yaml
 ```
 
-或在 DO 控制台 → Apps → Create App → From Spec，上传 `deploy/digitalocean/.do/app.yaml`。
+Or in the DO console → Apps → Create App → From Spec, upload `deploy/digitalocean/.do/app.yaml`.
 
 ---
 
 ## DigitalOcean Droplet
 
-一键部署到 Ubuntu Droplet（最低 2 vCPU / 2 GB RAM）：
+One-click deploy to an Ubuntu Droplet (minimum 2 vCPU / 2 GB RAM):
 
 ```bash
-# SSH 到 Droplet 后执行
-curl -sSL https://raw.githubusercontent.com/your-org/FinMind/main/deploy/digitalocean/scripts/droplet-setup.sh | bash
+# SSH into your Droplet and run
+curl -sSL https://raw.githubusercontent.com/rohitdash08/FinMind/main/deploy/digitalocean/scripts/droplet-setup.sh | bash
 
-# 或带自定义域名和 SSL
+# Or with a custom domain and SSL
 FINMIND_DOMAIN=finmind.example.com CERTBOT_EMAIL=you@example.com bash droplet-setup.sh
 ```
 
-脚本自动完成：安装 Docker、配置防火墙、克隆代码、生成安全密钥、启动服务、配置 systemd 开机自启。
+The script automatically: installs Docker, configures firewall, clones the repo, generates secure secrets, starts services, and configures systemd auto-start.
 
 ---
 
 ## AWS ECS Fargate
 
 ```bash
-# 1. 构建并推送镜像到 ECR
+# 1. Build and push images to ECR
 aws ecr get-login-password | docker login --username AWS --password-stdin ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com
 docker build -t finmind-backend packages/backend/
 docker tag finmind-backend:latest ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/finmind-backend:latest
 docker push ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/finmind-backend:latest
 
-# 2. 创建 Secrets Manager 密钥
+# 2. Create Secrets Manager secret
 aws secretsmanager create-secret --name finmind/jwt-secret --secret-string "$(openssl rand -hex 32)"
 
-# 3. 注册任务定义
+# 3. Register task definition
 aws ecs register-task-definition --cli-input-json file://deploy/aws/ecs-task-definition.json
 
-# 4. 创建服务
+# 4. Create service
 aws ecs create-service --cluster finmind --service-name finmind --task-definition finmind --desired-count 1 --launch-type FARGATE
 ```
 
-配置文件: `deploy/aws/ecs-task-definition.json`
+Config file: `deploy/aws/ecs-task-definition.json`
 
 ---
 
 ## AWS App Runner
 
 ```bash
-# 推送镜像到 ECR 后
+# After pushing image to ECR
 aws apprunner create-service \
   --service-name finmind-backend \
   --source-configuration '{
@@ -228,13 +228,13 @@ aws apprunner create-service \
   }'
 ```
 
-配置参考: `deploy/aws/apprunner.yaml`
+Config reference: `deploy/aws/apprunner.yaml`
 
 ---
 
 ## AWS CloudFormation
 
-一键部署完整基础设施（ECS + RDS + ElastiCache + ALB）：
+One-click deploy of the full infrastructure (ECS + RDS + ElastiCache + ALB):
 
 ```bash
 aws cloudformation deploy \
@@ -255,21 +255,21 @@ aws cloudformation deploy \
 ## GCP Cloud Run
 
 ```bash
-# 1. 启用 API
+# 1. Enable APIs
 gcloud services enable cloudbuild.googleapis.com run.googleapis.com artifactregistry.googleapis.com
 
-# 2. 创建 Artifact Registry 仓库
+# 2. Create Artifact Registry repo
 gcloud artifacts repositories create finmind --repository-format=docker --location=us-central1
 
-# 3. 创建 Secrets
+# 3. Create Secrets
 echo -n "$(openssl rand -hex 32)" | gcloud secrets create finmind-jwt-secret --data-file=-
 echo -n "postgresql://..." | gcloud secrets create finmind-database-url --data-file=-
 echo -n "redis://..." | gcloud secrets create finmind-redis-url --data-file=-
 
-# 4. 构建并部署
+# 4. Build and deploy
 gcloud builds submit --config deploy/gcp/cloudbuild.yaml .
 
-# 或直接部署 service.yaml
+# Or deploy service.yaml directly
 gcloud run services replace deploy/gcp/service.yaml --region us-central1
 ```
 
@@ -278,22 +278,22 @@ gcloud run services replace deploy/gcp/service.yaml --region us-central1
 ## Azure Container Apps
 
 ```bash
-# 1. 创建资源组和环境
+# 1. Create resource group and environment
 az group create --name finmind-rg --location eastus
 az containerapp env create --name finmind-env --resource-group finmind-rg --location eastus
 
-# 2. 使用 Bicep 模板部署
+# 2. Deploy using Bicep template
 az deployment group create \
   --resource-group finmind-rg \
   --template-file deploy/azure/bicep/main.bicep \
   --parameters \
-    backendImage='ghcr.io/your-org/finmind-backend:latest' \
-    frontendImage='ghcr.io/your-org/finmind-frontend:latest' \
+    backendImage='ghcr.io/rohitdash08/finmind-backend:latest' \
+    frontendImage='ghcr.io/rohitdash08/finmind-frontend:latest' \
     jwtSecret='YOUR_SECRET' \
     databaseUrl='postgresql://...' \
     redisUrl='redis://...'
 
-# 或使用 Docker Compose 兼容方式
+# Or use Docker Compose compatible mode
 az containerapp compose create \
   --resource-group finmind-rg \
   --environment finmind-env \
@@ -302,68 +302,68 @@ az containerapp compose create \
 
 ---
 
-## Netlify (前端)
+## Netlify (Frontend)
 
 ```bash
-# 安装 Netlify CLI
+# Install Netlify CLI
 npm i -g netlify-cli
 
-# 部署
+# Deploy
 cd app
 netlify deploy --prod
 
-# 或连接 Git 仓库自动部署
+# Or connect Git repo for auto-deploy
 netlify init
 ```
 
-> ⚠️ 设置环境变量 `VITE_API_URL` 指向你的后端地址
+> ⚠️ Set the `VITE_API_URL` environment variable to point to your backend URL
 
-配置文件: `deploy/netlify/netlify.toml`
+Config file: `deploy/netlify/netlify.toml`
 
 ---
 
-## Vercel (前端)
+## Vercel (Frontend)
 
 ```bash
-# 安装 Vercel CLI
+# Install Vercel CLI
 npm i -g vercel
 
-# 部署
+# Deploy
 cd app
 vercel --prod
 
-# 或连接 Git 仓库
+# Or connect Git repo
 vercel link
 ```
 
-> ⚠️ 在 Vercel 项目设置中配置 `VITE_API_URL` 环境变量
-> ⚠️ 修改 `deploy/vercel/vercel.json` 中的 API 代理地址
+> ⚠️ Configure `VITE_API_URL` in Vercel project settings
+> ⚠️ Update the API proxy URL in `deploy/vercel/vercel.json`
 
-配置文件: `deploy/vercel/vercel.json`
-
----
-
-## 环境变量参考
-
-所有平台都需要以下环境变量：
-
-| 变量 | 必需 | 说明 |
-|------|------|------|
-| `DATABASE_URL` | ✅ | PostgreSQL 连接字符串 |
-| `REDIS_URL` | ✅ | Redis 连接字符串 |
-| `JWT_SECRET` | ✅ | JWT 签名密钥（至少 32 字符） |
-| `GEMINI_API_KEY` | ❌ | Google Gemini API 密钥 |
-| `GEMINI_MODEL` | ❌ | Gemini 模型名（默认 gemini-1.5-flash） |
-| `LOG_LEVEL` | ❌ | 日志级别（默认 INFO） |
-| `VITE_API_URL` | ✅* | 后端 API 地址（前端构建时需要） |
+Config file: `deploy/vercel/vercel.json`
 
 ---
 
-## 数据库迁移
+## Environment Variables Reference
 
-所有部署方式中，后端启动时会自动执行：
+All platforms require the following environment variables:
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DATABASE_URL` | ✅ | PostgreSQL connection string |
+| `REDIS_URL` | ✅ | Redis connection string |
+| `JWT_SECRET` | ✅ | JWT signing secret (at least 32 characters) |
+| `GEMINI_API_KEY` | ❌ | Google Gemini API key |
+| `GEMINI_MODEL` | ❌ | Gemini model name (default: gemini-1.5-flash) |
+| `LOG_LEVEL` | ❌ | Log level (default: INFO) |
+| `VITE_API_URL` | ✅* | Backend API URL (required at frontend build time) |
+
+---
+
+## Database Migration
+
+In all deployment methods, the backend automatically runs on startup:
 ```bash
 python -m flask --app wsgi:app init-db
 ```
 
-如需手动执行，进入后端容器运行此命令即可。
+To run manually, exec into the backend container and run this command.
