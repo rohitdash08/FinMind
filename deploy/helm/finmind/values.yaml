@@ -154,6 +154,10 @@ hpa:
   maxReplicas: 10
   targetCPUUtilizationPercentage: 70
 
+## Network Policies (restrict pod-to-pod traffic)
+networkPolicy:
+  enabled: false
+
 ## ConfigMap
 config:
   LOG_LEVEL: INFO

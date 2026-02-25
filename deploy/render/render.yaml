@@ -46,6 +46,13 @@ services:
           type: web
           property: hostport
 
+  - type: redis
+    name: finmind-redis
+    plan: starter
+    region: oregon
+    ipAllowList: []
+    maxmemoryPolicy: allkeys-lru
+
 databases:
   - name: finmind-db
     plan: starter
@@ -53,10 +60,3 @@ databases:
     user: finmind
     postgresMajorVersion: "16"
     region: oregon
-
-  - name: finmind-redis
-    plan: starter
-    engine: redis
-    version: "7"
-    region: oregon
-    maxmemoryPolicy: allkeys-lru

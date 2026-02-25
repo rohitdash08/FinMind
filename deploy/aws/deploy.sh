@@ -75,8 +75,8 @@ aws cloudformation deploy \
     SubnetIds="$SUBNET_IDS" \
     BackendImage="$BACKEND_IMAGE" \
     FrontendImage="$FRONTEND_IMAGE" \
-    JwtSecret="$DB_PASSWORD" \
-    DBPassword="$JWT_SECRET" \
+    JwtSecret="$JWT_SECRET" \
+    DBPassword="$DB_PASSWORD" \
   --capabilities CAPABILITY_IAM \
   --region "$REGION" \
   --no-fail-on-empty-changeset
