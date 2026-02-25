@@ -1,0 +1,51 @@
+# FinMind Backend — Fly.io Configuration
+# ──────────────────────────────────────
+# Deploy:
+#   cd packages/backend
+#   fly launch --name finmind-backend --no-deploy
+#   fly secrets set JWT_SECRET=$(openssl rand -hex 32)
+#   fly secrets set DATABASE_URL="postgres://..."
+#   fly secrets set REDIS_URL="redis://..."
+#   fly deploy --dockerfile packages/backend/Dockerfile
+
+app = "finmind-backend"
+primary_region = "sjc"
+kill_signal = "SIGTERM"
+kill_timeout = "5s"
+
+[build]
+  dockerfile = "packages/backend/Dockerfile"
+
+[deploy]
+  release_command = "python -m flask --app wsgi:app init-db"
+  strategy = "rolling"
+
+[env]
+  GEMINI_MODEL = "gemini-1.5-flash"
+  LOG_LEVEL = "INFO"
+  PORT = "8000"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [http_service.concurrency]
+    type = "requests"
+    hard_limit = 250
+    soft_limit = 200
+
+  [[http_service.checks]]
+    interval = "15s"
+    timeout = "5s"
+    grace_period = "20s"
+    method = "GET"
+    path = "/health"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
+  cpu_kind = "shared"
+  cpus = 1

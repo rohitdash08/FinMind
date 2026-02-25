@@ -1,0 +1,82 @@
+{
+  "family": "finmind",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "arn:aws:iam::ACCOUNT_ID:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::ACCOUNT_ID:role/ecsTaskRole",
+  "containerDefinitions": [
+    {
+      "name": "backend",
+      "image": "ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/finmind-backend:latest",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 8000,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        { "name": "GEMINI_MODEL", "value": "gemini-1.5-flash" },
+        { "name": "LOG_LEVEL", "value": "INFO" }
+      ],
+      "secrets": [
+        {
+          "name": "DATABASE_URL",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:ACCOUNT_ID:secret:finmind/database-url"
+        },
+        {
+          "name": "REDIS_URL",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:ACCOUNT_ID:secret:finmind/redis-url"
+        },
+        {
+          "name": "JWT_SECRET",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:ACCOUNT_ID:secret:finmind/jwt-secret"
+        },
+        {
+          "name": "GEMINI_API_KEY",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:ACCOUNT_ID:secret:finmind/gemini-api-key"
+        }
+      ],
+      "healthCheck": {
+        "command": ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 30
+      },
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/finmind",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "backend"
+        }
+      },
+      "command": [
+        "sh", "-c",
+        "python -m flask --app wsgi:app init-db && gunicorn --workers=2 --threads=4 --bind 0.0.0.0:8000 wsgi:app"
+      ]
+    },
+    {
+      "name": "frontend",
+      "image": "ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/finmind-frontend:latest",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 80,
+          "protocol": "tcp"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/finmind",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "frontend"
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,62 @@
+# FinMind — Render Blueprint
+# Deploy: Connect repo in Render dashboard → it auto-detects render.yaml
+# Docs: https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: finmind-backend
+    runtime: docker
+    dockerfilePath: packages/backend/Dockerfile
+    dockerContext: ./packages/backend
+    plan: starter
+    region: oregon
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: finmind-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: finmind-redis
+          type: redis
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-1.5-flash
+      - key: LOG_LEVEL
+        value: INFO
+    buildCommand: ""
+    startCommand: "sh -c 'python -m flask --app wsgi:app init-db && gunicorn --workers=2 --threads=4 --bind 0.0.0.0:$PORT wsgi:app'"
+
+  - type: web
+    name: finmind-frontend
+    runtime: docker
+    dockerfilePath: app/Dockerfile
+    dockerContext: ./app
+    plan: starter
+    region: oregon
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          name: finmind-backend
+          type: web
+          property: hostport
+
+  - type: redis
+    name: finmind-redis
+    plan: starter
+    region: oregon
+    ipAllowList: []
+    maxmemoryPolicy: allkeys-lru
+
+databases:
+  - name: finmind-db
+    plan: starter
+    databaseName: finmind
+    user: finmind
+    postgresMajorVersion: "16"
+    region: oregon

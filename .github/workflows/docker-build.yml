@@ -1,0 +1,78 @@
+# Build and push Docker images to GHCR on push to main
+name: Docker Build & Push
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/backend/**'
+      - 'app/**'
+      - 'docker-compose.yml'
+      - '.github/workflows/docker-build.yml'
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  BACKEND_IMAGE: ghcr.io/${{ github.repository_owner }}/finmind-backend
+  FRONTEND_IMAGE: ghcr.io/${{ github.repository_owner }}/finmind-frontend
+
+jobs:
+  build-backend:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/metadata-action@v5
+        id: meta
+        with:
+          images: ${{ env.BACKEND_IMAGE }}
+          tags: |
+            type=sha,prefix=
+            type=raw,value=latest
+
+      - uses: docker/build-push-action@v5
+        with:
+          context: ./packages/backend
+          file: ./packages/backend/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+  build-frontend:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/metadata-action@v5
+        id: meta
+        with:
+          images: ${{ env.FRONTEND_IMAGE }}
+          tags: |
+            type=sha,prefix=
+            type=raw,value=latest
+
+      - uses: docker/build-push-action@v5
+        with:
+          context: ./app
+          file: ./app/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}

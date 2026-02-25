@@ -1,0 +1,68 @@
+# FinMind — Production Docker Compose
+# ────────────────────────────────────
+# Usage:
+#   cp .env.example .env  # Edit with real values
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# This overrides the dev compose with production settings:
+# - No volume mounts (uses built images)
+# - No frontend-dev service (uses built Nginx image)
+# - Restart policies
+# - Resource limits
+
+services:
+  backend:
+    volumes: []  # Remove dev volume mounts
+    command: >
+      sh -c 'python -m flask --app wsgi:app init-db &&
+      export PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus_multiproc &&
+      rm -rf $$PROMETHEUS_MULTIPROC_DIR &&
+      mkdir -p $$PROMETHEUS_MULTIPROC_DIR &&
+      gunicorn --workers=4 --threads=4 --bind 0.0.0.0:8000 --timeout 120 --access-logfile - wsgi:app'
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  frontend:
+    build: ./app
+    ports: ["80:80"]
+    depends_on: [backend]
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
+  frontend-dev:
+    profiles: ["disabled"]  # Disable in production
+
+  nginx:
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
+  postgres:
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  redis:
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M

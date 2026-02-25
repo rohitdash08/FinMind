@@ -1,0 +1,155 @@
+{{- if .Values.monitoring.grafana.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "finmind.fullname" . }}-grafana-datasources
+  labels:
+    {{- include "finmind.labels" . | nindent 4 }}
+    app.kubernetes.io/component: grafana
+data:
+  datasources.yml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        uid: prometheus
+        type: prometheus
+        access: proxy
+        url: http://{{ include "finmind.fullname" . }}-prometheus:9090
+        isDefault: true
+        editable: false
+      {{- if .Values.monitoring.loki.enabled }}
+      - name: Loki
+        uid: loki
+        type: loki
+        access: proxy
+        url: http://{{ include "finmind.fullname" . }}-loki:3100
+        editable: false
+      {{- end }}
+---
+{{- if .Values.monitoring.grafana.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "finmind.fullname" . }}-grafana-data
+  labels:
+    {{- include "finmind.labels" . | nindent 4 }}
+    app.kubernetes.io/component: grafana
+spec:
+  accessModes: [ReadWriteOnce]
+  {{- if .Values.monitoring.grafana.persistence.storageClass }}
+  storageClassName: {{ .Values.monitoring.grafana.persistence.storageClass | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.monitoring.grafana.persistence.size }}
+{{- end }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "finmind.fullname" . }}-grafana
+  labels:
+    {{- include "finmind.labels" . | nindent 4 }}
+    app.kubernetes.io/component: grafana
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "finmind.name" . }}-grafana
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "finmind.name" . }}-grafana
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: grafana
+    spec:
+      containers:
+        - name: grafana
+          image: "{{ .Values.monitoring.grafana.image.repository }}:{{ .Values.monitoring.grafana.image.tag }}"
+          ports:
+            - containerPort: 3000
+          env:
+            - name: GF_SECURITY_ADMIN_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "finmind.secretName" . }}
+                  key: GRAFANA_ADMIN_USER
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "finmind.secretName" . }}
+                  key: GRAFANA_ADMIN_PASSWORD
+            - name: GF_USERS_ALLOW_SIGN_UP
+              value: "false"
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/grafana
+            - name: datasources
+              mountPath: /etc/grafana/provisioning/datasources/datasources.yml
+              subPath: datasources.yml
+          resources:
+            {{- toYaml .Values.monitoring.grafana.resources | nindent 12 }}
+      volumes:
+        - name: data
+          {{- if .Values.monitoring.grafana.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "finmind.fullname" . }}-grafana-data
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: datasources
+          configMap:
+            name: {{ include "finmind.fullname" . }}-grafana-datasources
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "finmind.fullname" . }}-grafana
+  labels:
+    {{- include "finmind.labels" . | nindent 4 }}
+    app.kubernetes.io/component: grafana
+spec:
+  selector:
+    app.kubernetes.io/name: {{ include "finmind.name" . }}-grafana
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - port: 3000
+      targetPort: 3000
+      name: http
+---
+{{- if .Values.monitoring.grafana.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "finmind.fullname" . }}-grafana
+  labels:
+    {{- include "finmind.labels" . | nindent 4 }}
+    app.kubernetes.io/component: grafana
+  annotations:
+    {{- with .Values.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  {{- if .Values.ingress.className }}
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- end }}
+  {{- if .Values.ingress.tls }}
+  tls:
+    - secretName: finmind-grafana-tls
+      hosts:
+        - {{ .Values.monitoring.grafana.ingress.host }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.monitoring.grafana.ingress.host }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "finmind.fullname" . }}-grafana
+                port:
+                  number: 3000
+{{- end }}
+{{- end }}

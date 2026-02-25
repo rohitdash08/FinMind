@@ -1,0 +1,56 @@
+{{- if .Values.frontend.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "finmind.fullname" . }}-frontend
+  labels:
+    {{- include "finmind.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frontend
+spec:
+  replicas: {{ .Values.frontend.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "finmind.frontend.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "finmind.frontend.selectorLabels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: frontend
+          image: "{{ .Values.frontend.image.repository }}:{{ .Values.frontend.image.tag }}"
+          imagePullPolicy: {{ .Values.frontend.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.frontend.port }}
+          readinessProbe:
+            httpGet:
+              path: /
+              port: {{ .Values.frontend.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: {{ .Values.frontend.port }}
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            {{- toYaml .Values.frontend.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "finmind.fullname" . }}-frontend
+  labels:
+    {{- include "finmind.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frontend
+spec:
+  type: {{ .Values.frontend.service.type }}
+  selector:
+    {{- include "finmind.frontend.selectorLabels" . | nindent 4 }}
+  ports:
+    - port: {{ .Values.frontend.service.port }}
+      targetPort: {{ .Values.frontend.port }}
+      protocol: TCP
+      name: http
+{{- end }}

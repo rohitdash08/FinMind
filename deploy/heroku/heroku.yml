@@ -1,0 +1,40 @@
+# FinMind — Heroku Container Deployment
+# Deploy:
+#   heroku create finmind-app
+#   heroku stack:set container
+#   heroku addons:create heroku-postgresql:essential-0
+#   heroku addons:create heroku-redis:mini
+#   git push heroku main
+
+setup:
+  addons:
+    - plan: heroku-postgresql:essential-0
+    - plan: heroku-redis:mini
+  config:
+    JWT_SECRET:
+      description: "JWT signing secret"
+      required: true
+
+build:
+  docker:
+    web: packages/backend/Dockerfile
+  config:
+    DOCKER_BUILDKIT: 1
+
+run:
+  web:
+    command:
+      - sh
+      - -c
+      - "python -m flask --app wsgi:app init-db && gunicorn --workers=2 --threads=4 --bind 0.0.0.0:$PORT wsgi:app"
+    image: web
+
+release:
+  command:
+    - python
+    - -m
+    - flask
+    - --app
+    - wsgi:app
+    - init-db
+  image: web

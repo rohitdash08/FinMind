@@ -1,0 +1,45 @@
+# FinMind �?Azure Container Apps Deployment
+# ──────────────────────────────────────────
+# Deploy:
+#   az containerapp compose create \
+#     --resource-group finmind-rg \
+#     --environment finmind-env \
+#     --compose-file-path deploy/azure/azure-deploy.yaml
+#
+# Or use the Azure CLI directly:
+#   az group create --name finmind-rg --location eastus
+#   az containerapp env create --name finmind-env --resource-group finmind-rg --location eastus
+#   az containerapp create --name finmind-backend \
+#     --resource-group finmind-rg \
+#     --environment finmind-env \
+#     --image ghcr.io/rohitdash08/finmind-backend:latest \
+#     --target-port 8000 \
+#     --ingress external \
+#     --min-replicas 0 --max-replicas 5 \
+#     --cpu 0.5 --memory 1.0Gi \
+#     --secrets jwt-secret=CHANGE_ME \
+#     --env-vars "GEMINI_MODEL=gemini-1.5-flash" "LOG_LEVEL=INFO" "JWT_SECRET=secretref:jwt-secret"
+
+# Docker Compose-compatible format for `az containerapp compose create`
+services:
+  backend:
+    image: ghcr.io/rohitdash08/finmind-backend:latest
+    build:
+      context: ../../packages/backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      GEMINI_MODEL: gemini-1.5-flash
+      LOG_LEVEL: INFO
+    command: >
+      sh -c 'python -m flask --app wsgi:app init-db &&
+      gunicorn --workers=2 --threads=4 --bind 0.0.0.0:8000 wsgi:app'
+
+  frontend:
+    image: ghcr.io/rohitdash08/finmind-frontend:latest
+    build:
+      context: ../../app
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"

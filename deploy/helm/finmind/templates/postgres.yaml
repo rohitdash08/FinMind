@@ -1,0 +1,93 @@
+{{- if .Values.postgres.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "finmind.fullname" . }}-postgres-data
+  labels:
+    {{- include "finmind.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgres
+spec:
+  accessModes:
+    - {{ .Values.postgres.persistence.accessMode }}
+  {{- if .Values.postgres.persistence.storageClass }}
+  storageClassName: {{ .Values.postgres.persistence.storageClass | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.postgres.persistence.size }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "finmind.fullname" . }}-postgres
+  labels:
+    {{- include "finmind.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgres
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "finmind.postgres.selectorLabels" . | nindent 6 }}
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        {{- include "finmind.postgres.selectorLabels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: postgres
+          image: "{{ .Values.postgres.image.repository }}:{{ .Values.postgres.image.tag }}"
+          imagePullPolicy: {{ .Values.postgres.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.postgres.port }}
+          envFrom:
+            - secretRef:
+                name: {{ include "finmind.secretName" . }}
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - $(POSTGRES_USER)
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - $(POSTGRES_USER)
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          resources:
+            {{- toYaml .Values.postgres.resources | nindent 12 }}
+      volumes:
+        - name: data
+          {{- if .Values.postgres.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "finmind.fullname" . }}-postgres-data
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "finmind.fullname" . }}-postgres
+  labels:
+    {{- include "finmind.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgres
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "finmind.postgres.selectorLabels" . | nindent 4 }}
+  ports:
+    - port: {{ .Values.postgres.port }}
+      targetPort: {{ .Values.postgres.port }}
+      protocol: TCP
+      name: postgres
+{{- end }}
