@@ -1,0 +1,5 @@
+aiohttp>=3.9,<4
+pydantic>=2.0,<3
+pytest>=8.0
+pytest-asyncio>=0.23
+fastapi>=0.110
