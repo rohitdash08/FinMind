@@ -9,9 +9,11 @@ from flask_jwt_extended import (
     get_jwt_identity,
 )
 from ..extensions import db, redis_client
-from ..models import User
+from ..models import User, UserDevice
 import logging
 import time
+import hashlib
+from datetime import datetime
 
 bp = Blueprint("auth", __name__)
 logger = logging.getLogger("finmind.auth")
@@ -59,6 +61,32 @@ def login():
     if not user or not check_password_hash(user.password_hash, password):
         logger.warning("Login failed for email=%s", email)
         return jsonify(error="invalid credentials"), 401
+
+    # Login Anomaly Detection (Device/Location Fingerprinting)
+    user_agent = request.headers.get("User-Agent", "Unknown")
+    ip_addr = request.remote_addr or "127.0.0.1"
+    fingerprint = hashlib.sha256(f"{user_agent}|{ip_addr}".encode()).hexdigest()
+
+    device = (
+        db.session.query(UserDevice)
+        .filter_by(user_id=user.id, device_fingerprint=fingerprint)
+        .first()
+    )
+    if not device:
+        logger.warning(
+            "Security: Login anomaly detected for user_id=%s from IP=%s, UA=%s",
+            user.id,
+            ip_addr,
+            user_agent,
+        )
+        new_device = UserDevice(user_id=user.id, device_fingerprint=fingerprint)
+        db.session.add(new_device)
+        # Note: In production, we'd trigger a notification service call here.
+    else:
+        device.last_login_at = datetime.utcnow()
+
+    db.session.commit()
+
     access = create_access_token(identity=str(user.id))
     refresh = create_refresh_token(identity=str(user.id))
     _store_refresh_session(refresh, str(user.id))
