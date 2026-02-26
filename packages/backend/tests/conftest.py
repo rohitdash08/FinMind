@@ -66,3 +66,22 @@ def auth_header(client):
     assert r.status_code == 200
     access = r.get_json()["access_token"]
     return {"Authorization": f"Bearer {access}"}
+
+
+@pytest.fixture()
+def auth_header2(client):
+    # Register and login a second user for multi-user tests
+    email = "test2@example.com"
+    password = "password123"
+    r = client.post("/auth/register", json={"email": email, "password": password})
+    assert r.status_code in (200, 201, 409)
+    r = client.post("/auth/login", json={"email": email, "password": password})
+    assert r.status_code == 200
+    access = r.get_json()["access_token"]
+    return {"Authorization": f"Bearer {access}"}
+
+
+@pytest.fixture()
+def app(app_fixture):
+    # Alias for tests that need app context
+    return app_fixture
