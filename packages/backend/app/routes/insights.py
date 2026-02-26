@@ -1,7 +1,10 @@
 from datetime import date
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
+from sqlalchemy import func, extract
 from ..services.ai import monthly_budget_suggestion
+from ..models import Expense
+from ..extensions import db
 import logging
 
 bp = Blueprint("insights", __name__)
@@ -23,3 +26,34 @@ def budget_suggestion():
     )
     logger.info("Budget suggestion served user=%s month=%s", uid, ym)
     return jsonify(suggestion)
+
+
+@bp.get("/heatmap")
+@jwt_required()
+def spending_heatmap():
+    uid = int(get_jwt_identity())
+    year = request.args.get("year", date.today().year, type=int)
+    start = date(year, 1, 1)
+    end = date(year, 12, 31)
+
+    rows = (
+        db.session.query(
+            Expense.spent_at,
+            func.sum(Expense.amount).label("total"),
+            func.count(Expense.id).label("count"),
+        )
+        .filter(
+            Expense.user_id == uid,
+            Expense.spent_at >= start,
+            Expense.spent_at <= end,
+        )
+        .group_by(Expense.spent_at)
+        .all()
+    )
+
+    data = [
+        {"date": row.spent_at.isoformat(), "total": float(row.total), "count": row.count}
+        for row in rows
+    ]
+    logger.info("Heatmap served user=%s year=%s days=%d", uid, year, len(data))
+    return jsonify(data)

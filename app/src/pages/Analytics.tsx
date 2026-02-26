@@ -12,6 +12,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { getBudgetSuggestion, type BudgetSuggestion } from '@/api/insights';
 import { formatMoney } from '@/lib/currency';
+import { SpendingHeatmap } from '@/components/SpendingHeatmap';
 
 const PERSONAS = [
   'Balanced coach',
@@ -122,6 +123,8 @@ export function Analytics() {
         <div className="card text-red-600">{error}</div>
       ) : data ? (
         <div className="space-y-6">
+          <SpendingHeatmap />
+
           <div className="grid gap-4 md:grid-cols-4">
             <FinancialCard variant="financial">
               <FinancialCardHeader className="pb-2">

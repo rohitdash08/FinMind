@@ -21,6 +21,17 @@ export type BudgetSuggestion = {
   net_flow?: number;
 };
 
+export type HeatmapDay = {
+  date: string;
+  total: number;
+  count: number;
+};
+
+export async function getSpendingHeatmap(year?: number): Promise<HeatmapDay[]> {
+  const y = year ?? new Date().getFullYear();
+  return api<HeatmapDay[]>(`/insights/heatmap?year=${y}`);
+}
+
 export async function getBudgetSuggestion(params?: {
   month?: string;
   geminiApiKey?: string;
