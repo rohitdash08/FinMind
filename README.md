@@ -66,6 +66,10 @@ OpenAPI: `backend/app/openapi.yaml`
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
 - Insights: `/insights/monthly`, `/insights/budget-suggestion`
+- Search: `GET /api/search?q=...&type=all|expense|bill&category=...&min_amount=...&max_amount=...&from_date=...&to_date=...&page=1&per_page=20`
+  - Full-text search across expense notes and bill names
+  - Filter by type, category (id or name), amount range, date range
+  - Paginated unified response with `type` indicator per result
 
 ## MVP UI/UX Plan
 - Auth screens: register/login.
