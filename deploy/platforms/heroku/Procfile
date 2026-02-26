@@ -1,0 +1,10 @@
+# FinMind Backend - Heroku Deployment
+# Usage:
+#   heroku create finmind-backend
+#   heroku addons:create heroku-postgresql:essential-0
+#   heroku addons:create heroku-redis:mini
+#   heroku config:set JWT_SECRET=<your-secret>
+#   git subtree push --prefix packages/backend heroku main
+
+web: gunicorn --workers=2 --threads=4 --bind=0.0.0.0:$PORT wsgi:app
+release: python -m flask --app wsgi:app init-db

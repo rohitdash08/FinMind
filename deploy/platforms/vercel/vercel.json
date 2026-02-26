@@ -1,0 +1,39 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "name": "finmind-frontend",
+  "version": 2,
+  "framework": "vite",
+  "buildCommand": "npm ci && npm run build",
+  "outputDirectory": "dist",
+  "installCommand": "npm ci",
+  "devCommand": "npm run dev",
+  "rootDirectory": "app",
+  "env": {
+    "VITE_API_URL": "https://api.finmind.example.com"
+  },
+  "routes": [
+    {
+      "src": "/assets/(.*)",
+      "headers": { "Cache-Control": "public, max-age=604800, immutable" },
+      "continue": true
+    },
+    {
+      "handle": "filesystem"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Frame-Options", "value": "SAMEORIGIN" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "X-XSS-Protection", "value": "1; mode=block" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,141 @@
+# =============================================================================
+# FinMind Helm Chart - Default Values
+# =============================================================================
+# Override these in your own values-<env>.yaml or via --set flags
+# =============================================================================
+
+global:
+  namespace: finmind
+  imagePullPolicy: IfNotPresent
+
+# ---------------------------------------------------------------------------
+# Backend (Flask API)
+# ---------------------------------------------------------------------------
+backend:
+  replicaCount: 2
+  image:
+    repository: ghcr.io/rohitdash08/finmind-backend
+    tag: latest
+  port: 8000
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  env:
+    GUNICORN_WORKERS: "2"
+    GUNICORN_THREADS: "4"
+    LOG_LEVEL: "INFO"
+    GEMINI_MODEL: "gemini-1.5-flash"
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+  healthCheck:
+    path: /health
+    initialDelaySeconds: 15
+    periodSeconds: 10
+    timeoutSeconds: 5
+
+# ---------------------------------------------------------------------------
+# Frontend (React SPA)
+# ---------------------------------------------------------------------------
+frontend:
+  replicaCount: 2
+  image:
+    repository: ghcr.io/rohitdash08/finmind-frontend
+    tag: latest
+  port: 80
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+# ---------------------------------------------------------------------------
+# PostgreSQL
+# ---------------------------------------------------------------------------
+postgresql:
+  enabled: true
+  image:
+    repository: postgres
+    tag: "16-alpine"
+  port: 5432
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClass: ""
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# ---------------------------------------------------------------------------
+# Redis
+# ---------------------------------------------------------------------------
+redis:
+  enabled: true
+  image:
+    repository: redis
+    tag: "7-alpine"
+  port: 6379
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+# ---------------------------------------------------------------------------
+# Ingress
+# ---------------------------------------------------------------------------
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "120"
+  hosts:
+    - host: finmind.local
+      paths:
+        - path: /api
+          pathType: Prefix
+          service: backend
+          port: 8000
+        - path: /auth
+          pathType: Prefix
+          service: backend
+          port: 8000
+        - path: /health
+          pathType: Prefix
+          service: backend
+          port: 8000
+        - path: /
+          pathType: Prefix
+          service: frontend
+          port: 80
+  tls: []
+  #  - secretName: finmind-tls
+  #    hosts:
+  #      - finmind.example.com
+
+# ---------------------------------------------------------------------------
+# Secrets (override in production!)
+# ---------------------------------------------------------------------------
+secrets:
+  POSTGRES_USER: finmind
+  POSTGRES_PASSWORD: change-me-strong
+  POSTGRES_DB: finmind
+  JWT_SECRET: change-me-long-random-secret
+  GEMINI_API_KEY: ""
+  OPENAI_API_KEY: ""

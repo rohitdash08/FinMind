@@ -1,0 +1,117 @@
+# Backend Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: backend
+    {{- include "finmind.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.backend.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "finmind.backend.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "finmind.backend.selectorLabels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: backend
+          image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}"
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          ports:
+            - containerPort: {{ .Values.backend.port }}
+              protocol: TCP
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: finmind-secrets
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: finmind-secrets
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: finmind-secrets
+                  key: POSTGRES_DB
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: finmind-secrets
+                  key: JWT_SECRET
+            - name: GEMINI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: finmind-secrets
+                  key: GEMINI_API_KEY
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: finmind-secrets
+                  key: OPENAI_API_KEY
+            - name: DATABASE_URL
+              value: {{ include "finmind.databaseUrl" . | quote }}
+            - name: REDIS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: finmind-config
+                  key: REDIS_URL
+            - name: GEMINI_MODEL
+              valueFrom:
+                configMapKeyRef:
+                  name: finmind-config
+                  key: GEMINI_MODEL
+            - name: LOG_LEVEL
+              valueFrom:
+                configMapKeyRef:
+                  name: finmind-config
+                  key: LOG_LEVEL
+            - name: GUNICORN_WORKERS
+              valueFrom:
+                configMapKeyRef:
+                  name: finmind-config
+                  key: GUNICORN_WORKERS
+            - name: GUNICORN_THREADS
+              valueFrom:
+                configMapKeyRef:
+                  name: finmind-config
+                  key: GUNICORN_THREADS
+          resources:
+            {{- toYaml .Values.backend.resources | nindent 12 }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.backend.healthCheck.path }}
+              port: {{ .Values.backend.port }}
+            initialDelaySeconds: {{ .Values.backend.healthCheck.initialDelaySeconds }}
+            periodSeconds: {{ .Values.backend.healthCheck.periodSeconds }}
+            timeoutSeconds: {{ .Values.backend.healthCheck.timeoutSeconds }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.backend.healthCheck.path }}
+              port: {{ .Values.backend.port }}
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: {{ .Values.backend.healthCheck.timeoutSeconds }}
+---
+# Backend Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: backend
+    {{- include "finmind.labels" . | nindent 4 }}
+spec:
+  selector:
+    {{- include "finmind.backend.selectorLabels" . | nindent 4 }}
+  ports:
+    - port: {{ .Values.backend.port }}
+      targetPort: {{ .Values.backend.port }}
+      protocol: TCP

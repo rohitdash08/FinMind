@@ -1,0 +1,67 @@
+# FinMind Backend - Azure Container Apps
+# Usage:
+#   az containerapp create --yaml deploy/platforms/azure/container-app.yaml
+#   Docs: https://learn.microsoft.com/en-us/azure/container-apps/
+
+type: Microsoft.App/containerApps
+location: eastus
+properties:
+  managedEnvironmentId: /subscriptions/SUBSCRIPTION_ID/resourceGroups/finmind-rg/providers/Microsoft.App/managedEnvironments/finmind-env
+  configuration:
+    ingress:
+      external: true
+      targetPort: 8000
+      transport: http
+      traffic:
+        - latestRevision: true
+          weight: 100
+    secrets:
+      - name: database-url
+        value: "postgresql+psycopg2://finmind:PASSWORD@HOST:5432/finmind"
+      - name: redis-url
+        value: "redis://HOST:6379/0"
+      - name: jwt-secret
+        value: "change-me"
+  template:
+    containers:
+      - name: backend
+        image: finmindacr.azurecr.io/finmind-backend:latest
+        resources:
+          cpu: 0.5
+          memory: 1Gi
+        env:
+          - name: DATABASE_URL
+            secretRef: database-url
+          - name: REDIS_URL
+            secretRef: redis-url
+          - name: JWT_SECRET
+            secretRef: jwt-secret
+          - name: LOG_LEVEL
+            value: "INFO"
+          - name: GUNICORN_WORKERS
+            value: "2"
+          - name: GUNICORN_THREADS
+            value: "4"
+        probes:
+          - type: liveness
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          - type: readiness
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+    scale:
+      minReplicas: 1
+      maxReplicas: 10
+      rules:
+        - name: cpu-scaling
+          custom:
+            type: cpu
+            metadata:
+              type: Utilization
+              value: "70"
