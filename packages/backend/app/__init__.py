@@ -33,6 +33,9 @@ def create_app(settings: Settings | None = None) -> Flask:
         TWILIO_AUTH_TOKEN=cfg.twilio_auth_token,
         TWILIO_WHATSAPP_FROM=cfg.twilio_whatsapp_from,
         EMAIL_FROM=cfg.email_from,
+        WEBHOOK_TARGET_URL=cfg.webhook_target_url,
+        WEBHOOK_SIGNING_SECRET=cfg.webhook_signing_secret,
+        WEBHOOK_MAX_RETRIES=cfg.webhook_max_retries,
     )
 
     # Logging

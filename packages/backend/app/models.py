@@ -133,3 +133,16 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class WebhookDelivery(db.Model):
+    __tablename__ = "webhook_deliveries"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    event_type = db.Column(db.String(120), nullable=False)
+    payload_json = db.Column(db.Text, nullable=False)
+    status = db.Column(db.String(20), nullable=False, default="pending")
+    attempts = db.Column(db.Integer, nullable=False, default=0)
+    last_error = db.Column(db.String(500), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    sent_at = db.Column(db.DateTime, nullable=True)

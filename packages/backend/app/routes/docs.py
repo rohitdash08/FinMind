@@ -1,5 +1,7 @@
 import os
-from flask import Blueprint, Response
+from flask import Blueprint, Response, jsonify
+
+from ..services.webhooks import SUPPORTED_EVENT_TYPES
 
 bp = Blueprint("docs", __name__)
 
@@ -14,6 +16,20 @@ def openapi_yaml():
     with open(spec_path, "rb") as f:
         data = f.read()
     return Response(data, mimetype="application/yaml")
+
+
+@bp.get("/webhook-events")
+def webhook_events():
+    return jsonify(
+        {
+            "event_types": sorted(SUPPORTED_EVENT_TYPES),
+            "delivery": {
+                "signature_header": "X-FinMind-Signature",
+                "signature_format": "sha256=<hex>",
+                "retry_behavior": "up to WEBHOOK_MAX_RETRIES attempts before marking delivery as failed",
+            },
+        }
+    )
 
 
 @bp.get("/ui")
