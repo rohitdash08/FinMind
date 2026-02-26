@@ -9,7 +9,8 @@ from flask_jwt_extended import (
     get_jwt_identity,
 )
 from ..extensions import db, redis_client
-from ..models import User
+from ..models import User, SecurityAlert
+from ..services.login_anomaly import AnomalyDetector
 import logging
 import time
 
@@ -55,15 +56,34 @@ def login():
     data = request.get_json() or {}
     email = data.get("email")
     password = data.get("password")
+    ip_address = request.headers.get("X-Forwarded-For", request.remote_addr) or "unknown"
+    user_agent = request.headers.get("User-Agent", "unknown")
+
     user = db.session.query(User).filter_by(email=email).first()
+    detector = AnomalyDetector()
+
     if not user or not check_password_hash(user.password_hash, password):
         logger.warning("Login failed for email=%s", email)
+        # Record failed attempt for anomaly detection
+        if user:
+            detector.analyse(user.id, ip_address, user_agent, login_success=False)
         return jsonify(error="invalid credentials"), 401
+
+    # Analyse successful login for anomalies
+    alerts = detector.analyse(user.id, ip_address, user_agent, login_success=True)
+
     access = create_access_token(identity=str(user.id))
     refresh = create_refresh_token(identity=str(user.id))
     _store_refresh_session(refresh, str(user.id))
     logger.info("Login success user_id=%s", user.id)
-    return jsonify(access_token=access, refresh_token=refresh)
+
+    response = {"access_token": access, "refresh_token": refresh}
+    if alerts:
+        response["security_alerts"] = [
+            {"type": a["alert_type"], "severity": a["severity"], "message": a["message"]}
+            for a in alerts
+        ]
+    return jsonify(response)
 
 
 @bp.get("/me")
@@ -137,3 +157,50 @@ def _store_refresh_session(refresh_token: str, uid: str):
         return
     ttl = max(int(exp - time.time()), 1)
     redis_client.setex(_refresh_key(jti), ttl, uid)
+
+
+@bp.get("/security-alerts")
+@jwt_required()
+def security_alerts():
+    """Return recent security alerts for the authenticated user."""
+    uid = int(get_jwt_identity())
+    page = request.args.get("page", 1, type=int)
+    per_page = min(request.args.get("per_page", 20, type=int), 100)
+    offset = (page - 1) * per_page
+
+    alerts = (
+        SecurityAlert.query
+        .filter_by(user_id=uid)
+        .order_by(SecurityAlert.created_at.desc())
+        .offset(offset)
+        .limit(per_page)
+        .all()
+    )
+    return jsonify(
+        alerts=[
+            {
+                "id": a.id,
+                "alert_type": a.alert_type,
+                "severity": a.severity,
+                "message": a.message,
+                "acknowledged": a.acknowledged,
+                "created_at": a.created_at.isoformat(),
+            }
+            for a in alerts
+        ],
+        page=page,
+        per_page=per_page,
+    )
+
+
+@bp.post("/security-alerts/<int:alert_id>/acknowledge")
+@jwt_required()
+def acknowledge_alert(alert_id: int):
+    """Mark a security alert as acknowledged."""
+    uid = int(get_jwt_identity())
+    alert = SecurityAlert.query.filter_by(id=alert_id, user_id=uid).first()
+    if not alert:
+        return jsonify(error="alert not found"), 404
+    alert.acknowledged = True
+    db.session.commit()
+    return jsonify(message="acknowledged")
