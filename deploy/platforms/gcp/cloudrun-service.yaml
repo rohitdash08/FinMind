@@ -1,0 +1,64 @@
+# FinMind Backend - GCP Cloud Run Service
+# Usage:
+#   gcloud builds submit --tag gcr.io/PROJECT_ID/finmind-backend packages/backend/
+#   gcloud run services replace deploy/platforms/gcp/cloudrun-service.yaml
+
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: finmind-backend
+  annotations:
+    run.googleapis.com/ingress: all
+    run.googleapis.com/launch-stage: GA
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: "1"
+        autoscaling.knative.dev/maxScale: "10"
+        run.googleapis.com/cpu-throttling: "false"
+    spec:
+      containerConcurrency: 80
+      timeoutSeconds: 300
+      containers:
+        - image: gcr.io/PROJECT_ID/finmind-backend:latest
+          ports:
+            - containerPort: 8000
+          resources:
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          env:
+            - name: GUNICORN_WORKERS
+              value: "2"
+            - name: GUNICORN_THREADS
+              value: "4"
+            - name: LOG_LEVEL
+              value: "INFO"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: finmind-database-url
+                  key: latest
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: finmind-redis-url
+                  key: latest
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: finmind-jwt-secret
+                  key: latest
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            periodSeconds: 15

@@ -1,0 +1,57 @@
+# =============================================================================
+# Tilt Development Overrides
+# =============================================================================
+# Lighter resource limits for local development
+# =============================================================================
+
+global:
+  namespace: finmind
+  imagePullPolicy: Never  # Use locally-built images
+
+backend:
+  replicaCount: 1
+  image:
+    repository: finmind-backend
+    tag: latest
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  autoscaling:
+    enabled: false
+  env:
+    GUNICORN_WORKERS: "1"
+    GUNICORN_THREADS: "2"
+    LOG_LEVEL: "DEBUG"
+    GEMINI_MODEL: "gemini-1.5-flash"
+
+frontend:
+  replicaCount: 1
+  image:
+    repository: finmind-frontend
+    tag: latest
+  resources:
+    requests:
+      cpu: 25m
+      memory: 32Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+postgresql:
+  persistence:
+    size: 1Gi
+
+ingress:
+  enabled: false
+
+secrets:
+  POSTGRES_USER: finmind
+  POSTGRES_PASSWORD: finmind-dev
+  POSTGRES_DB: finmind
+  JWT_SECRET: dev-secret-not-for-production
+  GEMINI_API_KEY: ""
+  OPENAI_API_KEY: ""

@@ -1,0 +1,87 @@
+{{- if .Values.postgresql.enabled }}
+# PostgreSQL PVC
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-data
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "finmind.labels" . | nindent 4 }}
+spec:
+  accessModes: [ReadWriteOnce]
+  {{- if .Values.postgresql.persistence.storageClass }}
+  storageClassName: {{ .Values.postgresql.persistence.storageClass }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.postgresql.persistence.size }}
+---
+# PostgreSQL Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: postgres
+    {{- include "finmind.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+        {{- include "finmind.labels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: postgres
+          image: "{{ .Values.postgresql.image.repository }}:{{ .Values.postgresql.image.tag }}"
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          ports:
+            - containerPort: {{ .Values.postgresql.port }}
+              protocol: TCP
+          envFrom:
+            - secretRef:
+                name: finmind-secrets
+          resources:
+            {{- toYaml .Values.postgresql.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "finmind"]
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "finmind"]
+            initialDelaySeconds: 30
+            periodSeconds: 20
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: postgres-data
+---
+# PostgreSQL Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: postgres
+    {{- include "finmind.labels" . | nindent 4 }}
+spec:
+  selector:
+    app: postgres
+  ports:
+    - port: {{ .Values.postgresql.port }}
+      targetPort: {{ .Values.postgresql.port }}
+      protocol: TCP
+{{- end }}
