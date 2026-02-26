@@ -8,6 +8,7 @@ from ..extensions import db
 from ..models import Expense, RecurringCadence, RecurringExpense, User
 from ..services.cache import cache_delete_patterns, monthly_summary_key
 from ..services import expense_import
+from ..services.webhooks import emit_webhook_event
 import logging
 
 bp = Blueprint("expenses", __name__)
@@ -83,6 +84,11 @@ def create_expense():
             monthly_summary_key(uid, e.spent_at.strftime("%Y-%m")),
             f"insights:{uid}:*",
         ]
+    )
+    emit_webhook_event(
+        user_id=uid,
+        event_type="expense.created",
+        payload=_expense_to_dict(e),
     )
     return jsonify(_expense_to_dict(e)), 201
 
