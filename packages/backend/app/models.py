@@ -17,6 +17,9 @@ class User(db.Model):
     preferred_currency = db.Column(db.String(10), default="INR", nullable=False)
     role = db.Column(db.String(20), default=Role.USER.value, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    last_login_ip = db.Column(db.String(45), nullable=True)
+    last_login_at = db.Column(db.DateTime, nullable=True)
+    last_login_user_agent = db.Column(db.String(500), nullable=True)
 
 
 class Category(db.Model):

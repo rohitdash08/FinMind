@@ -5,7 +5,10 @@ CREATE TABLE IF NOT EXISTS users (
   password_hash VARCHAR(255) NOT NULL,
   preferred_currency VARCHAR(10) NOT NULL DEFAULT 'INR',
   role VARCHAR(20) NOT NULL DEFAULT 'USER',
-  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  last_login_ip VARCHAR(45),
+  last_login_at TIMESTAMP,
+  last_login_user_agent VARCHAR(500)
 );
 
 ALTER TABLE users
