@@ -12,6 +12,7 @@ from ..extensions import db, redis_client
 from ..models import User
 import logging
 import time
+from datetime import datetime
 
 bp = Blueprint("auth", __name__)
 logger = logging.getLogger("finmind.auth")
@@ -59,11 +60,35 @@ def login():
     if not user or not check_password_hash(user.password_hash, password):
         logger.warning("Login failed for email=%s", email)
         return jsonify(error="invalid credentials"), 401
+    
+    # Get request info for anomaly detection
+    client_ip = request.headers.get('X-Forwarded-For', request.remote_addr)
+    user_agent = request.headers.get('User-Agent', '')
+    
+    # Check for suspicious login
+    alerts = []
+    if user.last_login_ip and user.last_login_ip != client_ip:
+        alerts.append(f"New login from different IP: {client_ip}")
+    if user.last_login_user_agent and user.last_login_user_agent != user_agent:
+        alerts.append("New device/browser detected")
+    
+    # Update login info
+    user.last_login_ip = client_ip
+    user.last_login_at = datetime.utcnow()
+    user.last_login_user_agent = user_agent
+    db.session.commit()
+    
     access = create_access_token(identity=str(user.id))
     refresh = create_refresh_token(identity=str(user.id))
     _store_refresh_session(refresh, str(user.id))
+    
+    response = {"access_token": access, "refresh_token": refresh}
+    if alerts:
+        response["security_alerts"] = alerts
+        logger.warning("Suspicious login for user_id=%s: %s", user.id, alerts)
+    
     logger.info("Login success user_id=%s", user.id)
-    return jsonify(access_token=access, refresh_token=refresh)
+    return jsonify(response)
 
 
 @bp.get("/me")
