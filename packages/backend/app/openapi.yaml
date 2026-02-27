@@ -12,6 +12,7 @@ tags:
   - name: Bills
   - name: Reminders
   - name: Insights
+  - name: Digest
 paths:
   /auth/register:
     post:
@@ -481,6 +482,147 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
 
+  /digest/weekly:
+    get:
+      summary: Get weekly financial digest
+      description: |
+        Generate a comprehensive weekly financial summary with spending trends,
+        category breakdowns, daily patterns, upcoming bills, and AI-powered insights.
+      tags: [Digest]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: week
+          required: false
+          schema: { type: string, format: date }
+          description: Week start date (YYYY-MM-DD). Will be normalized to Monday. Defaults to current week.
+        - in: header
+          name: X-Gemini-Api-Key
+          required: false
+          schema: { type: string }
+          description: Optional user-provided Gemini API key for AI insights
+        - in: header
+          name: X-Insight-Persona
+          required: false
+          schema: { type: string }
+          description: Optional custom persona for AI insights generation
+      responses:
+        '200':
+          description: Weekly digest
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WeeklyDigest'
+              example:
+                period:
+                  week_start: "2025-08-04"
+                  week_end: "2025-08-10"
+                  week_number: 32
+                  year: 2025
+                summary:
+                  total_income: 2000.0
+                  total_expenses: 450.0
+                  net_flow: 1550.0
+                  transaction_count: 12
+                trends:
+                  expense_change_pct: -15.5
+                  income_change_pct: 0.0
+                  expense_trend: decreasing
+                  previous_week_expenses: 532.5
+                  previous_week_income: 2000.0
+                category_breakdown:
+                  - category_id: 1
+                    category_name: Food
+                    amount: 200.0
+                    transaction_count: 8
+                    share_pct: 44.44
+                daily_breakdown:
+                  - date: "2025-08-04"
+                    day_name: Mon
+                    amount: 50.0
+                    transaction_count: 2
+                upcoming_bills:
+                  items:
+                    - id: 3
+                      name: Internet
+                      amount: 49.99
+                      next_due_date: "2025-08-07"
+                  total: 49.99
+                  count: 1
+                top_transactions:
+                  - id: 45
+                    description: Groceries
+                    amount: 120.0
+                    date: "2025-08-05"
+                    category_name: Food
+                insights:
+                  insights:
+                    - "Great job! Spending decreased 15% from last week."
+                    - "Food remains your largest expense category."
+                  highlight: "Positive week with healthy savings rate."
+                  suggestion: "Consider meal prepping to reduce food costs further."
+                meta:
+                  method: heuristic
+                  persona: "You are FinMind's weekly digest assistant..."
+        '400':
+          description: Invalid week format
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { error: "Invalid week format. Expected YYYY-MM-DD." }
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /digest/weekly/summary:
+    get:
+      summary: Get condensed weekly summary
+      description: |
+        Get a lightweight weekly summary with just the key metrics and trends.
+        Useful for dashboard widgets or quick notifications.
+      tags: [Digest]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: week
+          required: false
+          schema: { type: string, format: date }
+          description: Week start date (YYYY-MM-DD). Defaults to current week.
+      responses:
+        '200':
+          description: Condensed weekly summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WeeklySummary'
+              example:
+                period:
+                  week_start: "2025-08-04"
+                  week_end: "2025-08-10"
+                  week_number: 32
+                  year: 2025
+                summary:
+                  total_income: 2000.0
+                  total_expenses: 450.0
+                  net_flow: 1550.0
+                  transaction_count: 12
+                trends:
+                  expense_change_pct: -15.5
+                  expense_trend: decreasing
+                highlight: "Positive week with healthy savings rate."
+        '400':
+          description: Invalid week format
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -587,3 +729,109 @@ components:
         message: { type: string }
         send_at: { type: string, format: date-time }
         channel: { type: string, enum: [email, whatsapp], default: email }
+    WeeklyDigest:
+      type: object
+      description: Comprehensive weekly financial digest
+      properties:
+        period:
+          type: object
+          properties:
+            week_start: { type: string, format: date }
+            week_end: { type: string, format: date }
+            week_number: { type: integer }
+            year: { type: integer }
+        summary:
+          type: object
+          properties:
+            total_income: { type: number, format: float }
+            total_expenses: { type: number, format: float }
+            net_flow: { type: number, format: float }
+            transaction_count: { type: integer }
+        trends:
+          type: object
+          properties:
+            expense_change_pct: { type: number, format: float }
+            income_change_pct: { type: number, format: float }
+            expense_trend: { type: string, enum: [increasing, decreasing, stable] }
+            previous_week_expenses: { type: number, format: float }
+            previous_week_income: { type: number, format: float }
+        category_breakdown:
+          type: array
+          items:
+            type: object
+            properties:
+              category_id: { type: integer, nullable: true }
+              category_name: { type: string }
+              amount: { type: number, format: float }
+              transaction_count: { type: integer }
+              share_pct: { type: number, format: float }
+        daily_breakdown:
+          type: array
+          items:
+            type: object
+            properties:
+              date: { type: string, format: date }
+              day_name: { type: string }
+              amount: { type: number, format: float }
+              transaction_count: { type: integer }
+        upcoming_bills:
+          type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/Bill'
+            total: { type: number, format: float }
+            count: { type: integer }
+        top_transactions:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: integer }
+              description: { type: string }
+              amount: { type: number, format: float }
+              date: { type: string, format: date }
+              category_name: { type: string }
+              currency: { type: string }
+        insights:
+          type: object
+          properties:
+            insights:
+              type: array
+              items: { type: string }
+            highlight: { type: string }
+            suggestion: { type: string }
+        meta:
+          type: object
+          properties:
+            method: { type: string, enum: [heuristic, gemini] }
+            persona: { type: string }
+        warnings:
+          type: array
+          items: { type: string }
+    WeeklySummary:
+      type: object
+      description: Condensed weekly summary
+      properties:
+        period:
+          type: object
+          properties:
+            week_start: { type: string, format: date }
+            week_end: { type: string, format: date }
+            week_number: { type: integer }
+            year: { type: integer }
+        summary:
+          type: object
+          properties:
+            total_income: { type: number, format: float }
+            total_expenses: { type: number, format: float }
+            net_flow: { type: number, format: float }
+            transaction_count: { type: integer }
+        trends:
+          type: object
+          properties:
+            expense_change_pct: { type: number, format: float }
+            income_change_pct: { type: number, format: float }
+            expense_trend: { type: string, enum: [increasing, decreasing, stable] }
+        highlight: { type: string }

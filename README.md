@@ -66,6 +66,7 @@ OpenAPI: `backend/app/openapi.yaml`
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
 - Insights: `/insights/monthly`, `/insights/budget-suggestion`
+- Digest: `/digest/weekly`, `/digest/weekly/summary` — Smart weekly financial summaries with trends and AI insights
 
 ## MVP UI/UX Plan
 - Auth screens: register/login.
@@ -73,9 +74,23 @@ OpenAPI: `backend/app/openapi.yaml`
   - Monthly spend chart, category breakdown donut.
   - Upcoming bills list with due dates and pay status.
   - AI budget suggestion card.
+  - **Weekly Digest**: Smart summary with spending trends, category breakdown, and actionable insights.
 - Expenses page: add expense (amount, category, notes, date), list & filter.
 - Bills page: create bill (name, amount, cadence, due date, channel), toggle WhatsApp/email.
 - Settings: profile, categories, reminders default channel, export (premium).
+
+## Weekly Digest Feature
+The weekly digest (`/digest/weekly`) provides comprehensive financial summaries:
+- **Period Info**: Week start/end dates, week number
+- **Summary**: Total income, expenses, net flow, transaction count
+- **Trends**: Week-over-week comparison (expense/income change %)
+- **Category Breakdown**: Spending by category with percentages
+- **Daily Breakdown**: Day-by-day spending pattern (Mon-Sun)
+- **Upcoming Bills**: Bills due within the week
+- **Top Transactions**: Largest expenses for quick review
+- **AI Insights**: Smart tips generated via Gemini API (falls back to heuristics)
+
+A condensed endpoint (`/digest/weekly/summary`) is available for dashboard widgets.
 
 ## Monetization Plan
 - Free: ads in dashboard and list pages (lightweight, non-intrusive). Record impressions in `ad_impressions`.
