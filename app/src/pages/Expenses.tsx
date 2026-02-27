@@ -47,6 +47,7 @@ import {
 } from '@/api/expenses';
 import { listCategories, type Category } from '@/api/categories';
 import { formatMoney } from '@/lib/currency';
+import { validateImportBatch, type ValidationWarning } from '@/lib/import-validation';
 
 export default function Expenses() {
   const { toast } = useToast();
@@ -73,6 +74,7 @@ export default function Expenses() {
   const [previewDuplicates, setPreviewDuplicates] = useState<number>(0);
   const [importLoading, setImportLoading] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [validationResult, setValidationResult] = useState<ReturnType<typeof validateImportBatch> | null>(null);
   const [recurringItems, setRecurringItems] = useState<RecurringExpense[]>([]);
   const [recurringAmount, setRecurringAmount] = useState('');
   const [recurringDescription, setRecurringDescription] = useState('');
@@ -251,6 +253,7 @@ export default function Expenses() {
       const data = await previewExpenseImport(importFile);
       setPreview(data.transactions);
       setPreviewDuplicates(data.duplicates);
+      setValidationResult(validateImportBatch(data.transactions));
       toast({ title: 'Import preview ready', description: `${data.total} rows parsed.` });
     } catch (error: unknown) {
       const message = getErrorMessage(error, 'Failed to preview import');
@@ -277,6 +280,7 @@ export default function Expenses() {
       setPreview([]);
       setPreviewDuplicates(0);
       setImportFile(null);
+      setValidationResult(null);
       await refresh();
     } catch (error: unknown) {
       const message = getErrorMessage(error, 'Failed to import expenses');
@@ -285,6 +289,28 @@ export default function Expenses() {
     } finally {
       setImporting(false);
     }
+  }
+
+  function updatePreviewRow(index: number, field: keyof ImportTransaction, value: string | number) {
+    setPreview((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], [field]: value };
+      setValidationResult(validateImportBatch(next));
+      return next;
+    });
+  }
+
+  function removePreviewRow(index: number) {
+    setPreview((prev) => {
+      const next = prev.filter((_, i) => i !== index);
+      setValidationResult(next.length > 0 ? validateImportBatch(next) : null);
+      return next;
+    });
+  }
+
+  function getRowWarnings(row: number): ValidationWarning[] {
+    if (!validationResult) return [];
+    return [...validationResult.errors, ...validationResult.warnings].filter((w) => w.row === row);
   }
 
   async function onCreateRecurring() {
@@ -445,21 +471,102 @@ export default function Expenses() {
           />
           <div className="flex gap-2">
             <Button variant="outline" onClick={onPreviewImport} disabled={importLoading || !importFile}>Preview Import</Button>
-            <Button onClick={onCommitImport} disabled={importing || preview.length === 0}>Confirm Import</Button>
+            <Button
+              onClick={onCommitImport}
+              disabled={importing || preview.length === 0 || (validationResult?.hasBlockingErrors ?? false)}
+            >
+              Confirm Import
+            </Button>
           </div>
-          {preview.length > 0 && (
-            <div className="rounded-md border p-3">
-              <div className="mb-2 text-sm text-muted-foreground">
-                Preview rows: {preview.length} | Detected duplicates: {previewDuplicates}
+          {preview.length > 0 && validationResult && (
+            <div className="rounded-md border p-3 space-y-3">
+              <div className="flex flex-wrap gap-3 text-sm">
+                <span className="text-muted-foreground">Rows: {preview.length}</span>
+                <span className="text-muted-foreground">Duplicates: {previewDuplicates}</span>
+                <span className="text-green-600">
+                  {preview.length - validationResult.errors.length - validationResult.warnings.length} valid
+                </span>
+                {validationResult.warnings.length > 0 && (
+                  <span className="text-yellow-600">{validationResult.warnings.length} warnings</span>
+                )}
+                {validationResult.errors.length > 0 && (
+                  <span className="text-red-600">{validationResult.errors.length} errors</span>
+                )}
               </div>
-              <div className="max-h-40 overflow-y-auto text-sm">
-                {preview.slice(0, 10).map((row, idx) => (
-                  <div key={`${row.date}-${row.amount}-${idx}`} className="grid grid-cols-3 gap-2 border-b py-1">
-                    <span>{row.date}</span>
-                    <span>{row.description}</span>
-                    <span className="text-right">{formatMoney(Number(row.amount))}</span>
-                  </div>
-                ))}
+              {validationResult.hasBlockingErrors && (
+                <div className="text-sm text-red-600 font-medium">
+                  Fix all errors before importing.
+                </div>
+              )}
+              <div className="max-h-72 overflow-y-auto text-sm space-y-1">
+                {preview.map((row, idx) => {
+                  const rowWarnings = getRowWarnings(idx + 1);
+                  const hasError = rowWarnings.some((w) => w.severity === 'error');
+                  const hasWarn = rowWarnings.some((w) => w.severity === 'warning');
+                  return (
+                    <div
+                      key={`preview-${idx}`}
+                      className={`rounded border p-2 ${hasError ? 'border-red-400 bg-red-50' : hasWarn ? 'border-yellow-400 bg-yellow-50' : 'border-border'}`}
+                    >
+                      <div className="grid grid-cols-[1fr_2fr_1fr_1fr_auto] gap-2 items-center">
+                        <Input
+                          aria-label={`Row ${idx + 1} date`}
+                          type="date"
+                          value={row.date}
+                          onChange={(e) => updatePreviewRow(idx, 'date', e.target.value)}
+                          className="h-8 text-xs"
+                        />
+                        <Input
+                          aria-label={`Row ${idx + 1} description`}
+                          value={row.description}
+                          onChange={(e) => updatePreviewRow(idx, 'description', e.target.value)}
+                          className="h-8 text-xs"
+                          placeholder="Description"
+                        />
+                        <Input
+                          aria-label={`Row ${idx + 1} amount`}
+                          type="number"
+                          value={row.amount}
+                          onChange={(e) => updatePreviewRow(idx, 'amount', Number(e.target.value))}
+                          className="h-8 text-xs"
+                          min="0"
+                          step="0.01"
+                        />
+                        <select
+                          aria-label={`Row ${idx + 1} category`}
+                          className="input h-8 text-xs"
+                          value={row.category_id ?? ''}
+                          onChange={(e) => updatePreviewRow(idx, 'category_id', e.target.value ? Number(e.target.value) : null as any)}
+                        >
+                          <option value="">—</option>
+                          {categories.map((c) => (
+                            <option key={c.id} value={c.id}>{c.name}</option>
+                          ))}
+                        </select>
+                        <Button
+                          variant="outline"
+                          className="h-8 px-2 text-xs"
+                          onClick={() => removePreviewRow(idx)}
+                          aria-label={`Remove row ${idx + 1}`}
+                        >
+                          ✕
+                        </Button>
+                      </div>
+                      {rowWarnings.length > 0 && (
+                        <div className="mt-1 space-y-0.5">
+                          {rowWarnings.map((w, wi) => (
+                            <div
+                              key={`w-${idx}-${wi}`}
+                              className={`text-xs ${w.severity === 'error' ? 'text-red-600' : 'text-yellow-700'}`}
+                            >
+                              {w.severity === 'error' ? '⛔' : '⚠️'} {w.field}: {w.message}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}

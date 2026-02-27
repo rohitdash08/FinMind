@@ -59,6 +59,15 @@ See `backend/app/db/schema.sql`. Key tables:
   - On expense/bill create/update/delete -> delete affected monthly_summary, upcoming_bills, insights
 - Rate limiting (optional): `rl:{userId}:{endpoint}:{minute}` with short TTL
 
+## Bulk Import Validation & Preview
+The Expenses import flow validates each parsed row before committing:
+- Inline editing for date, description, amount, and category on every row
+- Per-row validation warnings (yellow) and errors (red): missing/invalid dates, negative/zero amounts, empty descriptions, future dates, large amounts (>10,000)
+- Summary bar showing valid/warning/error counts
+- Rows can be removed individually
+- "Confirm Import" is blocked until all errors are resolved
+- Validation logic lives in `app/src/lib/import-validation.ts` with unit tests in `app/src/__tests__/import-validation.test.ts`
+
 ## API Endpoints
 OpenAPI: `backend/app/openapi.yaml`
 - Auth: `/auth/register`, `/auth/login`, `/auth/refresh`
