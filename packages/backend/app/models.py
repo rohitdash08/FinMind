@@ -9,6 +9,23 @@ class Role(str, Enum):
     ADMIN = "ADMIN"
 
 
+class AnomalyType(str, Enum):
+    """Types of login anomalies that can be detected."""
+    BRUTE_FORCE = "BRUTE_FORCE"  # Multiple failed login attempts
+    NEW_IP = "NEW_IP"  # Login from a new IP address
+    NEW_DEVICE = "NEW_DEVICE"  # Login from a new device
+    UNUSUAL_TIME = "UNUSUAL_TIME"  # Login at unusual hours
+    IMPOSSIBLE_TRAVEL = "IMPOSSIBLE_TRAVEL"  # Rapid logins from different locations
+
+
+class AnomalySeverity(str, Enum):
+    """Severity levels for anomalies."""
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+    CRITICAL = "CRITICAL"
+
+
 class User(db.Model):
     __tablename__ = "users"
     id = db.Column(db.Integer, primary_key=True)
@@ -133,3 +150,45 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class LoginAttempt(db.Model):
+    """Records all login attempts for security monitoring."""
+    __tablename__ = "login_attempts"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    email = db.Column(db.String(255), nullable=False)
+    ip_address = db.Column(db.String(45), nullable=False)  # IPv6 max length
+    user_agent = db.Column(db.String(500), nullable=True)
+    device_fingerprint = db.Column(db.String(64), nullable=True)
+    location = db.Column(db.String(255), nullable=True)  # Optional geo location
+    success = db.Column(db.Boolean, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    # Index for efficient queries
+    __table_args__ = (
+        db.Index('ix_login_attempts_user_created', 'user_id', 'created_at'),
+        db.Index('ix_login_attempts_email_created', 'email', 'created_at'),
+    )
+
+
+class LoginAnomaly(db.Model):
+    """Records detected login anomalies for security alerts."""
+    __tablename__ = "login_anomalies"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    login_attempt_id = db.Column(
+        db.Integer, db.ForeignKey("login_attempts.id"), nullable=True
+    )
+    anomaly_type = db.Column(SAEnum(AnomalyType), nullable=False)
+    severity = db.Column(SAEnum(AnomalySeverity), nullable=False)
+    description = db.Column(db.String(500), nullable=False)
+    details = db.Column(db.Text, nullable=True)  # JSON with additional context
+    resolved = db.Column(db.Boolean, default=False, nullable=False)
+    resolved_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    # Index for efficient queries
+    __table_args__ = (
+        db.Index('ix_login_anomalies_user_resolved', 'user_id', 'resolved'),
+    )

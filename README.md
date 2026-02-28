@@ -190,6 +190,28 @@ finmind/
 - Redis caching for hot paths to cut DB load.
 - 12-factor app env config; stateless API.
 
+## Login Anomaly Detection
+FinMind includes comprehensive login anomaly detection to protect user accounts:
+
+### Detected Anomalies
+- **Brute Force**: Multiple failed login attempts trigger alerts and account lockout
+- **New IP Address**: Logins from previously unseen IP addresses
+- **New Device**: Logins from new devices (based on user agent fingerprinting)
+- **Unusual Time**: Logins at unusual hours (2-5 AM by default)
+- **Impossible Travel**: Rapid logins from different IP addresses (credential sharing/theft indicator)
+
+### Security Endpoints
+- `GET /auth/security/summary` - Security overview (unresolved anomalies, failed logins, etc.)
+- `GET /auth/security/login-history` - View recent login attempts
+- `GET /auth/security/anomalies` - List detected security anomalies
+- `POST /auth/security/anomalies/{id}/resolve` - Mark anomaly as resolved
+- `POST /auth/security/unlock` - Self-service account unlock
+
+### Account Protection
+- Accounts are temporarily locked after 10 failed login attempts (30 min lockout)
+- Login response includes security warnings for unresolved anomalies
+- All login attempts are logged with IP, user agent, and timestamp
+
 ---
 
 MIT Licensed. Built with ❤️.
