@@ -1,0 +1,128 @@
+# AWS App Runner Configuration
+# Deploy: aws apprunner create-service --cli-input-yaml file://deploy/aws/apprunner.yaml
+#
+# Prerequisites:
+# 1. Push image to ECR: docker push ACCOUNT.dkr.ecr.REGION.amazonaws.com/finmind-backend:latest
+# 2. Create RDS PostgreSQL instance
+# 3. Create ElastiCache Redis cluster
+# 4. Store secrets in SSM Parameter Store
+
+AWSTemplateFormatVersion: '2010-09-09'
+Description: FinMind App Runner Stack
+
+Parameters:
+  Environment:
+    Type: String
+    Default: production
+    AllowedValues:
+      - staging
+      - production
+  
+  ImageUri:
+    Type: String
+    Description: ECR image URI (e.g., 123456789.dkr.ecr.us-east-1.amazonaws.com/finmind-backend:latest)
+  
+  DatabaseUrl:
+    Type: String
+    Description: PostgreSQL connection string
+    NoEcho: true
+  
+  RedisUrl:
+    Type: String
+    Description: Redis connection string
+    NoEcho: true
+
+Resources:
+  # IAM Role for App Runner
+  AppRunnerAccessRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub finmind-apprunner-access-${Environment}
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: build.apprunner.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSAppRunnerServicePolicyForECRAccess
+
+  AppRunnerInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub finmind-apprunner-instance-${Environment}
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: tasks.apprunner.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: SSMAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:GetParameters
+                Resource: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/finmind/*
+
+  # App Runner Service
+  FinMindService:
+    Type: AWS::AppRunner::Service
+    Properties:
+      ServiceName: !Sub finmind-backend-${Environment}
+      SourceConfiguration:
+        AuthenticationConfiguration:
+          AccessRoleArn: !GetAtt AppRunnerAccessRole.Arn
+        AutoDeploymentsEnabled: true
+        ImageRepository:
+          ImageIdentifier: !Ref ImageUri
+          ImageRepositoryType: ECR
+          ImageConfiguration:
+            Port: "8000"
+            RuntimeEnvironmentVariables:
+              - Name: LOG_LEVEL
+                Value: INFO
+              - Name: GEMINI_MODEL
+                Value: gemini-1.5-flash
+              - Name: DATABASE_URL
+                Value: !Ref DatabaseUrl
+              - Name: REDIS_URL
+                Value: !Ref RedisUrl
+            StartCommand: "gunicorn -w 2 -k gthread -b 0.0.0.0:8000 wsgi:app"
+      InstanceConfiguration:
+        Cpu: "0.25 vCPU"
+        Memory: "0.5 GB"
+        InstanceRoleArn: !GetAtt AppRunnerInstanceRole.Arn
+      HealthCheckConfiguration:
+        Protocol: HTTP
+        Path: /health
+        Interval: 10
+        Timeout: 5
+        HealthyThreshold: 1
+        UnhealthyThreshold: 5
+      AutoScalingConfigurationArn: !Ref AutoScalingConfig
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: finmind
+
+  AutoScalingConfig:
+    Type: AWS::AppRunner::AutoScalingConfiguration
+    Properties:
+      AutoScalingConfigurationName: !Sub finmind-autoscaling-${Environment}
+      MaxConcurrency: 100
+      MaxSize: 10
+      MinSize: 1
+
+Outputs:
+  ServiceUrl:
+    Description: App Runner Service URL
+    Value: !GetAtt FinMindService.ServiceUrl
+    Export:
+      Name: !Sub finmind-service-url-${Environment}

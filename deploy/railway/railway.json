@@ -1,0 +1,14 @@
+{
+  "$schema": "https://railway.app/railway.schema.json",
+  "build": {
+    "builder": "DOCKERFILE",
+    "dockerfilePath": "packages/backend/Dockerfile"
+  },
+  "deploy": {
+    "startCommand": "sh -c 'python -m flask --app wsgi:app init-db && gunicorn -w 2 -k gthread -b 0.0.0.0:$PORT wsgi:app'",
+    "healthcheckPath": "/health",
+    "healthcheckTimeout": 30,
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 3
+  }
+}

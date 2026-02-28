@@ -1,0 +1,27 @@
+apiVersion: v2
+name: finmind
+description: FinMind - AI-Powered Budget & Bill Tracking Helm Chart
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - finmind
+  - finance
+  - budgeting
+  - flask
+  - react
+home: https://github.com/rohitdash08/FinMind
+sources:
+  - https://github.com/rohitdash08/FinMind
+maintainers:
+  - name: rohitdash08
+    url: https://github.com/rohitdash08
+dependencies:
+  - name: postgresql
+    version: "15.5.0"
+    repository: https://charts.bitnami.com/bitnami
+    condition: postgresql.enabled
+  - name: redis
+    version: "19.5.0"
+    repository: https://charts.bitnami.com/bitnami
+    condition: redis.enabled

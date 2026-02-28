@@ -1,0 +1,29 @@
+# Heroku Container Deployment
+# Deploy: heroku container:push web --app your-app-name
+
+build:
+  docker:
+    web: packages/backend/Dockerfile
+
+run:
+  web: sh -c 'python -m flask --app wsgi:app init-db && gunicorn -w 2 -k gthread -b 0.0.0.0:$PORT wsgi:app'
+
+release:
+  image: web
+  command:
+    - python
+    - -m
+    - flask
+    - --app
+    - wsgi:app
+    - init-db
+
+addons:
+  - plan: heroku-postgresql:essential-0
+    as: DATABASE
+  - plan: heroku-redis:mini
+    as: REDIS
+
+config:
+  LOG_LEVEL: INFO
+  GEMINI_MODEL: gemini-1.5-flash

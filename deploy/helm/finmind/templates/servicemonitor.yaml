@@ -1,0 +1,61 @@
+{{- if and .Values.metrics.enabled .Values.metrics.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "finmind.fullname" . }}-backend
+  labels:
+    {{- include "finmind.labels" . | nindent 4 }}
+    {{- with .Values.metrics.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: backend
+      {{- include "finmind.selectorLabels" . | nindent 6 }}
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: {{ .Values.metrics.serviceMonitor.interval | default "30s" }}
+      scrapeTimeout: {{ .Values.metrics.serviceMonitor.scrapeTimeout | default "10s" }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "finmind.fullname" . }}-alerts
+  labels:
+    {{- include "finmind.labels" . | nindent 4 }}
+spec:
+  groups:
+    - name: finmind.rules
+      rules:
+        - alert: FinMindBackendDown
+          expr: up{job="{{ include "finmind.fullname" . }}-backend"} == 0
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "FinMind backend is down"
+            description: "FinMind backend has been down for more than 1 minute."
+        
+        - alert: FinMindHighLatency
+          expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job="{{ include "finmind.fullname" . }}-backend"}[5m])) > 1
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "FinMind p95 latency is high"
+            description: "FinMind backend p95 latency is above 1 second for 5 minutes."
+        
+        - alert: FinMindHighErrorRate
+          expr: rate(http_requests_total{job="{{ include "finmind.fullname" . }}-backend", status=~"5.."}[5m]) / rate(http_requests_total{job="{{ include "finmind.fullname" . }}-backend"}[5m]) > 0.05
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "FinMind error rate is high"
+            description: "FinMind backend error rate is above 5% for 5 minutes."
+{{- end }}

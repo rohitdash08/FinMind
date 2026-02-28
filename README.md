@@ -2,6 +2,20 @@
 
 FinMind helps users control spending, track bills, and get smart financial insights. Built for free-tier friendly deployment with scalable architecture.
 
+## 🚀 One-Click Deploy
+
+### Full Stack
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/finmind?referralCode=finmind)
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/rohitdash08/FinMind)
+[![Deploy to Heroku](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy?template=https://github.com/rohitdash08/FinMind)
+[![Deploy to DO](https://www.deploytodo.com/do-btn-blue.svg)](https://cloud.digitalocean.com/apps/new?repo=https://github.com/rohitdash08/FinMind/tree/main)
+
+### Frontend Only
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/rohitdash08/FinMind&root-directory=app)
+[![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/rohitdash08/FinMind)
+
+> 📖 **Full deployment guide**: [DEPLOYMENT.md](DEPLOYMENT.md) | **Platform configs**: [deploy/](deploy/)
+
 ## System Architecture
 
 ```mermaid
@@ -140,10 +154,44 @@ finmind/
 ```
 
 ## Deployment
-- Backend: Dockerized Flask to Railway/Render free tier (Postgres & Redis managed or via Compose locally).
-- Frontend: Vercel.
-- Secrets: use environment variables (.env locally, platform secrets in cloud).
-- Kubernetes manifests for full stack deployment are available in `deploy/k8s/`.
+
+FinMind supports one-click deployment to all major platforms:
+
+| Platform | Type | Config | Free Tier |
+|----------|------|--------|-----------|
+| [Railway](deploy/railway/README.md) | PaaS | `railway.json` | ✅ $5/mo |
+| [Render](deploy/render/README.md) | PaaS | `render.yaml` | ✅ |
+| [Fly.io](deploy/fly/README.md) | PaaS | `fly.toml` | ✅ |
+| [Heroku](deploy/heroku/README.md) | PaaS | `heroku.yml` | ❌ |
+| [DigitalOcean](deploy/digitalocean/README.md) | PaaS | `.do/app.yaml` | ❌ |
+| [AWS ECS](deploy/aws/README.md) | IaaS | `ecs-task-definition.json` | ❌ |
+| [GCP Cloud Run](deploy/gcp/README.md) | PaaS | `cloudrun.yaml` | ✅ |
+| [Azure Container Apps](deploy/azure/README.md) | PaaS | `container-app.yaml` | ✅ |
+| [Kubernetes](deploy/helm/README.md) | K8s | Helm chart | N/A |
+| Docker Compose | Self-hosted | `docker-compose.prod.yml` | N/A |
+
+### Quick Deploy Options
+
+**Docker Compose (Production):**
+```bash
+cp .env.example .env.production
+docker compose -f docker-compose.prod.yml up -d
+```
+
+**Kubernetes (Helm):**
+```bash
+helm install finmind deploy/helm/finmind \
+  --namespace finmind --create-namespace \
+  --set secrets.jwtSecret=$(openssl rand -hex 32)
+```
+
+**Local K8s Development (Tilt):**
+```bash
+cp deploy/k8s/secrets.example.yaml deploy/k8s/secrets.yaml
+tilt up
+```
+
+📖 See [DEPLOYMENT.md](DEPLOYMENT.md) for comprehensive deployment guide.
 
 ## Local Development
 1) Prereqs: Docker, Docker Compose, Node 20+, Python 3.11+

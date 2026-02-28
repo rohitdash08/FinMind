@@ -1,0 +1,46 @@
+{
+  "name": "FinMind",
+  "description": "AI-Powered Budget & Bill Tracking",
+  "repository": "https://github.com/rohitdash08/FinMind",
+  "logo": "https://raw.githubusercontent.com/rohitdash08/FinMind/main/app/public/logo.png",
+  "keywords": ["flask", "react", "finance", "budgeting", "ai"],
+  "stack": "container",
+  "addons": [
+    {
+      "plan": "heroku-postgresql:essential-0",
+      "as": "DATABASE"
+    },
+    {
+      "plan": "heroku-redis:mini",
+      "as": "REDIS"
+    }
+  ],
+  "env": {
+    "JWT_SECRET": {
+      "description": "Secret key for JWT tokens",
+      "generator": "secret"
+    },
+    "GEMINI_API_KEY": {
+      "description": "Google Gemini API key for AI insights",
+      "required": false
+    },
+    "LOG_LEVEL": {
+      "description": "Logging level",
+      "value": "INFO"
+    },
+    "GEMINI_MODEL": {
+      "description": "Gemini model to use",
+      "value": "gemini-1.5-flash"
+    }
+  },
+  "formation": {
+    "web": {
+      "quantity": 1,
+      "size": "basic"
+    }
+  },
+  "buildpacks": [],
+  "scripts": {
+    "postdeploy": "python -m flask --app wsgi:app init-db"
+  }
+}

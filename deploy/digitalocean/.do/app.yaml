@@ -1,0 +1,73 @@
+# DigitalOcean App Platform Specification
+# Deploy: doctl apps create --spec deploy/digitalocean/.do/app.yaml
+
+name: finmind
+region: nyc
+features:
+  - buildpack-stack=ubuntu-22
+
+databases:
+  - name: finmind-db
+    engine: PG
+    version: "16"
+    size: db-s-dev-database
+    num_nodes: 1
+
+  - name: finmind-redis
+    engine: REDIS
+    version: "7"
+    size: db-s-dev-database
+    num_nodes: 1
+
+services:
+  - name: finmind-backend
+    dockerfile_path: packages/backend/Dockerfile
+    github:
+      repo: rohitdash08/FinMind
+      branch: main
+      deploy_on_push: true
+    http_port: 8000
+    instance_count: 1
+    instance_size_slug: apps-s-1vcpu-0.5gb
+    routes:
+      - path: /api
+    health_check:
+      http_path: /health
+      initial_delay_seconds: 30
+      period_seconds: 15
+    envs:
+      - key: DATABASE_URL
+        scope: RUN_TIME
+        value: ${finmind-db.DATABASE_URL}
+      - key: REDIS_URL
+        scope: RUN_TIME
+        value: ${finmind-redis.DATABASE_URL}
+      - key: JWT_SECRET
+        scope: RUN_TIME
+        type: SECRET
+      - key: GEMINI_API_KEY
+        scope: RUN_TIME
+        type: SECRET
+      - key: LOG_LEVEL
+        scope: RUN_TIME
+        value: INFO
+      - key: GEMINI_MODEL
+        scope: RUN_TIME
+        value: gemini-1.5-flash
+    run_command: sh -c 'python -m flask --app wsgi:app init-db && gunicorn -w 2 -k gthread -b 0.0.0.0:8000 wsgi:app'
+
+static_sites:
+  - name: finmind-frontend
+    build_command: cd app && npm ci && npm run build
+    output_dir: app/dist
+    github:
+      repo: rohitdash08/FinMind
+      branch: main
+      deploy_on_push: true
+    routes:
+      - path: /
+    catchall_document: index.html
+    envs:
+      - key: VITE_API_URL
+        scope: BUILD_TIME
+        value: ${finmind-backend.PUBLIC_URL}
