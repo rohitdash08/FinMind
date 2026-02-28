@@ -24,9 +24,8 @@ k8s_yaml([
   'deploy/k8s/app-stack.yaml',
 ])
 
-# Override images in K8s manifests
-k8s_image_json_path('{.spec.template.spec.containers[0].image}',
-  name='backend', image='finmind-backend')
+# Tilt automatically matches docker_build image names to K8s manifests.
+# If images don't match, use k8s_image_json_path or set_image.
 
 # Resource grouping and dependencies
 k8s_resource('postgres', labels=['database'],

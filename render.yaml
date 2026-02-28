@@ -16,6 +16,9 @@ services:
           name: finmind-redis
           type: redis
           property: connectionString
+          # Note: Render Redis is available as an add-on.
+          # If blueprint validation fails, set REDIS_URL manually
+          # or use Upstash Redis (free tier available).
       - key: JWT_SECRET
         generateValue: true
       - key: LOG_LEVEL
@@ -44,6 +47,5 @@ databases:
     databaseName: finmind
     user: finmind
 
-  - name: finmind-redis
-    plan: starter
-    type: redis
+  # Redis: Use Render's Redis add-on from the dashboard,
+  # or an external provider like Upstash. Set REDIS_URL on the backend service.

@@ -26,7 +26,7 @@ spec:
           value: ${db.DATABASE_URL}
         - key: REDIS_URL
           scope: RUN_TIME
-          value: ${redis.REDIS_URL}
+          value: CHANGE_ME_SET_EXTERNAL_REDIS_URL
         - key: JWT_SECRET
           scope: RUN_TIME
           type: SECRET
@@ -58,5 +58,4 @@ spec:
       num_nodes: 1
 
   # Note: DigitalOcean App Platform doesn't have managed Redis.
-  # Use a Redis add-on or external Redis service.
-  # Set REDIS_URL manually or use a worker with Redis image.
+  # Use DigitalOcean Managed Redis or Upstash, then set REDIS_URL on the backend service.
