@@ -12,6 +12,7 @@ tags:
   - name: Bills
   - name: Reminders
   - name: Insights
+  - name: Digest
 paths:
   /auth/register:
     post:
@@ -444,6 +445,53 @@ paths:
                 properties:
                   created: { type: integer }
 
+  /digest/weekly:
+    get:
+      summary: Get weekly financial digest with trends and insights
+      tags: [Digest]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: year
+          required: false
+          schema: { type: integer }
+          description: ISO year (defaults to current)
+        - in: query
+          name: week
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 53 }
+          description: ISO week number (defaults to current)
+      responses:
+        '200':
+          description: Weekly digest
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WeeklyDigest'
+              example:
+                period: { year: 2026, week: 9, start_date: "2026-02-23", end_date: "2026-03-01" }
+                summary: { total_income: 2000.0, total_expenses: 850.0, net_flow: 1150.0, transaction_count: 12 }
+                trends: { expense_change_pct: 15.5, income_change_pct: 0.0, prev_week_expenses: 735.93, prev_week_income: 2000.0 }
+                category_breakdown:
+                  - { category_id: 1, category_name: Food, amount: 320.0, transaction_count: 5, share_pct: 37.6 }
+                daily_spending:
+                  - { date: "2026-02-23", amount: 120.0 }
+                top_transactions:
+                  - { id: 42, amount: 200.0, description: "Grocery haul", date: "2026-02-25", category_id: 1 }
+                insights:
+                  - "Total spending increased by 15.5% compared to last week ($850.00 vs $735.93)."
+                  - "Food spending is up 22.0% ($320.00 vs $262.30 last week)."
+        '400':
+          description: Invalid parameters
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
   /insights/budget-suggestion:
     get:
       summary: Get monthly budget suggestion
@@ -587,3 +635,57 @@ components:
         message: { type: string }
         send_at: { type: string, format: date-time }
         channel: { type: string, enum: [email, whatsapp], default: email }
+    WeeklyDigest:
+      type: object
+      properties:
+        period:
+          type: object
+          properties:
+            year: { type: integer }
+            week: { type: integer }
+            start_date: { type: string, format: date }
+            end_date: { type: string, format: date }
+        summary:
+          type: object
+          properties:
+            total_income: { type: number, format: float }
+            total_expenses: { type: number, format: float }
+            net_flow: { type: number, format: float }
+            transaction_count: { type: integer }
+        trends:
+          type: object
+          properties:
+            expense_change_pct: { type: number, format: float, nullable: true }
+            income_change_pct: { type: number, format: float, nullable: true }
+            prev_week_expenses: { type: number, format: float }
+            prev_week_income: { type: number, format: float }
+        category_breakdown:
+          type: array
+          items:
+            type: object
+            properties:
+              category_id: { type: integer, nullable: true }
+              category_name: { type: string }
+              amount: { type: number, format: float }
+              transaction_count: { type: integer }
+              share_pct: { type: number, format: float }
+        daily_spending:
+          type: array
+          items:
+            type: object
+            properties:
+              date: { type: string, format: date }
+              amount: { type: number, format: float }
+        top_transactions:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: integer }
+              amount: { type: number, format: float }
+              description: { type: string }
+              date: { type: string, format: date }
+              category_id: { type: integer, nullable: true }
+        insights:
+          type: array
+          items: { type: string }
