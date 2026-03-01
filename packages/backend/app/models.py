@@ -127,6 +127,28 @@ class UserSubscription(db.Model):
     started_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
 
+class LoginHistory(db.Model):
+    __tablename__ = "login_history"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    ip_address = db.Column(db.String(45), nullable=True)
+    user_agent = db.Column(db.String(500), nullable=True)
+    success = db.Column(db.Boolean, nullable=False, default=True)
+    anomaly_flags = db.Column(db.Text, nullable=True)  # JSON list of flags
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class SecurityAlert(db.Model):
+    __tablename__ = "security_alerts"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    alert_type = db.Column(db.String(50), nullable=False)
+    message = db.Column(db.String(500), nullable=False)
+    metadata_json = db.Column(db.Text, nullable=True)
+    acknowledged = db.Column(db.Boolean, default=False, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
 class AuditLog(db.Model):
     __tablename__ = "audit_logs"
     id = db.Column(db.Integer, primary_key=True)

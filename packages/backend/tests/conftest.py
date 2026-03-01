@@ -1,9 +1,10 @@
 import os
 import pytest
+from unittest.mock import MagicMock
 from app import create_app
 from app.config import Settings
 from app.extensions import db
-from app.extensions import redis_client
+import app.extensions as ext
 from app import models  # noqa: F401 - ensure models are registered
 
 
@@ -31,18 +32,17 @@ def app_fixture():
     app = create_app(settings)
     app.config.update(TESTING=True)
     _setup_db(app)
-    try:
-        redis_client.flushdb()
-    except Exception:
-        pass
+    # Use a fake redis for tests so we don't need a running Redis server
+    fake_redis = MagicMock()
+    fake_redis.get.return_value = "1"  # refresh tokens always "valid"
+    ext.redis_client = fake_redis
+    # Also patch the reference imported in auth routes
+    from app.routes import auth as auth_mod
+    auth_mod.redis_client = fake_redis
     yield app
     with app.app_context():
         db.session.remove()
         db.drop_all()
-    try:
-        redis_client.flushdb()
-    except Exception:
-        pass
 
 
 @pytest.fixture()

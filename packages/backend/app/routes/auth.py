@@ -9,7 +9,9 @@ from flask_jwt_extended import (
     get_jwt_identity,
 )
 from ..extensions import db, redis_client
-from ..models import User
+from ..models import User, LoginHistory, SecurityAlert
+from ..services.login_anomaly import record_login, record_failed_login
+import json
 import logging
 import time
 
@@ -55,15 +57,28 @@ def login():
     data = request.get_json() or {}
     email = data.get("email")
     password = data.get("password")
+    ip_address = request.headers.get("X-Forwarded-For", request.remote_addr)
+    user_agent = request.headers.get("User-Agent")
+
     user = db.session.query(User).filter_by(email=email).first()
     if not user or not check_password_hash(user.password_hash, password):
         logger.warning("Login failed for email=%s", email)
+        record_failed_login(email, ip_address, user_agent)
         return jsonify(error="invalid credentials"), 401
+
+    # Record successful login & run anomaly detection
+    login_entry = record_login(user.id, ip_address, user_agent, success=True)
+
     access = create_access_token(identity=str(user.id))
     refresh = create_refresh_token(identity=str(user.id))
     _store_refresh_session(refresh, str(user.id))
     logger.info("Login success user_id=%s", user.id)
-    return jsonify(access_token=access, refresh_token=refresh)
+
+    response_data = {"access_token": access, "refresh_token": refresh}
+    if login_entry.anomaly_flags:
+        response_data["security_warnings"] = json.loads(login_entry.anomaly_flags)
+
+    return jsonify(response_data)
 
 
 @bp.get("/me")
@@ -123,6 +138,84 @@ def logout():
     if jti:
         redis_client.delete(_refresh_key(jti))
     return jsonify(message="logged out"), 200
+
+
+@bp.get("/login-history")
+@jwt_required()
+def login_history():
+    """Return paginated login history for the authenticated user."""
+    uid = int(get_jwt_identity())
+    page = request.args.get("page", 1, type=int)
+    per_page = min(request.args.get("per_page", 20, type=int), 100)
+    offset = (page - 1) * per_page
+
+    total = db.session.query(LoginHistory).filter_by(user_id=uid).count()
+    entries = (
+        db.session.query(LoginHistory)
+        .filter_by(user_id=uid)
+        .order_by(LoginHistory.created_at.desc())
+        .offset(offset)
+        .limit(per_page)
+        .all()
+    )
+
+    return jsonify(
+        total=total,
+        page=page,
+        per_page=per_page,
+        items=[
+            {
+                "id": e.id,
+                "ip_address": e.ip_address,
+                "user_agent": e.user_agent,
+                "success": e.success,
+                "anomaly_flags": json.loads(e.anomaly_flags) if e.anomaly_flags else [],
+                "created_at": e.created_at.isoformat() + "Z",
+            }
+            for e in entries
+        ],
+    )
+
+
+@bp.get("/security-alerts")
+@jwt_required()
+def security_alerts():
+    """Return unacknowledged security alerts for the authenticated user."""
+    uid = int(get_jwt_identity())
+    alerts = (
+        db.session.query(SecurityAlert)
+        .filter_by(user_id=uid)
+        .order_by(SecurityAlert.created_at.desc())
+        .limit(50)
+        .all()
+    )
+    return jsonify(
+        items=[
+            {
+                "id": a.id,
+                "alert_type": a.alert_type,
+                "message": a.message,
+                "acknowledged": a.acknowledged,
+                "created_at": a.created_at.isoformat() + "Z",
+            }
+            for a in alerts
+        ]
+    )
+
+
+@bp.post("/security-alerts/<int:alert_id>/acknowledge")
+@jwt_required()
+def acknowledge_alert(alert_id):
+    """Mark a security alert as acknowledged."""
+    uid = int(get_jwt_identity())
+    alert = db.session.query(SecurityAlert).filter_by(
+        id=alert_id, user_id=uid
+    ).first()
+    if not alert:
+        return jsonify(error="not found"), 404
+    alert.acknowledged = True
+    db.session.commit()
+    return jsonify(message="acknowledged")
 
 
 def _refresh_key(jti: str) -> str:

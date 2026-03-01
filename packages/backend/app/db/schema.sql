@@ -117,6 +117,28 @@ CREATE TABLE IF NOT EXISTS user_subscriptions (
   started_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS login_history (
+  id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  ip_address VARCHAR(45),
+  user_agent VARCHAR(500),
+  success BOOLEAN NOT NULL DEFAULT TRUE,
+  anomaly_flags TEXT,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_login_history_user ON login_history(user_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS security_alerts (
+  id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  alert_type VARCHAR(50) NOT NULL,
+  message VARCHAR(500) NOT NULL,
+  metadata_json TEXT,
+  acknowledged BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_security_alerts_user ON security_alerts(user_id, acknowledged, created_at DESC);
+
 CREATE TABLE IF NOT EXISTS audit_logs (
   id SERIAL PRIMARY KEY,
   user_id INT REFERENCES users(id) ON DELETE SET NULL,
