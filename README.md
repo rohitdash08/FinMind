@@ -66,6 +66,7 @@ OpenAPI: `backend/app/openapi.yaml`
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
 - Insights: `/insights/monthly`, `/insights/budget-suggestion`
+- Digest: `/digest/weekly` (GET), `/digest/weekly/send` (POST)
 
 ## MVP UI/UX Plan
 - Auth screens: register/login.
@@ -178,6 +179,16 @@ finmind/
 
 ## Contribution Policy
 - See `CONTRIBUTING.md` for fork-first contribution flow and PR requirements.
+
+## Weekly Financial Digest
+FinMind generates a **smart weekly financial digest** every Monday at 08:00 UTC:
+- **Expense aggregation** by category for the prior week
+- **Week-over-week trends** (spending up/down with percentage)
+- **Upcoming bills** due in the coming week
+- **AI-powered insights** via Gemini (highlights + actionable tip)
+- **Delivery** via email and/or WhatsApp using existing notification channels
+- **On-demand API** at `GET /digest/weekly` and frontend page at `/digest`
+- **Scheduled job** via APScheduler (configurable in `app/scheduler.py`)
 
 ## Notes on Free-Tier Reminders
 - Primary: schedule via APScheduler in-process with persistence in Postgres (job table) and a simple daily trigger. Alternatively, use Railway/Render cron to hit `/reminders/run`.

@@ -56,6 +56,12 @@ def create_app(settings: Settings | None = None) -> Flask:
     with app.app_context():
         _ensure_schema_compatibility(app)
 
+    # Start background scheduler (weekly digest, etc.) – skip in testing
+    if not app.config.get("TESTING"):
+        from .scheduler import init_scheduler
+
+        init_scheduler(app)
+
     @app.before_request
     def _before_request():
         init_request_context()
