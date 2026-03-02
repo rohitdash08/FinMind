@@ -63,6 +63,7 @@ See `backend/app/db/schema.sql`. Key tables:
 OpenAPI: `backend/app/openapi.yaml`
 - Auth: `/auth/register`, `/auth/login`, `/auth/refresh`
 - Expenses: CRUD `/expenses`
+- Bank sync: pluggable connectors via `/expenses/bank-sync/import` and `/expenses/bank-sync/refresh` (includes `mock` connector)
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
 - Insights: `/insights/monthly`, `/insights/budget-suggestion`

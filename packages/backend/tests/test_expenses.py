@@ -260,3 +260,73 @@ def test_recurring_expense_generate_respects_end_date(client, auth_header):
     assert r.status_code == 200
     generated = r.get_json()
     assert len(generated) == 3
+
+
+def test_bank_sync_import_preview_and_commit_with_mock_connector(client, auth_header):
+    r = client.post(
+        "/expenses/bank-sync/import",
+        json={"connector": "mock"},
+        headers=auth_header,
+    )
+    assert r.status_code == 200
+    preview = r.get_json()
+    assert preview["total"] == 2
+    assert preview["duplicates"] == 0
+
+    r = client.post(
+        "/expenses/bank-sync/import",
+        json={"connector": "mock", "commit": True},
+        headers=auth_header,
+    )
+    assert r.status_code == 201
+    committed = r.get_json()
+    assert committed["inserted"] == 2
+
+    r = client.post(
+        "/expenses/bank-sync/import",
+        json={"connector": "mock", "commit": True},
+        headers=auth_header,
+    )
+    assert r.status_code == 201
+    assert r.get_json()["duplicates"] == 2
+
+
+def test_bank_sync_refresh_flow_uses_connector_registry(client, auth_header):
+    class _RefreshOnlyConnector:
+        def import_transactions(self, *, user_id, credentials=None):
+            return []
+
+        def refresh_transactions(
+            self, *, user_id, credentials=None, last_sync_at=None
+        ):
+            return [
+                {
+                    "date": "2026-02-20",
+                    "amount": "4.99",
+                    "description": "Test Refresh Tx",
+                    "currency": "USD",
+                }
+            ]
+
+    client.application.config["BANK_CONNECTOR_REGISTRY"] = {
+        "refresh-test": _RefreshOnlyConnector()
+    }
+
+    r = client.post(
+        "/expenses/bank-sync/refresh",
+        json={"connector": "refresh-test", "last_sync_at": "2026-02-19"},
+        headers=auth_header,
+    )
+    assert r.status_code == 200
+    result = r.get_json()
+    assert result["total"] == 1
+    assert result["inserted"] == 1
+    assert result["duplicates"] == 0
+
+    r = client.post(
+        "/expenses/bank-sync/refresh",
+        json={"connector": "refresh-test", "last_sync_at": "2026-02-19"},
+        headers=auth_header,
+    )
+    assert r.status_code == 200
+    assert r.get_json()["duplicates"] == 1

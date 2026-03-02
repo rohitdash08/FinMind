@@ -5,6 +5,39 @@ from app.config import Settings
 from app.extensions import db
 from app.extensions import redis_client
 from app import models  # noqa: F401 - ensure models are registered
+from app.routes import auth as auth_routes
+from app.services import cache as cache_service
+
+
+class _FakeRedis:
+    def __init__(self):
+        self._store = {}
+
+    def setex(self, key, ttl, value):
+        self._store[str(key)] = str(value)
+
+    def set(self, key, value):
+        self._store[str(key)] = str(value)
+
+    def get(self, key):
+        return self._store.get(str(key))
+
+    def scan(self, cursor=0, match="*", count=100):
+        # minimal SCAN emulation for tests: return all matched keys in one pass
+        import fnmatch
+
+        keys = [k for k in self._store.keys() if fnmatch.fnmatch(k, match)]
+        return 0, keys
+
+    def delete(self, *keys):
+        for key in keys:
+            self._store.pop(str(key), None)
+
+    def ping(self):
+        return True
+
+    def flushdb(self):
+        self._store.clear()
 
 
 class TestSettings(Settings):
@@ -30,9 +63,20 @@ def app_fixture():
     )
     app = create_app(settings)
     app.config.update(TESTING=True)
+
+    fake_redis = _FakeRedis()
+    try:
+        redis_client.ping()
+    except Exception:
+        auth_routes.redis_client = fake_redis
+        cache_service.redis_client = fake_redis
+    else:
+        auth_routes.redis_client = redis_client
+        cache_service.redis_client = redis_client
+
     _setup_db(app)
     try:
-        redis_client.flushdb()
+        auth_routes.redis_client.flushdb()
     except Exception:
         pass
     yield app
@@ -40,7 +84,7 @@ def app_fixture():
         db.session.remove()
         db.drop_all()
     try:
-        redis_client.flushdb()
+        auth_routes.redis_client.flushdb()
     except Exception:
         pass
 
