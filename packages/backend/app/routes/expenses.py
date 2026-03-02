@@ -8,6 +8,7 @@ from ..extensions import db
 from ..models import Expense, RecurringCadence, RecurringExpense, User
 from ..services.cache import cache_delete_patterns, monthly_summary_key
 from ..services import expense_import
+from ..services.bank_connectors import get_connector
 import logging
 
 bp = Blueprint("expenses", __name__)
@@ -286,29 +287,53 @@ def import_commit():
     if not isinstance(rows, list) or not rows:
         return jsonify(error="transactions required"), 400
     transactions = expense_import.normalize_import_rows(rows)
-    inserted = 0
-    duplicates = 0
-    touched_months: set[str] = set()
-    for t in transactions:
-        if _is_duplicate(uid, t):
-            duplicates += 1
-            continue
-        expense = Expense(
-            user_id=uid,
-            amount=t["amount"],
-            currency=t.get("currency") or (user.preferred_currency if user else "INR"),
-            expense_type=str(t.get("expense_type") or "EXPENSE").upper(),
-            category_id=t.get("category_id"),
-            notes=t["description"],
-            spent_at=date.fromisoformat(t["date"]),
-        )
-        db.session.add(expense)
-        inserted += 1
-        touched_months.add(t["date"][:7])
-    db.session.commit()
-    for ym in touched_months:
-        _invalidate_expense_cache(uid, ym + "-01")
+    inserted, duplicates = _persist_transactions(uid, user, transactions)
     return jsonify(inserted=inserted, duplicates=duplicates), 201
+
+
+@bp.post("/bank-sync/import")
+@jwt_required()
+def bank_sync_import():
+    uid = int(get_jwt_identity())
+    user = db.session.get(User, uid)
+    payload = request.get_json() or {}
+    connector_name = str(payload.get("connector") or "mock")
+    connector = _resolve_bank_connector(connector_name)
+    if connector is None:
+        return jsonify(error=f"unknown connector: {connector_name}"), 400
+
+    rows = connector.import_transactions(
+        user_id=uid,
+        credentials=payload.get("credentials") or {},
+    )
+    transactions = expense_import.normalize_import_rows(rows)
+    if payload.get("commit", False):
+        inserted, duplicates = _persist_transactions(uid, user, transactions)
+        return jsonify(total=len(transactions), inserted=inserted, duplicates=duplicates), 201
+
+    duplicates = sum(1 for tx in transactions if _is_duplicate(uid, tx))
+    return jsonify(total=len(transactions), duplicates=duplicates, transactions=transactions), 200
+
+
+@bp.post("/bank-sync/refresh")
+@jwt_required()
+def bank_sync_refresh():
+    uid = int(get_jwt_identity())
+    user = db.session.get(User, uid)
+    payload = request.get_json() or {}
+    connector_name = str(payload.get("connector") or "mock")
+    connector = _resolve_bank_connector(connector_name)
+    if connector is None:
+        return jsonify(error=f"unknown connector: {connector_name}"), 400
+
+    rows = connector.refresh_transactions(
+        user_id=uid,
+        credentials=payload.get("credentials") or {},
+        last_sync_at=payload.get("last_sync_at"),
+    )
+    transactions = expense_import.normalize_import_rows(rows)
+    inserted, duplicates = _persist_transactions(uid, user, transactions)
+    return jsonify(total=len(transactions), inserted=inserted, duplicates=duplicates), 200
 
 
 def _expense_to_dict(e: Expense) -> dict:
@@ -382,6 +407,37 @@ def _is_duplicate(uid: int, row: dict) -> bool:
         .first()
         is not None
     )
+
+
+def _resolve_bank_connector(name: str):
+    registry = current_app.config.get("BANK_CONNECTOR_REGISTRY")
+    return get_connector(name, registry)
+
+
+def _persist_transactions(uid: int, user: User | None, transactions: list[dict]) -> tuple[int, int]:
+    inserted = 0
+    duplicates = 0
+    touched_months: set[str] = set()
+    for t in transactions:
+        if _is_duplicate(uid, t):
+            duplicates += 1
+            continue
+        expense = Expense(
+            user_id=uid,
+            amount=t["amount"],
+            currency=t.get("currency") or (user.preferred_currency if user else "INR"),
+            expense_type=str(t.get("expense_type") or "EXPENSE").upper(),
+            category_id=t.get("category_id"),
+            notes=t["description"],
+            spent_at=date.fromisoformat(t["date"]),
+        )
+        db.session.add(expense)
+        inserted += 1
+        touched_months.add(t["date"][:7])
+    db.session.commit()
+    for ym in touched_months:
+        _invalidate_expense_cache(uid, ym + "-01")
+    return inserted, duplicates
 
 
 def _invalidate_expense_cache(uid: int, at: str):
