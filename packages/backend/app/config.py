@@ -23,6 +23,12 @@ class Settings(BaseSettings):
     email_from: str | None = None
     smtp_url: str | None = None  # e.g. smtp+ssl://user:pass@mail:465
 
+    # Webhook configuration
+    webhook_secret: str | None = None  # Secret for signing webhooks
+    webhook_url: str | None = None  # Default webhook URL
+    webhook_timeout: int = 30  # Timeout in seconds
+    webhook_max_retries: int = 3  # Max retry attempts
+
     # pydantic-settings v2 configuration
     model_config = SettingsConfigDict(
         env_file=".env",
