@@ -62,8 +62,9 @@ See `backend/app/db/schema.sql`. Key tables:
 ## API Endpoints
 OpenAPI: `backend/app/openapi.yaml`
 - Auth: `/auth/register`, `/auth/login`, `/auth/refresh`
-- Expenses: CRUD `/expenses`
-- Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
+- Households: `/households`, `/households/my`, `/households/{id}`, `/households/{id}/members`
+- Expenses: CRUD `/expenses` (supports optional `household_id` for shared records)
+- Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay` (supports optional `household_id`)
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
 - Insights: `/insights/monthly`, `/insights/budget-suggestion`
 

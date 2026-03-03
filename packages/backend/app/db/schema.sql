@@ -11,9 +11,26 @@ CREATE TABLE IF NOT EXISTS users (
 ALTER TABLE users
   ADD COLUMN IF NOT EXISTS preferred_currency VARCHAR(10) NOT NULL DEFAULT 'INR';
 
+CREATE TABLE IF NOT EXISTS households (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(120) NOT NULL,
+  created_by INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS household_members (
+  id SERIAL PRIMARY KEY,
+  household_id INT NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  role VARCHAR(20) NOT NULL DEFAULT 'MEMBER',
+  joined_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  CONSTRAINT uq_household_members_household_user UNIQUE (household_id, user_id)
+);
+
 CREATE TABLE IF NOT EXISTS categories (
   id SERIAL PRIMARY KEY,
   user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  household_id INT REFERENCES households(id) ON DELETE SET NULL,
   name VARCHAR(100) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
@@ -21,6 +38,7 @@ CREATE TABLE IF NOT EXISTS categories (
 CREATE TABLE IF NOT EXISTS expenses (
   id SERIAL PRIMARY KEY,
   user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  household_id INT REFERENCES households(id) ON DELETE SET NULL,
   category_id INT REFERENCES categories(id) ON DELETE SET NULL,
   amount NUMERIC(12,2) NOT NULL,
   currency VARCHAR(10) NOT NULL DEFAULT 'INR',
@@ -68,6 +86,7 @@ END $$;
 CREATE TABLE IF NOT EXISTS bills (
   id SERIAL PRIMARY KEY,
   user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  household_id INT REFERENCES households(id) ON DELETE SET NULL,
   name VARCHAR(200) NOT NULL,
   amount NUMERIC(12,2) NOT NULL,
   currency VARCHAR(10) NOT NULL DEFAULT 'INR',
@@ -83,6 +102,15 @@ CREATE INDEX IF NOT EXISTS idx_bills_user_due ON bills(user_id, next_due_date);
 
 ALTER TABLE bills
   ADD COLUMN IF NOT EXISTS autopay_enabled BOOLEAN NOT NULL DEFAULT FALSE;
+
+ALTER TABLE categories
+  ADD COLUMN IF NOT EXISTS household_id INT REFERENCES households(id) ON DELETE SET NULL;
+
+ALTER TABLE expenses
+  ADD COLUMN IF NOT EXISTS household_id INT REFERENCES households(id) ON DELETE SET NULL;
+
+ALTER TABLE bills
+  ADD COLUMN IF NOT EXISTS household_id INT REFERENCES households(id) ON DELETE SET NULL;
 
 CREATE TABLE IF NOT EXISTS reminders (
   id SERIAL PRIMARY KEY,
