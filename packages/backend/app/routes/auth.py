@@ -10,6 +10,7 @@ from flask_jwt_extended import (
 )
 from ..extensions import db, redis_client
 from ..models import User
+from ..services.login_anomaly import record_login
 import logging
 import time
 
@@ -56,14 +57,28 @@ def login():
     email = data.get("email")
     password = data.get("password")
     user = db.session.query(User).filter_by(email=email).first()
+    ip = request.remote_addr
+    ua = request.headers.get("User-Agent", "")
+
     if not user or not check_password_hash(user.password_hash, password):
         logger.warning("Login failed for email=%s", email)
+        if user:
+            record_login(user.id, success=False, ip_address=ip, user_agent=ua)
         return jsonify(error="invalid credentials"), 401
+
+    login_event = record_login(user.id, success=True, ip_address=ip, user_agent=ua)
     access = create_access_token(identity=str(user.id))
     refresh = create_refresh_token(identity=str(user.id))
     _store_refresh_session(refresh, str(user.id))
     logger.info("Login success user_id=%s", user.id)
-    return jsonify(access_token=access, refresh_token=refresh)
+
+    result = {"access_token": access, "refresh_token": refresh}
+    if login_event.get("flagged"):
+        result["security_alert"] = {
+            "flagged": True,
+            "reasons": login_event["flag_reasons"],
+        }
+    return jsonify(result)
 
 
 @bp.get("/me")
