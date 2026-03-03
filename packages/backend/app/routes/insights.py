@@ -2,6 +2,7 @@ from datetime import date
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..services.ai import monthly_budget_suggestion
+from ..services.digest import weekly_digest
 import logging
 
 bp = Blueprint("insights", __name__)
@@ -23,3 +24,36 @@ def budget_suggestion():
     )
     logger.info("Budget suggestion served user=%s month=%s", uid, ym)
     return jsonify(suggestion)
+
+
+@bp.get("/weekly-digest")
+@jwt_required()
+def get_weekly_digest():
+    """Return the smart weekly financial digest.
+
+    Query params (optional):
+        year  – ISO year  (default: current)
+        week  – ISO week  (default: current)
+    Headers (optional):
+        X-Gemini-Api-Key   – override Gemini key for AI narrative
+        X-Insight-Persona  – custom persona for the narrative
+    """
+    uid = int(get_jwt_identity())
+
+    iso_year = request.args.get("year", type=int)
+    iso_week = request.args.get("week", type=int)
+
+    user_gemini_key = (request.headers.get("X-Gemini-Api-Key") or "").strip() or None
+    persona = (request.headers.get("X-Insight-Persona") or "").strip() or None
+
+    digest = weekly_digest(
+        uid,
+        iso_year,
+        iso_week,
+        gemini_api_key=user_gemini_key,
+        persona=persona,
+    )
+    logger.info(
+        "Weekly digest served user=%s week=%s", uid, digest.get("week", "?")
+    )
+    return jsonify(digest)
