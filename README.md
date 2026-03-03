@@ -65,7 +65,7 @@ OpenAPI: `backend/app/openapi.yaml`
 - Expenses: CRUD `/expenses`
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
-- Insights: `/insights/monthly`, `/insights/budget-suggestion`
+- Insights: `/insights/monthly`, `/insights/budget-suggestion`, `/insights/weekly-summary`
 
 ## MVP UI/UX Plan
 - Auth screens: register/login.
