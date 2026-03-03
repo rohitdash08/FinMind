@@ -4,10 +4,12 @@ from decimal import Decimal, InvalidOperation
 
 from flask import Blueprint, current_app, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
+from sqlalchemy import or_
 from ..extensions import db
 from ..models import Expense, RecurringCadence, RecurringExpense, User
 from ..services.cache import cache_delete_patterns, monthly_summary_key
 from ..services import expense_import
+from ..services.households import household_ids_for_user, is_household_member
 import logging
 
 bp = Blueprint("expenses", __name__)
@@ -18,7 +20,14 @@ logger = logging.getLogger("finmind.expenses")
 @jwt_required()
 def list_expenses():
     uid = int(get_jwt_identity())
-    q = db.session.query(Expense).filter_by(user_id=uid)
+    household_ids = household_ids_for_user(uid)
+    q = db.session.query(Expense)
+    if household_ids:
+        q = q.filter(
+            or_(Expense.user_id == uid, Expense.household_id.in_(household_ids))
+        )
+    else:
+        q = q.filter(Expense.user_id == uid)
     from_date = request.args.get("from")
     to_date = request.args.get("to")
     search = (request.args.get("search") or "").strip()
@@ -65,8 +74,14 @@ def create_expense():
     description = (data.get("description") or data.get("notes") or "").strip()
     if not description:
         return jsonify(error="description required"), 400
+    household_id = _parse_household_id(data.get("household_id"))
+    if household_id is False:
+        return jsonify(error="invalid household_id"), 400
+    if household_id is not None and not is_household_member(uid, household_id):
+        return jsonify(error="forbidden"), 403
     e = Expense(
         user_id=uid,
+        household_id=household_id,
         amount=amount,
         currency=(data.get("currency") or (user.preferred_currency if user else "INR")),
         expense_type=str(data.get("expense_type") or "EXPENSE").upper(),
@@ -207,8 +222,12 @@ def generate_recurring_expenses(recurring_id: int):
 def update_expense(expense_id: int):
     uid = int(get_jwt_identity())
     e = db.session.get(Expense, expense_id)
-    if not e or e.user_id != uid:
+    if not e:
         return jsonify(error="not found"), 404
+    if e.household_id is None and e.user_id != uid:
+        return jsonify(error="not found"), 404
+    if e.household_id is not None and not is_household_member(uid, e.household_id):
+        return jsonify(error="forbidden"), 403
     data = request.get_json() or {}
     if "amount" in data:
         amount = _parse_amount(data.get("amount"))
@@ -239,8 +258,12 @@ def update_expense(expense_id: int):
 def delete_expense(expense_id: int):
     uid = int(get_jwt_identity())
     e = db.session.get(Expense, expense_id)
-    if not e or e.user_id != uid:
+    if not e:
         return jsonify(error="not found"), 404
+    if e.household_id is None and e.user_id != uid:
+        return jsonify(error="not found"), 404
+    if e.household_id is not None and not is_household_member(uid, e.household_id):
+        return jsonify(error="forbidden"), 403
     spent_at = e.spent_at.isoformat()
     db.session.delete(e)
     db.session.commit()
@@ -316,6 +339,7 @@ def _expense_to_dict(e: Expense) -> dict:
         "id": e.id,
         "amount": float(e.amount),
         "currency": e.currency,
+        "household_id": e.household_id,
         "category_id": e.category_id,
         "expense_type": e.expense_type,
         "description": e.notes or "",
@@ -350,6 +374,15 @@ def _parse_recurring_cadence(raw: str | None) -> str | None:
     if val in {"DAILY", "WEEKLY", "MONTHLY", "YEARLY"}:
         return val
     return None
+
+
+def _parse_household_id(raw) -> int | None | bool:
+    if raw in (None, ""):
+        return None
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return False
 
 
 def _advance_recurrence_date(at: date, cadence: str) -> date:

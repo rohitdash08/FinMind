@@ -1,6 +1,6 @@
 from datetime import datetime, date
 from enum import Enum
-from sqlalchemy import Enum as SAEnum
+from sqlalchemy import Enum as SAEnum, UniqueConstraint
 from .extensions import db
 
 
@@ -23,6 +23,7 @@ class Category(db.Model):
     __tablename__ = "categories"
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    household_id = db.Column(db.Integer, db.ForeignKey("households.id"), nullable=True)
     name = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
@@ -31,6 +32,7 @@ class Expense(db.Model):
     __tablename__ = "expenses"
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    household_id = db.Column(db.Integer, db.ForeignKey("households.id"), nullable=True)
     category_id = db.Column(db.Integer, db.ForeignKey("categories.id"), nullable=True)
     amount = db.Column(db.Numeric(12, 2), nullable=False)
     currency = db.Column(db.String(10), default="INR", nullable=False)
@@ -77,6 +79,7 @@ class Bill(db.Model):
     __tablename__ = "bills"
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    household_id = db.Column(db.Integer, db.ForeignKey("households.id"), nullable=True)
     name = db.Column(db.String(200), nullable=False)
     amount = db.Column(db.Numeric(12, 2), nullable=False)
     currency = db.Column(db.String(10), default="INR", nullable=False)
@@ -133,3 +136,39 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class HouseholdRole(str, Enum):
+    ADMIN = "ADMIN"
+    MEMBER = "MEMBER"
+
+
+class Household(db.Model):
+    __tablename__ = "households"
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), nullable=False)
+    created_by = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class HouseholdMember(db.Model):
+    __tablename__ = "household_members"
+    __table_args__ = (
+        UniqueConstraint(
+            "household_id",
+            "user_id",
+            name="uq_household_members_household_user",
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    household_id = db.Column(
+        db.Integer, db.ForeignKey("households.id"), nullable=False
+    )
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    role = db.Column(
+        db.String(20),
+        default=HouseholdRole.MEMBER.value,
+        nullable=False,
+    )
+    joined_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)

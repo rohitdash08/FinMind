@@ -100,21 +100,57 @@ def _ensure_schema_compatibility(app: Flask) -> None:
     """Apply minimal compatibility ALTERs for existing deployments."""
     if db.engine.dialect.name != "postgresql":
         return
+    statements = [
+        """
+        ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS preferred_currency VARCHAR(10)
+        NOT NULL DEFAULT 'INR'
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS households (
+            id SERIAL PRIMARY KEY,
+            name VARCHAR(120) NOT NULL,
+            created_by INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            created_at TIMESTAMP NOT NULL DEFAULT NOW()
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS household_members (
+            id SERIAL PRIMARY KEY,
+            household_id INT NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+            user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            role VARCHAR(20) NOT NULL DEFAULT 'MEMBER',
+            joined_at TIMESTAMP NOT NULL DEFAULT NOW()
+        )
+        """,
+        """
+        CREATE UNIQUE INDEX IF NOT EXISTS uq_household_members_household_user
+        ON household_members(household_id, user_id)
+        """,
+        """
+        ALTER TABLE categories
+        ADD COLUMN IF NOT EXISTS household_id INT REFERENCES households(id)
+        ON DELETE SET NULL
+        """,
+        """
+        ALTER TABLE expenses
+        ADD COLUMN IF NOT EXISTS household_id INT REFERENCES households(id)
+        ON DELETE SET NULL
+        """,
+        """
+        ALTER TABLE bills
+        ADD COLUMN IF NOT EXISTS household_id INT REFERENCES households(id)
+        ON DELETE SET NULL
+        """,
+    ]
     conn = db.engine.raw_connection()
     try:
         cur = conn.cursor()
-        cur.execute(
-            """
-            ALTER TABLE users
-            ADD COLUMN IF NOT EXISTS preferred_currency VARCHAR(10)
-            NOT NULL DEFAULT 'INR'
-            """
-        )
+        for statement in statements:
+            cur.execute(statement)
         conn.commit()
     except Exception:
-        app.logger.exception(
-            "Schema compatibility patch failed for users.preferred_currency"
-        )
+        app.logger.exception("Schema compatibility patch failed")
         conn.rollback()
     finally:
         conn.close()
