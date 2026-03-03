@@ -37,6 +37,7 @@ class Expense(db.Model):
     expense_type = db.Column(db.String(20), default="EXPENSE", nullable=False)
     notes = db.Column(db.String(500), nullable=True)
     spent_at = db.Column(db.Date, default=date.today, nullable=False)
+    savings_goal_id = db.Column(db.Integer, db.ForeignKey("savings_goals.id"), nullable=True)
     source_recurring_id = db.Column(
         db.Integer, db.ForeignKey("recurring_expenses.id"), nullable=True
     )
@@ -125,6 +126,18 @@ class UserSubscription(db.Model):
     )
     active = db.Column(db.Boolean, default=False, nullable=False)
     started_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class SavingsGoal(db.Model):
+    """A savings goal with target amount and optional deadline."""
+    __tablename__ = "savings_goals"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    name = db.Column(db.String(100), nullable=False)
+    target_amount = db.Column(db.Numeric(12, 2), nullable=False)
+    currency = db.Column(db.String(10), default="INR", nullable=False)
+    target_date = db.Column(db.Date, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
 
 class AuditLog(db.Model):
