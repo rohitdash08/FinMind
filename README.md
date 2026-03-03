@@ -193,3 +193,110 @@ finmind/
 ---
 
 MIT Licensed. Built with ❤️.
+
+## 🏠 Shared Household Budgeting (New!)
+
+FinMind now supports **multi-user households**, allowing families or roommates to collaborate on finances seamlessly.
+
+### Features
+- **Create Households**: Group multiple users under a single financial entity.
+- **Role-Based Access**: Admins can invite/manage members; members can view/contribute.
+- **Shared Data**: Expenses, bills, and categories can be linked to a household instead of just a user.
+- **Privacy**: Personal items remain user-specific; household items are shared.
+
+### API Endpoints
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/households` | Create a new household |
+| `GET` | `/api/households/my` | List my households |
+| `GET` | `/api/households/{id}` | Get household details |
+| `POST` | `/api/households/{id}/invite` | Invite a user (Admin only) |
+| `GET` | `/api/households/{id}/members` | List members |
+
+### Database Changes
+- Added `households` table.
+- Added `household_members` join table.
+- Added `household_id` (nullable) to `expenses`, `bills`, `categories`.
+
+### Usage Example
+```bash
+# Create a household
+curl -X POST https://api.finmind.com/households \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -d '{"name": "Smith Family"}'
+
+# Invite a member (Admin)
+curl -X POST https://api.finmind.com/households/1/invite \
+  -H "Authorization: Bearer ADMIN_TOKEN" \
+  -d '{"email": "spouse@example.com", "role": "member"}'
+```
+
+## Shared Household Budgeting
+
+FinMind now supports **Shared Households**, allowing multiple users to collaborate on household finances.
+
+### Features
+- **Create Households:** Group expenses, bills, and categories under a single household.
+- **Invite Members:** Admins can invite other users to join their household.
+- **Shared Data:** Expenses and bills added to a household are visible to all members.
+- **Role-Based Access:** Households have `admin` and `member` roles for access control.
+
+### API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/households` | Create a new household (user becomes admin) |
+| `GET` | `/api/households/my` | Get the current user's household |
+| `GET` | `/api/households/<id>` | Get household details and members |
+| `POST` | `/api/households/<id>/members` | Invite a user to the household (Admin only) |
+
+### Usage Example
+
+```bash
+# Create a household
+curl -X POST http://localhost:5000/api/households \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Smith Family"}'
+
+# Invite a member (Admin only)
+curl -X POST http://localhost:5000/api/households/1/members \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"email": "partner@example.com"}'
+```
+
+## Shared Household Budgeting
+
+FinMind now supports **Shared Households**, allowing multiple users to collaborate on household finances.
+
+### Features
+- **Create Households:** Group expenses, bills, and categories under a single household.
+- **Invite Members:** Admins can invite other users to join their household.
+- **Shared Data:** Expenses and bills added to a household are visible to all members.
+- **Role-Based Access:** Households have `admin` and `member` roles for access control.
+
+### API Endpoints
+
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `POST` | `/api/households` | Create a new household (user becomes admin) |
+| `GET` | `/api/households/my` | Get the current user's household |
+| `GET` | `/api/households/<id>` | Get household details and members |
+| `POST` | `/api/households/<id>/members` | Invite a user to the household (Admin only) |
+
+### Usage Example
+
+```bash
+# Create a household
+curl -X POST http://localhost:5000/api/households \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Smith Family"}'
+
+# Invite a member (Admin only)
+curl -X POST http://localhost:5000/api/households/1/members \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"email": "spouse@example.com"}'
+```
