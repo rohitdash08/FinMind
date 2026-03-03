@@ -481,6 +481,62 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
 
+  /insights/weekly-summary:
+    get:
+      summary: Get 7-day financial digest with trends and insights
+      tags: [Insights]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: end_date
+          required: false
+          schema: { type: string, format: date }
+          description: Inclusive week end date (defaults to today)
+      responses:
+        '200':
+          description: Weekly digest
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+              example:
+                period:
+                  start_date: 2026-02-23
+                  end_date: 2026-03-01
+                  days: 7
+                totals:
+                  income: 1200
+                  expenses: 300
+                  net_flow: 900
+                  savings_rate_pct: 75
+                trends:
+                  income_change_pct: 20
+                  expenses_change_pct: -25
+                  net_flow_change_pct: 50
+                top_categories:
+                  - category_id: uncat
+                    amount: 300
+                    share_pct: 100
+                daily:
+                  - date: 2026-02-23
+                    income: 0
+                    expenses: 0
+                    net_flow: 0
+                insights:
+                  - Great progress — spending dropped compared with last week.
+                method: heuristic
+        '400':
+          description: Invalid end_date format
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
 components:
   securitySchemes:
     bearerAuth:

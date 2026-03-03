@@ -1,4 +1,5 @@
 import json
+from datetime import date, timedelta
 from urllib import request
 
 from sqlalchemy import extract, func
@@ -164,6 +165,181 @@ def _gemini_budget_suggestion(
     parsed["persona"] = persona
     parsed["method"] = "gemini"
     return parsed
+
+
+def _range_totals(uid: int, start_date: date, end_date: date) -> tuple[float, float]:
+    income = (
+        db.session.query(func.coalesce(func.sum(Expense.amount), 0))
+        .filter(
+            Expense.user_id == uid,
+            Expense.spent_at >= start_date,
+            Expense.spent_at <= end_date,
+            Expense.expense_type == "INCOME",
+        )
+        .scalar()
+    )
+    expenses = (
+        db.session.query(func.coalesce(func.sum(Expense.amount), 0))
+        .filter(
+            Expense.user_id == uid,
+            Expense.spent_at >= start_date,
+            Expense.spent_at <= end_date,
+            Expense.expense_type != "INCOME",
+        )
+        .scalar()
+    )
+    return float(income or 0), float(expenses or 0)
+
+
+def _range_category_spend(uid: int, start_date: date, end_date: date) -> list[dict]:
+    rows = (
+        db.session.query(
+            Expense.category_id,
+            func.coalesce(func.sum(Expense.amount), 0),
+        )
+        .filter(
+            Expense.user_id == uid,
+            Expense.spent_at >= start_date,
+            Expense.spent_at <= end_date,
+            Expense.expense_type != "INCOME",
+        )
+        .group_by(Expense.category_id)
+        .all()
+    )
+    return sorted(
+        [
+            {
+                "category_id": str(category_id or "uncat"),
+                "amount": round(float(amount), 2),
+            }
+            for category_id, amount in rows
+        ],
+        key=lambda item: item["amount"],
+        reverse=True,
+    )
+
+
+def _pct_change(current: float, previous: float) -> float:
+    if previous == 0:
+        return 0.0 if current == 0 else 100.0
+    return round(((current - previous) / previous) * 100, 2)
+
+
+def _daily_net(uid: int, start_date: date, end_date: date) -> list[dict]:
+    daily = []
+    cursor = start_date
+    while cursor <= end_date:
+        income, expenses = _range_totals(uid, cursor, cursor)
+        net = round(income - expenses, 2)
+        daily.append(
+            {
+                "date": cursor.isoformat(),
+                "income": round(income, 2),
+                "expenses": round(expenses, 2),
+                "net_flow": net,
+            }
+        )
+        cursor += timedelta(days=1)
+    return daily
+
+
+def _build_weekly_insights(
+    current_income: float,
+    current_expenses: float,
+    previous_expenses: float,
+    top_categories: list[dict],
+) -> list[str]:
+    insights = []
+    if current_expenses > previous_expenses:
+        insights.append(
+            "Spending increased week over week — review variable categories."
+        )
+    elif current_expenses < previous_expenses:
+        insights.append(
+            "Great progress — spending dropped compared with last week."
+        )
+    else:
+        insights.append(
+            "Spending is flat versus last week; keep monitoring consistency."
+        )
+
+    if current_income > 0:
+        savings_rate = max(
+            0.0,
+            ((current_income - current_expenses) / current_income) * 100,
+        )
+        insights.append(f"Estimated savings rate this week is {savings_rate:.1f}%.")
+    else:
+        insights.append(
+            "No income recorded this week; focus on reducing discretionary spend."
+        )
+
+    if top_categories:
+        top = top_categories[0]
+        top_category_note = (
+            f"Top spending category this week: "
+            f"{top['category_id']} ({top['amount']:.2f})."
+        )
+        insights.append(top_category_note)
+    return insights[:3]
+
+
+def weekly_financial_summary(uid: int, end_date: date | None = None) -> dict:
+    week_end = end_date or date.today()
+    week_start = week_end - timedelta(days=6)
+    previous_end = week_start - timedelta(days=1)
+    previous_start = previous_end - timedelta(days=6)
+
+    current_income, current_expenses = _range_totals(uid, week_start, week_end)
+    previous_income, previous_expenses = _range_totals(
+        uid,
+        previous_start,
+        previous_end,
+    )
+    current_net = round(current_income - current_expenses, 2)
+    previous_net = round(previous_income - previous_expenses, 2)
+
+    top_categories = _range_category_spend(uid, week_start, week_end)[:3]
+    expense_share_denominator = current_expenses if current_expenses > 0 else 1.0
+    for item in top_categories:
+        item["share_pct"] = round((item["amount"] / expense_share_denominator) * 100, 2)
+
+    savings_rate = round(
+        (
+            ((current_income - current_expenses) / current_income) * 100
+            if current_income > 0
+            else 0.0
+        ),
+        2,
+    )
+
+    return {
+        "period": {
+            "start_date": week_start.isoformat(),
+            "end_date": week_end.isoformat(),
+            "days": 7,
+        },
+        "totals": {
+            "income": round(current_income, 2),
+            "expenses": round(current_expenses, 2),
+            "net_flow": current_net,
+            "savings_rate_pct": savings_rate,
+        },
+        "trends": {
+            "income_change_pct": _pct_change(current_income, previous_income),
+            "expenses_change_pct": _pct_change(current_expenses, previous_expenses),
+            "net_flow_change_pct": _pct_change(current_net, previous_net),
+        },
+        "top_categories": top_categories,
+        "daily": _daily_net(uid, week_start, week_end),
+        "insights": _build_weekly_insights(
+            current_income=current_income,
+            current_expenses=current_expenses,
+            previous_expenses=previous_expenses,
+            top_categories=top_categories,
+        ),
+        "method": "heuristic",
+    }
 
 
 def monthly_budget_suggestion(

@@ -90,3 +90,84 @@ def test_budget_suggestion_falls_back_when_gemini_fails(
     assert payload["method"] == "heuristic"
     assert "warnings" in payload
     assert "gemini_unavailable" in payload["warnings"]
+
+
+def test_weekly_summary_returns_totals_trends_and_daily(client, auth_header):
+    week_end = date(2026, 3, 1)
+
+    previous_week_entries = [
+        {
+            "amount": 1000,
+            "expense_type": "INCOME",
+            "date": "2026-02-17",
+            "description": "salary",
+        },
+        {
+            "amount": 300,
+            "expense_type": "EXPENSE",
+            "date": "2026-02-18",
+            "description": "rent",
+        },
+        {
+            "amount": 100,
+            "expense_type": "EXPENSE",
+            "date": "2026-02-20",
+            "description": "food",
+        },
+    ]
+    current_week_entries = [
+        {
+            "amount": 1200,
+            "expense_type": "INCOME",
+            "date": "2026-02-24",
+            "description": "salary",
+        },
+        {
+            "amount": 250,
+            "expense_type": "EXPENSE",
+            "date": "2026-02-25",
+            "description": "rent",
+        },
+        {
+            "amount": 50,
+            "expense_type": "EXPENSE",
+            "date": "2026-02-28",
+            "description": "groceries",
+        },
+    ]
+
+    for payload in [*previous_week_entries, *current_week_entries]:
+        response = client.post("/expenses", json=payload, headers=auth_header)
+        assert response.status_code == 201
+
+    response = client.get(
+        f"/insights/weekly-summary?end_date={week_end.isoformat()}",
+        headers=auth_header,
+    )
+    assert response.status_code == 200
+    payload = response.get_json()
+
+    assert payload["period"] == {
+        "start_date": "2026-02-23",
+        "end_date": "2026-03-01",
+        "days": 7,
+    }
+    assert payload["totals"]["income"] == 1200.0
+    assert payload["totals"]["expenses"] == 300.0
+    assert payload["totals"]["net_flow"] == 900.0
+    assert payload["trends"]["expenses_change_pct"] == -25.0
+    assert payload["trends"]["income_change_pct"] == 20.0
+    assert len(payload["daily"]) == 7
+    assert payload["daily"][0]["date"] == "2026-02-23"
+    assert len(payload["insights"]) >= 1
+    assert payload["method"] == "heuristic"
+
+
+def test_weekly_summary_rejects_invalid_end_date(client, auth_header):
+    response = client.get(
+        "/insights/weekly-summary?end_date=03-01-2026",
+        headers=auth_header,
+    )
+    assert response.status_code == 400
+    payload = response.get_json()
+    assert "invalid end_date" in payload["error"]
