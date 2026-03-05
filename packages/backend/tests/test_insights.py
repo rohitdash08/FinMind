@@ -1,6 +1,11 @@
 from datetime import date, timedelta
 
 
+def _iso_week(dt: date) -> str:
+    iso = dt.isocalendar()
+    return f"{iso.year:04d}-W{iso.week:02d}"
+
+
 def test_budget_suggestion_returns_analytics_fields(client, auth_header):
     current = date.today().replace(day=10)
     previous = (current.replace(day=1) - timedelta(days=1)).replace(day=10)
@@ -90,3 +95,59 @@ def test_budget_suggestion_falls_back_when_gemini_fails(
     assert payload["method"] == "heuristic"
     assert "warnings" in payload
     assert "gemini_unavailable" in payload["warnings"]
+
+
+def test_weekly_digest_returns_totals_and_trend(client, auth_header):
+    today = date.today()
+    this_week = today - timedelta(days=today.weekday())
+    last_week = this_week - timedelta(days=7)
+
+    r = client.post(
+        "/expenses",
+        json={
+            "amount": 120,
+            "description": "Salary",
+            "date": this_week.isoformat(),
+            "expense_type": "INCOME",
+        },
+        headers=auth_header,
+    )
+    assert r.status_code == 201
+
+    r = client.post(
+        "/expenses",
+        json={
+            "amount": 80,
+            "description": "Groceries",
+            "date": this_week.isoformat(),
+            "expense_type": "EXPENSE",
+        },
+        headers=auth_header,
+    )
+    assert r.status_code == 201
+
+    r = client.post(
+        "/expenses",
+        json={
+            "amount": 40,
+            "description": "Past week expense",
+            "date": last_week.isoformat(),
+            "expense_type": "EXPENSE",
+        },
+        headers=auth_header,
+    )
+    assert r.status_code == 201
+
+    week = _iso_week(this_week)
+    r = client.get(f"/insights/weekly-digest?week={week}", headers=auth_header)
+    assert r.status_code == 200
+    payload = r.get_json()
+
+    assert payload["week"] == week
+    assert payload["totals"]["income"] == 120.0
+    assert payload["totals"]["expense"] == 80.0
+    assert payload["totals"]["net"] == 40.0
+    assert payload["comparison"]["previous_week_expense"] == 40.0
+    assert payload["comparison"]["trend"]["trend"] == "up"
+    assert "top_categories" in payload
+    assert "insights" in payload
