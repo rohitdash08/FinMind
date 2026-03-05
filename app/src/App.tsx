@@ -17,6 +17,7 @@ import { Landing } from "./pages/Landing";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
 import Account from "./pages/Account";
 import Households from "./pages/Households";
+import Accounts from "./pages/Accounts";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -97,6 +98,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Households />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="accounts"
+              element={
+                <ProtectedRoute>
+                  <Accounts />
                 </ProtectedRoute>
               }
             />
