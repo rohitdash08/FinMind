@@ -144,6 +144,8 @@ finmind/
 - Frontend: Vercel.
 - Secrets: use environment variables (.env locally, platform secrets in cloud).
 - Kubernetes manifests for full stack deployment are available in `deploy/k8s/`.
+- Helm chart milestone (issue #144 path) is available in `deploy/helm/finmind`.
+- Tilt local Kubernetes workflow is available via `Tiltfile`.
 
 ## Local Development
 1) Prereqs: Docker, Docker Compose, Node 20+, Python 3.11+

@@ -50,7 +50,18 @@ Prometheus:
 kubectl port-forward -n finmind svc/prometheus 9090:9090
 ```
 
-## 6. Notes
+## 6. Helm + Tilt Milestone Path
+A Helm packaging milestone is available at `deploy/helm/finmind` for one-command upgrades and local Tilt workflows.
+
+```bash
+./scripts/deploy-k8s-helm.sh
+# or
+helm upgrade --install finmind deploy/helm/finmind --namespace finmind --create-namespace
+```
+
+See `deploy/helm/README.md` for details.
+
+## 7. Notes
 - `app-stack.yaml` uses in-cluster Postgres/Redis for low-cost deployment.
 - `monitoring-stack.yaml` keeps retention conservative (Prometheus 14d, Loki 7d).
 - For production, replace default hostnames (`api.finmind.local`, `grafana.finmind.local`) with real DNS.
