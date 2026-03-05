@@ -133,3 +133,25 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+# Household Budgeting Models
+class Household(db.Model):
+    __tablename__ = "households"
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(200), nullable=False)
+    created_by = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    # Relationship
+    members = db.relationship("HouseholdMember", backref="household", lazy=True)
+
+
+class HouseholdMember(db.Model):
+    __tablename__ = "household_members"
+    id = db.Column(db.Integer, primary_key=True)
+    household_id = db.Column(db.Integer, db.ForeignKey("households.id"), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    role = db.Column(db.String(20), default="member", nullable=False)  # owner, member
+    joined_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    # Relationship
+    user = db.relationship("User", backref="household_memberships")
