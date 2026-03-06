@@ -8,6 +8,7 @@ from ..extensions import db
 from ..models import Expense, RecurringCadence, RecurringExpense, User
 from ..services.cache import cache_delete_patterns, monthly_summary_key
 from ..services import expense_import
+from ..services.webhooks import emit_webhook
 import logging
 
 bp = Blueprint("expenses", __name__)

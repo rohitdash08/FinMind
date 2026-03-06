@@ -4,6 +4,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..extensions import db
 from ..models import Bill, BillCadence, User
 from ..services.cache import cache_delete_patterns
+from ..services.webhooks import emit_webhook
 import logging
 
 bp = Blueprint("bills", __name__)
