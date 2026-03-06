@@ -24,7 +24,7 @@ def webhook_endpoint(client, auth_header):
         headers=auth_header,
         json={
             "url": "https://example.com/webhook",
-            "events": ["expense.created", "bill.paid"],
+            "events": ["expense.created", "bill.created", "bill.paid"],
         },
     )
     assert response.status_code == 201
