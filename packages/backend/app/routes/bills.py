@@ -2,12 +2,27 @@ from datetime import date, timedelta
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..extensions import db
-from ..models import Bill, BillCadence, User
+from ..models import Bill, BillCadence, User, WebhookEventType
 from ..services.cache import cache_delete_patterns
+from ..services.webhooks import emit_webhook_event
 import logging
 
 bp = Blueprint("bills", __name__)
 logger = logging.getLogger("finmind.bills")
+
+
+def _bill_to_dict(b: Bill) -> dict:
+    return {
+        "id": b.id,
+        "name": b.name,
+        "amount": float(b.amount),
+        "currency": b.currency,
+        "next_due_date": b.next_due_date.isoformat(),
+        "cadence": b.cadence.value,
+        "autopay_enabled": b.autopay_enabled,
+        "channel_whatsapp": b.channel_whatsapp,
+        "channel_email": b.channel_email,
+    }
 
 
 @bp.get("")
@@ -21,22 +36,7 @@ def list_bills():
         .all()
     )
     logger.info("List bills user=%s count=%s", uid, len(items))
-    return jsonify(
-        [
-            {
-                "id": b.id,
-                "name": b.name,
-                "amount": float(b.amount),
-                "currency": b.currency,
-                "next_due_date": b.next_due_date.isoformat(),
-                "cadence": b.cadence.value,
-                "autopay_enabled": b.autopay_enabled,
-                "channel_whatsapp": b.channel_whatsapp,
-                "channel_email": b.channel_email,
-            }
-            for b in items
-        ]
-    )
+    return jsonify([_bill_to_dict(b) for b in items])
 
 
 @bp.post("")
@@ -62,6 +62,7 @@ def create_bill():
     cache_delete_patterns(
         [f"user:{uid}:upcoming_bills*", f"user:{uid}:dashboard_summary:*"]
     )
+    emit_webhook_event(uid, WebhookEventType.BILL_CREATED, _bill_to_dict(b))
     return jsonify(id=b.id), 201
 
 
@@ -88,4 +89,5 @@ def mark_paid(bill_id: int):
     logger.info(
         "Marked bill paid id=%s user=%s next_due_date=%s", b.id, uid, b.next_due_date
     )
+    emit_webhook_event(uid, WebhookEventType.BILL_PAID, _bill_to_dict(b))
     return jsonify(message="updated")

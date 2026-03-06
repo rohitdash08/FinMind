@@ -93,6 +93,14 @@ def create_app(settings: Settings | None = None) -> Flask:
             finally:
                 conn.close()
 
+    @app.cli.command("retry-webhooks")
+    def retry_webhooks_command():
+        """Retry failed webhook deliveries"""
+        from .services.webhooks import retry_failed_webhooks
+        with app.app_context():
+            count = retry_failed_webhooks()
+            click.echo(f"Retried {count} webhook deliveries.")
+
     return app
 
 
