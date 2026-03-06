@@ -106,7 +106,15 @@ def update_me():
 def refresh():
     claims = get_jwt()
     jti = claims.get("jti")
-    if not jti or not redis_client.get(_refresh_key(jti)):
+    if not jti:
+        logger.warning("Refresh rejected: missing jti")
+        return jsonify(error="refresh token revoked"), 401
+    try:
+        ok = redis_client.get(_refresh_key(jti))
+    except Exception:
+        logger.exception("Refresh rejected: redis unavailable jti=%s", jti)
+        return jsonify(error="refresh token unavailable"), 503
+    if not ok:
         logger.warning("Refresh rejected: revoked/unknown token jti=%s", jti)
         return jsonify(error="refresh token revoked"), 401
     uid = get_jwt_identity()
@@ -121,7 +129,10 @@ def logout():
     claims = get_jwt()
     jti = claims.get("jti")
     if jti:
-        redis_client.delete(_refresh_key(jti))
+        try:
+            redis_client.delete(_refresh_key(jti))
+        except Exception:
+            logger.exception("Logout: redis unavailable jti=%s", jti)
     return jsonify(message="logged out"), 200
 
 
@@ -130,10 +141,13 @@ def _refresh_key(jti: str) -> str:
 
 
 def _store_refresh_session(refresh_token: str, uid: str):
-    payload = decode_token(refresh_token)
-    jti = payload.get("jti")
-    exp = payload.get("exp")
-    if not jti or not exp:
-        return
-    ttl = max(int(exp - time.time()), 1)
-    redis_client.setex(_refresh_key(jti), ttl, uid)
+    try:
+        payload = decode_token(refresh_token)
+        jti = payload.get("jti")
+        exp = payload.get("exp")
+        if not jti or not exp:
+            return
+        ttl = max(int(exp - time.time()), 1)
+        redis_client.setex(_refresh_key(jti), ttl, uid)
+    except Exception:
+        logger.exception("Failed to store refresh session (redis unavailable)")

@@ -133,3 +133,77 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class WebhookEndpoint(db.Model):
+    """User-configured webhook endpoints for receiving event notifications"""
+
+    __tablename__ = "webhook_endpoints"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    url = db.Column(db.String(500), nullable=False)
+    secret = db.Column(db.String(100), nullable=False)  # For HMAC signature
+    events = db.Column(db.Text, nullable=False)  # JSON array of event types
+    active = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(
+        db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+    )
+
+
+class WebhookEventType(str, Enum):
+    """Supported webhook event types"""
+
+    EXPENSE_CREATED = "expense.created"
+    EXPENSE_UPDATED = "expense.updated"
+    EXPENSE_DELETED = "expense.deleted"
+    BILL_CREATED = "bill.created"
+    BILL_UPDATED = "bill.updated"
+    BILL_DELETED = "bill.deleted"
+    BILL_PAID = "bill.paid"
+    REMINDER_SENT = "reminder.sent"
+    CATEGORY_CREATED = "category.created"
+    CATEGORY_UPDATED = "category.updated"
+    CATEGORY_DELETED = "category.deleted"
+
+
+class WebhookEvent(db.Model):
+    """Log of all webhook events triggered"""
+
+    __tablename__ = "webhook_events"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    event_type = db.Column(SAEnum(WebhookEventType), nullable=False)
+    payload = db.Column(db.Text, nullable=False)  # JSON payload
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class WebhookDeliveryStatus(str, Enum):
+    """Status of webhook delivery attempts"""
+
+    PENDING = "pending"
+    SUCCESS = "success"
+    FAILED = "failed"
+    RETRYING = "retrying"
+
+
+class WebhookDelivery(db.Model):
+    """Track delivery attempts for webhook events"""
+
+    __tablename__ = "webhook_deliveries"
+    id = db.Column(db.Integer, primary_key=True)
+    endpoint_id = db.Column(
+        db.Integer, db.ForeignKey("webhook_endpoints.id"), nullable=False
+    )
+    event_id = db.Column(
+        db.Integer, db.ForeignKey("webhook_events.id"), nullable=False
+    )
+    status = db.Column(SAEnum(WebhookDeliveryStatus), nullable=False)
+    attempt_count = db.Column(db.Integer, default=0, nullable=False)
+    last_attempt_at = db.Column(db.DateTime, nullable=True)
+    next_retry_at = db.Column(db.DateTime, nullable=True)
+    response_status = db.Column(db.Integer, nullable=True)  # HTTP status code
+    response_body = db.Column(db.Text, nullable=True)  # Response from endpoint
+    error_message = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    completed_at = db.Column(db.DateTime, nullable=True)

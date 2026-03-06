@@ -123,3 +123,58 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   action VARCHAR(100) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+DO $$ BEGIN
+  CREATE TYPE webhook_event_type AS ENUM (
+    'expense.created', 'expense.updated', 'expense.deleted',
+    'bill.created', 'bill.updated', 'bill.deleted', 'bill.paid',
+    'reminder.sent',
+    'category.created', 'category.updated', 'category.deleted'
+  );
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE TYPE webhook_delivery_status AS ENUM ('pending', 'success', 'failed', 'retrying');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
+
+CREATE TABLE IF NOT EXISTS webhook_endpoints (
+  id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  url VARCHAR(500) NOT NULL,
+  secret VARCHAR(100) NOT NULL,
+  events TEXT NOT NULL,
+  active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_webhook_endpoints_user ON webhook_endpoints(user_id, active);
+
+CREATE TABLE IF NOT EXISTS webhook_events (
+  id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  event_type webhook_event_type NOT NULL,
+  payload TEXT NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_webhook_events_user ON webhook_events(user_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS webhook_deliveries (
+  id SERIAL PRIMARY KEY,
+  endpoint_id INT NOT NULL REFERENCES webhook_endpoints(id) ON DELETE CASCADE,
+  event_id INT NOT NULL REFERENCES webhook_events(id) ON DELETE CASCADE,
+  status webhook_delivery_status NOT NULL,
+  attempt_count INT NOT NULL DEFAULT 0,
+  last_attempt_at TIMESTAMP,
+  next_retry_at TIMESTAMP,
+  response_status INT,
+  response_body TEXT,
+  error_message TEXT,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  completed_at TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_retry ON webhook_deliveries(status, next_retry_at) WHERE status = 'pending';
+CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_endpoint ON webhook_deliveries(endpoint_id, created_at DESC);

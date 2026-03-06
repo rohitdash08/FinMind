@@ -2,7 +2,8 @@ import logging
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..extensions import db
-from ..models import Category
+from ..models import Category, WebhookEventType
+from ..services.webhooks import emit_webhook_event
 
 bp = Blueprint("categories", __name__)
 logger = logging.getLogger("finmind.categories")
@@ -36,6 +37,9 @@ def create_category():
     db.session.add(c)
     db.session.commit()
     logger.info("Created category id=%s user=%s", c.id, uid)
+    emit_webhook_event(
+        uid, WebhookEventType.CATEGORY_CREATED, {"id": c.id, "name": c.name}
+    )
     return jsonify(id=c.id, name=c.name), 201
 
 
@@ -53,6 +57,9 @@ def update_category(category_id: int):
     c.name = name
     db.session.commit()
     logger.info("Updated category id=%s user=%s", c.id, uid)
+    emit_webhook_event(
+        uid, WebhookEventType.CATEGORY_UPDATED, {"id": c.id, "name": c.name}
+    )
     return jsonify(id=c.id, name=c.name)
 
 
@@ -63,7 +70,9 @@ def delete_category(category_id: int):
     c = db.session.get(Category, category_id)
     if not c or c.user_id != uid:
         return jsonify(error="not found"), 404
+    category_data = {"id": c.id, "name": c.name}
     db.session.delete(c)
     db.session.commit()
     logger.info("Deleted category id=%s user=%s", c.id, uid)
+    emit_webhook_event(uid, WebhookEventType.CATEGORY_DELETED, category_data)
     return jsonify(message="deleted")

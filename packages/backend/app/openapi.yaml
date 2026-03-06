@@ -12,6 +12,7 @@ tags:
   - name: Bills
   - name: Reminders
   - name: Insights
+  - name: Webhooks
 paths:
   /auth/register:
     post:
@@ -481,6 +482,252 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
 
+  /webhooks:
+    get:
+      summary: List webhook endpoints
+      tags: [Webhooks]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: List of webhook endpoints
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WebhookEndpoint'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+    post:
+      summary: Create webhook endpoint
+      tags: [Webhooks]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewWebhookEndpoint'
+            example:
+              url: https://example.com/webhook
+              events: ["expense.created", "bill.paid"]
+              active: true
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookEndpoint'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /webhooks/{webhookId}:
+    get:
+      summary: Get webhook endpoint
+      tags: [Webhooks]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: webhookId
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Webhook endpoint
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookEndpoint'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+    patch:
+      summary: Update webhook endpoint
+      tags: [Webhooks]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: webhookId
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                url: { type: string, format: uri }
+                events:
+                  type: array
+                  items: { type: string }
+                active: { type: boolean }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookEndpoint'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+    delete:
+      summary: Delete webhook endpoint
+      tags: [Webhooks]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: webhookId
+          required: true
+          schema: { type: integer }
+      responses:
+        '204': { description: Deleted }
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /webhooks/{webhookId}/regenerate-secret:
+    post:
+      summary: Regenerate webhook secret
+      tags: [Webhooks]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: webhookId
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Secret regenerated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookEndpoint'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /webhooks/events:
+    get:
+      summary: List webhook events
+      tags: [Webhooks]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: page
+          required: false
+          schema: { type: integer, default: 1 }
+        - in: query
+          name: page_size
+          required: false
+          schema: { type: integer, default: 50, maximum: 100 }
+        - in: query
+          name: type
+          required: false
+          schema: { type: string }
+      responses:
+        '200':
+          description: List of webhook events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WebhookEvent'
+        '400':
+          description: Invalid pagination
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /webhooks/events/{eventId}/deliveries:
+    get:
+      summary: List deliveries for an event
+      tags: [Webhooks]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: eventId
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: List of deliveries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WebhookDelivery'
+        '404':
+          description: Event not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /webhooks/retry:
+    post:
+      summary: Manually retry failed webhooks
+      tags: [Webhooks]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Retry count
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  retried: { type: integer }
+              example: { retried: 5 }
+
+  /webhooks/stats:
+    get:
+      summary: Get webhook delivery statistics
+      tags: [Webhooks]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Delivery statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookStats'
+              example:
+                total_events: 100
+                total_deliveries: 200
+                successful_deliveries: 195
+                failed_deliveries: 5
+                pending_deliveries: 0
+                success_rate: 97.5
+
+
 components:
   securitySchemes:
     bearerAuth:
@@ -587,3 +834,56 @@ components:
         message: { type: string }
         send_at: { type: string, format: date-time }
         channel: { type: string, enum: [email, whatsapp], default: email }
+    WebhookEndpoint:
+      type: object
+      properties:
+        id: { type: integer }
+        url: { type: string, format: uri }
+        secret: { type: string }
+        events:
+          type: array
+          items: { type: string }
+        active: { type: boolean }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    NewWebhookEndpoint:
+      type: object
+      required: [url, events]
+      properties:
+        url: { type: string, format: uri }
+        events:
+          type: array
+          items: { type: string }
+          description: "List of event types to subscribe to, or ['*'] for all events"
+        active: { type: boolean, default: true }
+    WebhookEvent:
+      type: object
+      properties:
+        id: { type: integer }
+        type: { type: string }
+        payload: { type: object, additionalProperties: true }
+        created_at: { type: string, format: date-time }
+    WebhookDelivery:
+      type: object
+      properties:
+        id: { type: integer }
+        endpoint_id: { type: integer }
+        event_id: { type: integer }
+        status: { type: string, enum: [pending, success, failed, retrying] }
+        attempt_count: { type: integer }
+        last_attempt_at: { type: string, format: date-time, nullable: true }
+        next_retry_at: { type: string, format: date-time, nullable: true }
+        response_status: { type: integer, nullable: true }
+        error_message: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+        completed_at: { type: string, format: date-time, nullable: true }
+    WebhookStats:
+      type: object
+      properties:
+        total_events: { type: integer }
+        total_deliveries: { type: integer }
+        successful_deliveries: { type: integer }
+        failed_deliveries: { type: integer }
+        pending_deliveries: { type: integer }
+        success_rate: { type: number, format: float }
+

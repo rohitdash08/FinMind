@@ -1,11 +1,12 @@
 import smtplib
 from email.message import EmailMessage
 from ..config import Settings
-from ..models import Reminder
+from ..models import Reminder, WebhookEventType
+from ..extensions import db
 
 try:
     from twilio.rest import Client as TwilioClient
-except Exception:  # pragma: no cover
+except Exception:
     TwilioClient = None
 
 
@@ -57,15 +58,28 @@ def send_whatsapp(to_number: str, body: str):
 
 
 def send_reminder(r: Reminder):
-    # Channel holds 'email' or 'whatsapp:<number>'
+    from .webhooks import emit_webhook_event
+
     if r.channel == "whatsapp":
-        return False
-    if r.channel.startswith("whatsapp:"):
+        success = False
+    elif r.channel.startswith("whatsapp:"):
         to = r.channel.split(":", 1)[1]
-        return send_whatsapp(to, r.message)
+        success = send_whatsapp(to, r.message)
     else:
-        # Fallback: assume email stored in channel as email
-        # or pull from user profile later
         to = r.channel if "@" in r.channel else (_settings.email_from or "")
         subject = "Bill Reminder"
-        return send_email(to, subject, r.message)
+        success = send_email(to, subject, r.message)
+
+    if success:
+        emit_webhook_event(
+            r.user_id,
+            WebhookEventType.REMINDER_SENT,
+            {
+                "id": r.id,
+                "message": r.message,
+                "channel": r.channel,
+                "bill_id": r.bill_id,
+            },
+        )
+
+    return success

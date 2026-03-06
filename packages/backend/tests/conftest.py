@@ -5,6 +5,7 @@ from app.config import Settings
 from app.extensions import db
 from app.extensions import redis_client
 from app import models  # noqa: F401 - ensure models are registered
+from werkzeug.security import generate_password_hash
 
 
 class TestSettings(Settings):
@@ -48,6 +49,36 @@ def app_fixture():
 @pytest.fixture()
 def client(app_fixture):
     return app_fixture.test_client()
+
+
+@pytest.fixture()
+def app(app_fixture):
+    return app_fixture
+
+
+@pytest.fixture()
+def user(app_fixture):
+    from app.models import User
+
+    ctx = app_fixture.app_context()
+    ctx.push()
+    try:
+        email = "test@example.com"
+        existing = db.session.query(User).filter_by(email=email).first()
+        if existing:
+            yield existing
+            return
+
+        u = User(
+            email=email,
+            password_hash=generate_password_hash("password123"),
+            preferred_currency="INR",
+        )
+        db.session.add(u)
+        db.session.commit()
+        yield u
+    finally:
+        ctx.pop()
 
 
 @pytest.fixture()
