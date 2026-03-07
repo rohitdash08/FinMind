@@ -481,6 +481,62 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
 
+  /insights/weekly-digest:
+    get:
+      summary: Get weekly financial digest
+      tags: [Insights]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: year
+          required: false
+          schema: { type: integer, minimum: 1 }
+        - in: query
+          name: week
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 53 }
+      responses:
+        '200':
+          description: Weekly digest
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+              example:
+                week: 2025-W33
+                period:
+                  start: 2025-08-11
+                  end: 2025-08-17
+                totals:
+                  income: 2000
+                  expenses: 500
+                  net: 1500
+                transaction_count: 7
+                previous_week_expenses: 450
+                week_over_week_change_pct: 11.11
+                category_breakdown:
+                  - category: Groceries
+                    amount: 220
+                daily_breakdown:
+                  - date: 2025-08-11
+                    expenses: 80
+                insights:
+                  - Weekly expenses: 500.00 with +11.11% vs previous week (450.00).
+                  - Net cash flow this week: 1500.00.
+                method: heuristic
+        '400':
+          description: Invalid ISO year/week
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { error: "invalid ISO week or year" }
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
 components:
   securitySchemes:
     bearerAuth:
