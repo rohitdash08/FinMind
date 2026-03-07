@@ -66,3 +66,69 @@ def test_auth_me_and_update_preferred_currency(client):
 
     r = client.patch("/auth/me", json={"preferred_currency": "ZZZ"}, headers=auth)
     assert r.status_code == 400
+
+
+def test_login_flags_new_ip_as_suspicious_and_lists_alerts(client):
+    email = "security-ip@test.com"
+    password = "secret123"
+    r = client.post("/auth/register", json={"email": email, "password": password})
+    assert r.status_code in (201, 409)
+
+    # Baseline login from known IP should not trigger an alert.
+    r = client.post(
+        "/auth/login",
+        json={"email": email, "password": password},
+        headers={"User-Agent": "FinMindBrowser/1.0"},
+        environ_overrides={"REMOTE_ADDR": "10.0.0.1"},
+    )
+    assert r.status_code == 200
+    first_login = r.get_json()
+    assert first_login["suspicious_activity_alert"]["triggered"] is False
+
+    # Login from a new IP should trigger suspicious activity alert.
+    r = client.post(
+        "/auth/login",
+        json={"email": email, "password": password},
+        headers={"User-Agent": "FinMindBrowser/1.0"},
+        environ_overrides={"REMOTE_ADDR": "10.0.0.99"},
+    )
+    assert r.status_code == 200
+    second_login = r.get_json()
+    assert second_login["suspicious_activity_alert"]["triggered"] is True
+    assert "NEW_IP_ADDRESS" in second_login["suspicious_activity_alert"]["reasons"]
+
+    access = second_login["access_token"]
+    auth = {"Authorization": f"Bearer {access}"}
+    r = client.get("/auth/security-alerts", headers=auth)
+    assert r.status_code == 200
+    alerts = r.get_json()
+    assert len(alerts) == 1
+    assert alerts[0]["reason_codes"] == ["NEW_IP_ADDRESS"]
+    assert alerts[0]["ip_address"] == "10.0.0.99"
+
+
+def test_login_flags_multiple_recent_failed_attempts(client):
+    email = "security-failed@test.com"
+    password = "secret123"
+    r = client.post("/auth/register", json={"email": email, "password": password})
+    assert r.status_code in (201, 409)
+
+    for _ in range(5):
+        failed = client.post(
+            "/auth/login",
+            json={"email": email, "password": "wrong-password"},
+            headers={"User-Agent": "FinMindBrowser/1.0"},
+            environ_overrides={"REMOTE_ADDR": "10.0.0.5"},
+        )
+        assert failed.status_code == 401
+
+    r = client.post(
+        "/auth/login",
+        json={"email": email, "password": password},
+        headers={"User-Agent": "FinMindBrowser/1.0"},
+        environ_overrides={"REMOTE_ADDR": "10.0.0.5"},
+    )
+    assert r.status_code == 200
+    login = r.get_json()
+    assert login["suspicious_activity_alert"]["triggered"] is True
+    assert "MULTIPLE_FAILED_ATTEMPTS" in login["suspicious_activity_alert"]["reasons"]

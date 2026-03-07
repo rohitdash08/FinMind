@@ -2,6 +2,7 @@ from flask import Flask, jsonify
 from .config import Settings
 from .extensions import db, jwt
 from .routes import register_routes
+from .routes.auth import reset_runtime_state
 from .observability import (
     Observability,
     configure_logging,
@@ -51,6 +52,7 @@ def create_app(settings: Settings | None = None) -> Flask:
     # Redis (already global)
     # Blueprint routes
     register_routes(app)
+    reset_runtime_state()
 
     # Backward-compatible schema patch for existing databases.
     with app.app_context():
