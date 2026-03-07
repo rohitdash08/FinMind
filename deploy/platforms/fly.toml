@@ -1,0 +1,42 @@
+# Fly.io configuration — https://fly.io/docs/reference/configuration/
+app = "finmind"
+primary_region = "iad"
+kill_signal = "SIGINT"
+kill_timeout = "5s"
+
+[build]
+  dockerfile = "packages/backend/Dockerfile"
+
+[deploy]
+  release_command = "python -m flask --app wsgi:app init-db"
+
+[env]
+  LOG_LEVEL = "INFO"
+  GEMINI_MODEL = "gemini-1.5-flash"
+  PORT = "8000"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+  [http_service.concurrency]
+    type = "connections"
+    hard_limit = 250
+    soft_limit = 200
+
+[[http_service.checks]]
+  grace_period = "10s"
+  interval = "15s"
+  method = "GET"
+  timeout = "5s"
+  path = "/health"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
+  cpu_kind = "shared"
+  cpus = 1

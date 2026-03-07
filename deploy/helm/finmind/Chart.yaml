@@ -1,0 +1,14 @@
+apiVersion: v2
+name: finmind
+description: FinMind — AI-Powered Budget & Bill Tracking
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords:
+  - finmind
+  - budget
+  - finance
+  - flask
+home: https://github.com/rohitdash08/FinMind
+maintainers:
+  - name: FinMind Contributors

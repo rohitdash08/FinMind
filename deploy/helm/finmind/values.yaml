@@ -1,0 +1,106 @@
+# Default values for FinMind Helm chart
+
+nameOverride: ""
+fullnameOverride: ""
+
+# -- Backend (Flask API)
+backend:
+  replicaCount: 2
+  image:
+    repository: ghcr.io/rohitdash08/finmind-backend
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8000
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+  env:
+    LOG_LEVEL: INFO
+    GEMINI_MODEL: gemini-1.5-flash
+
+# -- Frontend (React SPA via Nginx)
+frontend:
+  replicaCount: 1
+  image:
+    repository: ghcr.io/rohitdash08/finmind-frontend
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 80
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+# -- PostgreSQL
+postgres:
+  enabled: true
+  image:
+    repository: postgres
+    tag: "16"
+  storage: 10Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# -- Redis
+redis:
+  enabled: true
+  image:
+    repository: redis
+    tag: "7"
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+# -- Ingress
+ingress:
+  enabled: false
+  className: nginx
+  annotations: {}
+    # cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: finmind.example.com
+      paths:
+        - path: /api
+          pathType: Prefix
+          service: backend
+        - path: /
+          pathType: Prefix
+          service: frontend
+  tls: []
+    # - secretName: finmind-tls
+    #   hosts:
+    #     - finmind.example.com
+
+# -- Secrets (override via --set or external secret manager)
+secrets:
+  postgresUser: finmind
+  postgresPassword: change-me-strong
+  postgresDb: finmind
+  jwtSecret: change-me-long-random-secret
+  geminiApiKey: ""

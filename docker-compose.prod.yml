@@ -1,0 +1,44 @@
+## Production Docker Compose — no dev volumes, no frontend-dev, no monitoring exporters
+## Usage: docker compose -f docker-compose.prod.yml up -d
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-finmind}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-finmind}
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-finmind} -d ${POSTGRES_DB:-finmind}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7
+    restart: always
+
+  backend:
+    build: ./packages/backend
+    env_file: [.env]
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_started }
+    ports: ["8000:8000"]
+    command: >
+      sh -c "python -m flask --app wsgi:app init-db &&
+             export PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus_multiproc &&
+             rm -rf $$PROMETHEUS_MULTIPROC_DIR && mkdir -p $$PROMETHEUS_MULTIPROC_DIR &&
+             gunicorn --workers=4 --threads=4 --bind 0.0.0.0:8000 wsgi:app"
+    restart: always
+
+  frontend:
+    build: ./app
+    ports: ["80:80"]
+    depends_on: [backend]
+    restart: always
+
+volumes:
+  pgdata:

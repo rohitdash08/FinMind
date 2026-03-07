@@ -1,0 +1,13 @@
+# Heroku Container Registry — heroku.yml
+build:
+  docker:
+    web: packages/backend/Dockerfile
+run:
+  web:
+    command:
+      - sh
+      - -c
+      - "python -m flask --app wsgi:app init-db && gunicorn --workers=2 --threads=4 --bind 0.0.0.0:$PORT wsgi:app"
+addons:
+  - plan: heroku-postgresql:essential-0
+  - plan: heroku-redis:mini

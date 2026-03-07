@@ -1,0 +1,60 @@
+# Azure Container Apps — Bicep-style YAML definition
+# Deploy:
+#   az containerapp up --name finmind-backend \
+#     --resource-group finmind-rg \
+#     --source ./packages/backend \
+#     --ingress external --target-port 8000
+#
+# Or use this template with:
+#   az containerapp create --yaml deploy/platforms/azure-container-app.yaml
+properties:
+  managedEnvironmentId: /subscriptions/SUBSCRIPTION_ID/resourceGroups/finmind-rg/providers/Microsoft.App/managedEnvironments/finmind-env
+  configuration:
+    ingress:
+      external: true
+      targetPort: 8000
+      transport: auto
+    secrets:
+      - name: database-url
+        value: postgresql+psycopg2://finmind:PASSWORD@HOST:5432/finmind
+      - name: jwt-secret
+        value: change-me
+      - name: redis-url
+        value: redis://HOST:6379/0
+  template:
+    containers:
+      - name: backend
+        image: ghcr.io/rohitdash08/finmind-backend:latest
+        resources:
+          cpu: 0.5
+          memory: 1Gi
+        env:
+          - name: DATABASE_URL
+            secretRef: database-url
+          - name: JWT_SECRET
+            secretRef: jwt-secret
+          - name: REDIS_URL
+            secretRef: redis-url
+          - name: LOG_LEVEL
+            value: INFO
+        probes:
+          - type: Readiness
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          - type: Liveness
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 20
+            periodSeconds: 20
+    scale:
+      minReplicas: 1
+      maxReplicas: 10
+      rules:
+        - name: http-scaling
+          http:
+            metadata:
+              concurrentRequests: "50"
