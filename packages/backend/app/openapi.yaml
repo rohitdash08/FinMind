@@ -57,7 +57,7 @@ paths:
               password: secret123
       responses:
         '200':
-          description: Tokens
+          description: Tokens and suspicious activity signal
           content:
             application/json:
               schema:
@@ -65,6 +65,9 @@ paths:
               example:
                 access_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
                 refresh_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                suspicious_activity_alert:
+                  triggered: false
+                  reasons: []
         '401':
           description: Invalid credentials
           content:
@@ -93,6 +96,25 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
               example: { error: "Missing Authorization Header" }
+  /auth/security-alerts:
+    get:
+      summary: List recent suspicious activity alerts
+      tags: [Auth]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Recent alerts for the authenticated user
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SecurityAlert'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
 
   /categories:
     get:
@@ -498,6 +520,28 @@ components:
       properties:
         access_token: { type: string }
         refresh_token: { type: string }
+        suspicious_activity_alert:
+          $ref: '#/components/schemas/SuspiciousActivityAlert'
+    SuspiciousActivityAlert:
+      type: object
+      properties:
+        triggered: { type: boolean }
+        reasons:
+          type: array
+          items:
+            type: string
+            enum: [NEW_IP_ADDRESS, MULTIPLE_FAILED_ATTEMPTS]
+    SecurityAlert:
+      type: object
+      properties:
+        reason_codes:
+          type: array
+          items:
+            type: string
+            enum: [NEW_IP_ADDRESS, MULTIPLE_FAILED_ATTEMPTS]
+        ip_address: { type: string }
+        user_agent: { type: string }
+        created_at: { type: string, format: date-time }
     Category:
       type: object
       properties:
