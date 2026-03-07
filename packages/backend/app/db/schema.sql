@@ -123,3 +123,38 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   action VARCHAR(100) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+-- Household budgeting tables
+
+DO $$ BEGIN
+  CREATE TYPE household_role AS ENUM ('ADMIN','MEMBER','VIEWER');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
+
+CREATE TABLE IF NOT EXISTS households (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(200) NOT NULL,
+  created_by INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS household_members (
+  id SERIAL PRIMARY KEY,
+  household_id INT NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  role household_role NOT NULL DEFAULT 'MEMBER',
+  joined_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  UNIQUE (household_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_household_members_user ON household_members(user_id);
+CREATE INDEX IF NOT EXISTS idx_household_members_household ON household_members(household_id);
+
+CREATE TABLE IF NOT EXISTS household_budgets (
+  id SERIAL PRIMARY KEY,
+  household_id INT NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+  category VARCHAR(100) NOT NULL,
+  monthly_limit NUMERIC(12,2) NOT NULL,
+  currency VARCHAR(10) NOT NULL DEFAULT 'INR'
+);
+CREATE INDEX IF NOT EXISTS idx_household_budgets_household ON household_budgets(household_id);
