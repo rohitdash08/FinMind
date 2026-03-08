@@ -133,3 +133,44 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+# Webhook Event System
+class WebhookEvent(str, Enum):
+    EXPENSE_CREATED = "expense.created"
+    EXPENSE_UPDATED = "expense.updated"
+    EXPENSE_DELETED = "expense.deleted"
+    BILL_CREATED = "bill.created"
+    BILL_UPDATED = "bill.updated"
+    BILL_DELETED = "bill.deleted"
+    BILL_DUE = "bill.due"
+    SUBSCRIPTION_UPDATED = "subscription.updated"
+    PROFILE_UPDATED = "profile.updated"
+
+
+class WebhookTarget(db.Model):
+    __tablename__ = "webhook_targets"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    url = db.Column(db.String(500), nullable=False)
+    secret = db.Column(db.String(255), nullable=False)
+    enabled = db.Column(db.Boolean, default=True, nullable=False)
+    events = db.Column(db.ARRAY(db.String), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class WebhookDelivery(db.Model):
+    __tablename__ = "webhook_deliveries"
+    id = db.Column(db.Integer, primary_key=True)
+    target_id = db.Column(db.Integer, db.ForeignKey("webhook_targets.id"), nullable=False)
+    event_type = db.Column(db.String(50), nullable=False)
+    payload = db.Column(db.JSON, nullable=False)
+    status = db.Column(db.String(20), default="pending", nullable=False)
+    attempt_count = db.Column(db.Integer, default=0, nullable=False)
+    last_attempt_at = db.Column(db.DateTime, nullable=True)
+    next_attempt_at = db.Column(db.DateTime, nullable=True)
+    response_status = db.Column(db.Integer, nullable=True)
+    response_body = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
