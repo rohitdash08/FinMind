@@ -2,37 +2,30 @@ import { checkUnusualLogin } from './login-detection';
 
 describe('checkUnusualLogin', () => {
   beforeEach(() => {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      window.localStorage.clear();
-    }
+    localStorage.clear();
   });
 
-  test('returns false on first login (no history)', () => {
-    const result = checkUnusualLogin(1, { userAgent: 'UA-1' });
-    expect(result).toBe(false);
+  test('no history -> returns false and writes current context', () => {
+    const res = checkUnusualLogin(1, { userAgent: 'UA1', ip: '1.2.3.4' });
+    expect(res).toBe(false);
+    const raw = localStorage.getItem('finmind_login_history_1');
+    expect(raw).not.toBeNull();
+    const hist = JSON.parse(raw!);
+    expect(hist.lastUserAgent).toBe('UA1');
+    expect(hist.lastIp).toBe('1.2.3.4');
+    expect(typeof hist.lastTimestamp).toBe('number');
   });
 
-  test('is not unusual if userAgent remains the same', () => {
-    // First login
-    expect(checkUnusualLogin(2, { userAgent: 'UA-TEST' })).toBe(false);
-    // Second login with same UA for same user should not be unusual
-    const second = checkUnusualLogin(2, { userAgent: 'UA-TEST' });
-    expect(second).toBe(false);
+  test('same context as history -> not unusual', () => {
+    // seed history with UA1/IP1
+    localStorage.setItem('finmind_login_history_1', JSON.stringify({ lastUserAgent: 'UA1', lastIp: '1.2.3.4', lastTimestamp: Date.now() }));
+    const res = checkUnusualLogin(1, { userAgent: 'UA1', ip: '1.2.3.4' });
+    expect(res).toBe(false);
   });
 
-  test('flags unusual when userAgent changes', () => {
-    // First login with UA-A
-    expect(checkUnusualLogin(3, { userAgent: 'UA-A' })).toBe(false);
-    // Second login with a different UA should be unusual
-    const res = checkUnusualLogin(3, { userAgent: 'UA-B' });
-    expect(res).toBe(true);
-  });
-
-  test('flags unusual when IP changes', () => {
-    // First login with IP 1.1.1.1
-    expect(checkUnusualLogin(4, { userAgent: 'UA', ip: '1.1.1.1' })).toBe(false);
-    // Second login with a different IP but same UA triggers unusual
-    const res = checkUnusualLogin(4, { userAgent: 'UA', ip: '2.2.2.2' });
+  test('different userAgent -> unusual', () => {
+    localStorage.setItem('finmind_login_history_1', JSON.stringify({ lastUserAgent: 'OldUA', lastIp: '1.2.3.4', lastTimestamp: Date.now() }));
+    const res = checkUnusualLogin(1, { userAgent: 'NewUA', ip: '1.2.3.4' });
     expect(res).toBe(true);
   });
 });
