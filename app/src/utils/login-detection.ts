@@ -24,7 +24,28 @@ export function checkUnusualLogin(
 
     const key = getKey(userId);
     const raw = localStorage.getItem(key);
-    const history: HistoryRecord[] = raw ? (JSON.parse(raw) as HistoryRecord[]) : [];
+    // Normalize history data to an array for uniform processing.
+    let history: HistoryRecord[] = [];
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          history = parsed as HistoryRecord[];
+        } else if (parsed && typeof parsed === 'object') {
+          // Support legacy shape: { lastUserAgent, lastIp, lastTimestamp }
+          const mapped: HistoryRecord = {
+            userAgent: parsed.lastUserAgent,
+            ip: parsed.lastIp,
+            timestamp: parsed.lastTimestamp,
+          };
+          if (mapped.userAgent !== undefined || mapped.ip !== undefined) {
+            history = [mapped];
+          }
+        }
+      } catch {
+        history = [];
+      }
+    }
 
     // Determine if the new context has been seen before. We treat a login as
     // unusual if neither the userAgent nor the IP matches any of the recent
