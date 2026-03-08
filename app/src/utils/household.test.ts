@@ -1,4 +1,4 @@
-import { createHousehold, getHousehold, addMember, listHouseholds } from './household';
+import { createHousehold, getHousehold, addMember, listHouseholds, removeMember } from './household';
 
 describe('FinMind household (minimal scaffold for EASY #134)', () => {
   const originalWindow = (global as any).window;
@@ -30,6 +30,14 @@ describe('FinMind household (minimal scaffold for EASY #134)', () => {
     addMember(id, 'u2');
     const hh = getHousehold(id);
     expect(hh?.members).toContain('u2');
+  });
+
+  test('removeMember updates members', () => {
+    const id = createHousehold('u1','Group2');
+    addMember(id, 'u2');
+    removeMember(id, 'u2');
+    const hh = getHousehold(id);
+    expect(hh?.members).not.toContain('u2');
   });
 
   test('listHouseholds returns at least one', () => {

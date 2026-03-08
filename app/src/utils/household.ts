@@ -56,6 +56,15 @@ export function addMember(householdId: string, userId: string): void {
   writeAll(all);
 }
 
+export function removeMember(householdId: string, userId: string): void {
+  const all = readAll();
+  const hh = all[householdId];
+  if (!hh) return;
+  hh.members = hh.members.filter(m => m !== userId);
+  all[householdId] = hh;
+  writeAll(all);
+}
+
 export function getHousehold(householdId: string): Household | null {
   const all = readAll();
   return all[householdId] || null;
@@ -69,6 +78,7 @@ export function listHouseholds(): Household[] {
 export default {
   createHousehold,
   addMember,
+  removeMember,
   getHousehold,
   listHouseholds,
 };
