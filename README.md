@@ -66,6 +66,52 @@ OpenAPI: `backend/app/openapi.yaml`
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
 - Insights: `/insights/monthly`, `/insights/budget-suggestion`
+- GDPR / Privacy:
+  - `GET /user/export` — Download all personal data as a ZIP (JSON inside)
+  - `DELETE /user` — Permanently delete account and all associated data
+- Weekly Digest: `/weekly-summary` — smart weekly financial summary (see below)
+
+## GDPR: Data Export & Account Deletion
+
+FinMind supports GDPR-compliant data portability and right to erasure:
+
+### Export Your Data (`GET /user/export`)
+- Returns a ZIP file containing all user data (profile, expenses, bills, categories, reminders, subscriptions, audit logs) as JSON
+- Password hashes are excluded from the export
+- An audit log entry is created for each export request
+- Requires authentication (JWT)
+
+### Delete Your Account (`DELETE /user`)
+- Permanently and irreversibly deletes the user account and **all** associated data
+- Cascade deletes: expenses, recurring expenses, bills, reminders, categories, ad impressions, subscriptions, and audit logs
+- Invalidates all active Redis sessions
+- Creates an anonymized audit log entry recording the deletion
+- Requires authentication (JWT)
+
+### Frontend
+The Account Settings page includes:
+- **"Export My Data"** button — downloads the ZIP immediately
+- **"Delete Account"** button — opens a confirmation dialog before permanent deletion
+
+## Weekly Digest (Smart Summary)
+
+The **Weekly Digest** provides an at-a-glance financial summary for any given week:
+
+- **Totals**: income, expenses, net flow, and transaction count for the week
+- **Daily breakdown**: spending by day with visual bar chart
+- **Category breakdown**: where your money went, with percentage shares
+- **Top expenses**: the 5 largest purchases of the week
+- **Upcoming bills**: bills due within the current and following week
+- **Week-over-week trends**: percentage change in income and expenses vs. the previous week
+
+### Backend
+- `GET /weekly-summary?week_of=YYYY-MM-DD` — returns the digest for the week containing the given date (defaults to current week)
+- Authenticated via JWT; results are cached (1 hour) for completed weeks via Redis
+
+### Frontend
+- Navigate to `/digest` or click **Weekly Digest** in the navbar
+- Use arrow buttons to browse previous weeks
+- Cards, charts, and lists render the digest data
 
 ## MVP UI/UX Plan
 - Auth screens: register/login.

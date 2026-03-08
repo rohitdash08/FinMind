@@ -1,10 +1,38 @@
 import os
 import pytest
+import fakeredis
+from unittest.mock import patch
 from app import create_app
 from app.config import Settings
 from app.extensions import db
 from app.extensions import redis_client
 from app import models  # noqa: F401 - ensure models are registered
+
+# Patch redis_client globally with fakeredis for tests
+_fake_redis = fakeredis.FakeRedis(decode_responses=True)
+
+@pytest.fixture(autouse=True)
+def _patch_redis():
+    import app.extensions as ext
+    import app.routes.auth as auth_mod
+    import app.routes.gdpr as gdpr_mod
+    import app.services.cache as cache_mod
+    old = {
+        'ext': ext.redis_client,
+        'auth': auth_mod.redis_client,
+        'gdpr': gdpr_mod.redis_client,
+        'cache': cache_mod.redis_client,
+    }
+    ext.redis_client = _fake_redis
+    auth_mod.redis_client = _fake_redis
+    gdpr_mod.redis_client = _fake_redis
+    cache_mod.redis_client = _fake_redis
+    _fake_redis.flushdb()
+    yield
+    ext.redis_client = old['ext']
+    auth_mod.redis_client = old['auth']
+    gdpr_mod.redis_client = old['gdpr']
+    cache_mod.redis_client = old['cache']
 
 
 class TestSettings(Settings):

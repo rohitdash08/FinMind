@@ -1,9 +1,22 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { me, updateMe } from '@/api/auth';
-import { setCurrency } from '@/lib/auth';
+import { setCurrency, clearToken, clearRefreshToken } from '@/lib/auth';
+import { exportUserData, deleteAccount } from '@/api/gdpr';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dailog';
 
 const SUPPORTED_CURRENCIES = [
   { code: 'INR', label: 'Indian Rupee (INR)' },
@@ -19,10 +32,13 @@ const SUPPORTED_CURRENCIES = [
 
 export default function Account() {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [currency, setCurrencyState] = useState('INR');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -107,6 +123,85 @@ export default function Account() {
             </div>
           </>
         )}
+      </div>
+
+      {/* GDPR: Data Export & Account Deletion */}
+      <div className="card card-interactive space-y-5 fade-in-up">
+        <h2 className="text-lg font-semibold">Your Data (GDPR)</h2>
+        <p className="text-sm text-muted-foreground">
+          Export all your personal data as a downloadable ZIP, or permanently
+          delete your account and all associated data.
+        </p>
+
+        <div className="flex flex-wrap gap-3">
+          <Button
+            variant="outline"
+            disabled={exporting}
+            onClick={async () => {
+              setExporting(true);
+              try {
+                const blob = await exportUserData();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'finmind_export.zip';
+                a.click();
+                URL.revokeObjectURL(url);
+                toast({ title: 'Export ready', description: 'Your data has been downloaded.' });
+              } catch (err: unknown) {
+                const msg = err instanceof Error ? err.message : 'Export failed';
+                toast({ title: 'Export failed', description: msg });
+              } finally {
+                setExporting(false);
+              }
+            }}
+          >
+            {exporting ? 'Exporting...' : '📦 Export My Data'}
+          </Button>
+
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="destructive" disabled={deleting}>
+                {deleting ? 'Deleting...' : '🗑️ Delete Account'}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This action is <strong>permanent and irreversible</strong>. All
+                  your data — expenses, bills, categories, reminders, and
+                  settings — will be permanently deleted.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={async () => {
+                    setDeleting(true);
+                    try {
+                      await deleteAccount();
+                      clearToken();
+                      clearRefreshToken();
+                      toast({
+                        title: 'Account deleted',
+                        description: 'Your account and all data have been permanently removed.',
+                      });
+                      navigate('/');
+                    } catch (err: unknown) {
+                      const msg = err instanceof Error ? err.message : 'Deletion failed';
+                      toast({ title: 'Deletion failed', description: msg });
+                    } finally {
+                      setDeleting(false);
+                    }
+                  }}
+                >
+                  Yes, delete everything
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
       </div>
     </div>
   );
