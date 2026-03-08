@@ -40,6 +40,13 @@ describe('FinMind household (minimal scaffold for EASY #134)', () => {
     expect(hh?.members).not.toContain('u2');
   });
 
+  test('removeMember on non-existent household is a no-op', () => {
+    // should not throw
+    removeMember('hh_does_not_exist', 'uX');
+    const hh = getHousehold('hh_does_not_exist');
+    expect(hh).toBeNull();
+  });
+
   test('listHouseholds returns at least one', () => {
     const id = createHousehold('u1','ListTest');
     const list = listHouseholds();
