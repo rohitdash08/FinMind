@@ -35,6 +35,31 @@ ALTER TABLE expenses
   ADD COLUMN IF NOT EXISTS expense_type VARCHAR(20) NOT NULL DEFAULT 'EXPENSE';
 
 DO $$ BEGIN
+  CREATE TYPE recurring_cadence AS ENUM ('DAILY','WEEKLY','MONTHLY','YEARLY');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
+
+CREATE TABLE IF NOT EXISTS recurring_expenses (
+  id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  category_id INT REFERENCES categories(id) ON DELETE SET NULL,
+  amount NUMERIC(12,2) NOT NULL,
+  currency VARCHAR(10) NOT NULL DEFAULT 'INR',
+  expense_type VARCHAR(20) NOT NULL DEFAULT 'EXPENSE',
+  notes VARCHAR(500) NOT NULL,
+  cadence recurring_cadence NOT NULL,
+  start_date DATE NOT NULL,
+  end_date DATE,
+  active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_recurring_expenses_user_start ON recurring_expenses(user_id, start_date);
+
+ALTER TABLE expenses
+  ADD COLUMN IF NOT EXISTS source_recurring_id INT REFERENCES recurring_expenses(id) ON DELETE SET NULL;
+
+DO $$ BEGIN
   CREATE TYPE bill_cadence AS ENUM ('MONTHLY','WEEKLY','YEARLY','ONCE');
 EXCEPTION
   WHEN duplicate_object THEN NULL;
@@ -48,12 +73,16 @@ CREATE TABLE IF NOT EXISTS bills (
   currency VARCHAR(10) NOT NULL DEFAULT 'INR',
   next_due_date DATE NOT NULL,
   cadence bill_cadence NOT NULL,
+  autopay_enabled BOOLEAN NOT NULL DEFAULT FALSE,
   channel_whatsapp BOOLEAN NOT NULL DEFAULT FALSE,
   channel_email BOOLEAN NOT NULL DEFAULT TRUE,
   active BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_bills_user_due ON bills(user_id, next_due_date);
+
+ALTER TABLE bills
+  ADD COLUMN IF NOT EXISTS autopay_enabled BOOLEAN NOT NULL DEFAULT FALSE;
 
 CREATE TABLE IF NOT EXISTS reminders (
   id SERIAL PRIMARY KEY,

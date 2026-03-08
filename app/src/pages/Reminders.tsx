@@ -5,7 +5,16 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dailog';
 import { useToast } from '@/hooks/use-toast';
-import { listReminders, createReminder, deleteReminder, runDue, type Reminder } from '@/api/reminders';
+import {
+  listReminders,
+  createReminder,
+  deleteReminder,
+  runDue,
+  scheduleBillReminders,
+  reportAutopayResult,
+  type Reminder,
+} from '@/api/reminders';
+import { listBills, type Bill } from '@/api/bills';
 
 export function Reminders() {
   const { toast } = useToast();
@@ -20,6 +29,9 @@ export function Reminders() {
   const [sendAt, setSendAt] = useState<string>(() => new Date().toISOString().slice(0, 16));
   const [channel, setChannel] = useState<'email' | 'whatsapp'>('email');
   const [saving, setSaving] = useState(false);
+  const [bills, setBills] = useState<Bill[]>([]);
+  const [selectedBillId, setSelectedBillId] = useState<string>('');
+  const [offsetsInput, setOffsetsInput] = useState('');
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -36,16 +48,27 @@ export function Reminders() {
     }
   }, [toast]);
 
+  const loadBills = useCallback(async () => {
+    try {
+      const data = await listBills();
+      setBills(data);
+      setSelectedBillId((prev) => (prev || (data.length > 0 ? String(data[0].id) : '')));
+    } catch {
+      toast({ title: 'Failed to load bills', description: 'Please try again.' });
+    }
+  }, [toast]);
+
   useEffect(() => {
     void refresh();
-  }, [refresh]);
+    void loadBills();
+  }, [refresh, loadBills]);
 
   async function onCreate() {
     if (!message.trim()) return;
     setSaving(true);
     try {
-      const created = await createReminder({ message: message.trim(), send_at: new Date(sendAt).toISOString(), channel });
-      setItems((prev) => [created, ...prev]);
+      await createReminder({ message: message.trim(), send_at: new Date(sendAt).toISOString(), channel });
+      await refresh();
       setOpen(false);
       setMessage('');
       setChannel('email');
@@ -55,6 +78,56 @@ export function Reminders() {
       const message = getErrorMessage(error, 'Failed to create reminder');
       setError(message);
       toast({ title: 'Failed to create reminder', description: message || 'Please try again.' });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function onScheduleBillReminders() {
+    if (!selectedBillId) {
+      toast({ title: 'Select a bill first' });
+      return;
+    }
+    setSaving(true);
+    try {
+      const offsets = offsetsInput
+        .split(',')
+        .map((x) => Number(x.trim()))
+        .filter((x) => Number.isFinite(x) && x >= 0);
+      const result = await scheduleBillReminders(
+        Number(selectedBillId),
+        offsets.length > 0 ? offsets : undefined,
+      );
+      toast({ title: 'Bill reminders scheduled', description: `${result.created} created.` });
+      await refresh();
+    } catch (error: unknown) {
+      toast({
+        title: 'Failed to schedule bill reminders',
+        description: getErrorMessage(error, 'Please try again.'),
+      });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function onAutopayResult(status: 'SUCCESS' | 'FAILED') {
+    if (!selectedBillId) {
+      toast({ title: 'Select a bill first' });
+      return;
+    }
+    setSaving(true);
+    try {
+      const result = await reportAutopayResult(Number(selectedBillId), status);
+      toast({
+        title: `Autopay ${status.toLowerCase()} recorded`,
+        description: `${result.created} follow-up reminders created.`,
+      });
+      await refresh();
+    } catch (error: unknown) {
+      toast({
+        title: 'Failed to record autopay result',
+        description: getErrorMessage(error, 'Please try again.'),
+      });
     } finally {
       setSaving(false);
     }
@@ -141,7 +214,52 @@ export function Reminders() {
       {loading ? (
         <div className="card fade-in-up">Loading…</div>
       ) : (
-        <div className="card fade-in-up">
+        <div className="space-y-4">
+          <div className="card card-interactive p-4 space-y-3 fade-in-up">
+            <h3 className="text-base font-semibold">Smart Bill Scheduling</h3>
+            <div className="grid gap-3 md:grid-cols-4">
+              <select
+                aria-label="bill picker"
+                className="input"
+                value={selectedBillId}
+                onChange={(e) => setSelectedBillId(e.target.value)}
+              >
+                <option value="">Select bill</option>
+                {bills.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name} {b.autopay_enabled ? '(autopay)' : ''}
+                  </option>
+                ))}
+              </select>
+              <Input
+                aria-label="reminder offsets"
+                placeholder="Offsets days (e.g. 7,3,1)"
+                value={offsetsInput}
+                onChange={(e) => setOffsetsInput(e.target.value)}
+              />
+              <Button onClick={onScheduleBillReminders} disabled={saving || !selectedBillId}>
+                Schedule Bill Reminders
+              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => onAutopayResult('SUCCESS')}
+                  disabled={saving || !selectedBillId}
+                >
+                  Autopay Success
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => onAutopayResult('FAILED')}
+                  disabled={saving || !selectedBillId}
+                >
+                  Autopay Failed
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <div className="card fade-in-up">
           {items.length === 0 ? (
             <div className="text-sm text-muted-foreground">No reminders.</div>
           ) : (
@@ -171,6 +289,7 @@ export function Reminders() {
               ))}
             </div>
           )}
+          </div>
         </div>
       )}
     </div>

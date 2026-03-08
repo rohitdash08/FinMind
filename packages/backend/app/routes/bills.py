@@ -30,6 +30,7 @@ def list_bills():
                 "currency": b.currency,
                 "next_due_date": b.next_due_date.isoformat(),
                 "cadence": b.cadence.value,
+                "autopay_enabled": b.autopay_enabled,
                 "channel_whatsapp": b.channel_whatsapp,
                 "channel_email": b.channel_email,
             }
@@ -51,6 +52,7 @@ def create_bill():
         currency=data.get("currency") or (user.preferred_currency if user else "INR"),
         next_due_date=date.fromisoformat(data["next_due_date"]),
         cadence=BillCadence(data.get("cadence", "MONTHLY")),
+        autopay_enabled=bool(data.get("autopay_enabled", False)),
         channel_whatsapp=bool(data.get("channel_whatsapp", False)),
         channel_email=bool(data.get("channel_email", True)),
     )

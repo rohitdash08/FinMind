@@ -143,12 +143,18 @@ finmind/
 - Backend: Dockerized Flask to Railway/Render free tier (Postgres & Redis managed or via Compose locally).
 - Frontend: Vercel.
 - Secrets: use environment variables (.env locally, platform secrets in cloud).
+- Kubernetes manifests for full stack deployment are available in `deploy/k8s/`.
 
 ## Local Development
 1) Prereqs: Docker, Docker Compose, Node 20+, Python 3.11+
 2) Copy env: `cp .env.example .env` and fill secrets
 3) Start: `docker compose up --build`
 4) Frontend at http://localhost:5173, Backend at http://localhost:8000
+5) Observability stack (dev compose) is included:
+   - Grafana: http://localhost:3000
+   - Prometheus: http://localhost:9090
+   - Loki: http://localhost:3100
+   - Nginx proxy: http://localhost:8080 (status at `/nginx_status`)
 
 ### Backend Test Runner (No local pytest setup required)
 - PowerShell (Windows):
@@ -161,6 +167,14 @@ finmind/
 ## Testing & CI
 - Backend: pytest, flake8, black. Frontend: vitest, eslint.
 - GitHub Actions `ci.yml` runs lint, tests, and builds both apps; optional docker build.
+
+## Monitoring (Grafana OSS)
+- Backend exposes Prometheus metrics at `/metrics` with:
+  - request count by endpoint/status
+  - request duration histograms (latency, including dashboard p95 KPI)
+  - reminder event counters (engagement KPI)
+- Logs are emitted as JSON with `request_id` and shipped to Loki via Promtail.
+- Pre-provisioned Grafana dashboard: `FinMind Operations and KPI`.
 
 ## Contribution Policy
 - See `CONTRIBUTING.md` for fork-first contribution flow and PR requirements.
