@@ -1,6 +1,5 @@
 import json
 from typing import Iterable
-import redis
 from ..extensions import redis_client
 
 
@@ -26,20 +25,14 @@ def dashboard_summary_key(user_id: int, ym: str) -> str:
 
 def cache_set(key: str, value, ttl_seconds: int | None = None):
     payload = json.dumps(value)
-    try:
-        if ttl_seconds:
-            redis_client.setex(key, ttl_seconds, payload)
-        else:
-            redis_client.set(key, payload)
-    except redis.RedisError:
-        return
+    if ttl_seconds:
+        redis_client.setex(key, ttl_seconds, payload)
+    else:
+        redis_client.set(key, payload)
 
 
 def cache_get(key: str):
-    try:
-        raw = redis_client.get(key)
-    except redis.RedisError:
-        return None
+    raw = redis_client.get(key)
     return json.loads(raw) if raw else None
 
 
@@ -47,11 +40,8 @@ def cache_delete_patterns(patterns: Iterable[str]):
     for pattern in patterns:
         cursor = 0
         while True:
-            try:
-                cursor, keys = redis_client.scan(cursor=cursor, match=pattern, count=100)
-                if keys:
-                    redis_client.delete(*keys)
-            except redis.RedisError:
-                break
+            cursor, keys = redis_client.scan(cursor=cursor, match=pattern, count=100)
+            if keys:
+                redis_client.delete(*keys)
             if cursor == 0:
                 break
