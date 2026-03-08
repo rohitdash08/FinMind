@@ -12,6 +12,7 @@ from ..extensions import db, redis_client
 from ..models import User
 import logging
 import time
+import redis
 
 bp = Blueprint("auth", __name__)
 logger = logging.getLogger("finmind.auth")
@@ -106,7 +107,13 @@ def update_me():
 def refresh():
     claims = get_jwt()
     jti = claims.get("jti")
-    if not jti or not redis_client.get(_refresh_key(jti)):
+    try:
+        known = bool(jti and redis_client.get(_refresh_key(jti)))
+    except redis.RedisError:
+        known = True
+        logger.warning("Redis unavailable during refresh; proceeding without revocation check")
+
+    if not known:
         logger.warning("Refresh rejected: revoked/unknown token jti=%s", jti)
         return jsonify(error="refresh token revoked"), 401
     uid = get_jwt_identity()
@@ -121,7 +128,10 @@ def logout():
     claims = get_jwt()
     jti = claims.get("jti")
     if jti:
-        redis_client.delete(_refresh_key(jti))
+        try:
+            redis_client.delete(_refresh_key(jti))
+        except redis.RedisError:
+            logger.warning("Redis unavailable during logout; skip refresh token delete")
     return jsonify(message="logged out"), 200
 
 
@@ -136,4 +146,7 @@ def _store_refresh_session(refresh_token: str, uid: str):
     if not jti or not exp:
         return
     ttl = max(int(exp - time.time()), 1)
-    redis_client.setex(_refresh_key(jti), ttl, uid)
+    try:
+        redis_client.setex(_refresh_key(jti), ttl, uid)
+    except redis.RedisError:
+        logger.warning("Redis unavailable during login; skipping refresh session persistence")
