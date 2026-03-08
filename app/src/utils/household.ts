@@ -1,47 +1,74 @@
-export interface HouseholdMember {
-  email: string;
-  name?: string;
-  role?: string;
-  joinedAt: string; // ISO timestamp
+export type Household = {
+  id: string;
+  name: string;
+  members: string[];
+  createdAt: string;
+};
+
+const STORAGE_KEY_HOUSEHOLDS = 'finmind.households';
+
+function getStorage(): Storage | null {
+  // SSR-safe: avoid touching window when not available
+  if (typeof window !== 'undefined' && (window as any).localStorage) {
+    return (window as any).localStorage;
+  }
+  return null;
 }
 
-const STORAGE_KEY = 'finmind_household_members';
-
-export function getMembers(): HouseholdMember[] {
+function readAll(): Record<string, Household> {
+  const storage = getStorage();
+  if (!storage) return {};
   try {
-    const raw = typeof window !== 'undefined' ? window.localStorage.getItem(STORAGE_KEY) : null;
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as HouseholdMember[];
-    if (Array.isArray(parsed)) return parsed;
-    return [];
+    const raw = storage.getItem(STORAGE_KEY_HOUSEHOLDS);
+    return raw ? (JSON.parse(raw) as Record<string, Household>) : {};
   } catch {
-    return [];
+    return {};
   }
 }
 
-function saveMembers(members: HouseholdMember[]) {
+function writeAll(all: Record<string, Household>) {
+  const storage = getStorage();
+  if (!storage) return;
   try {
-    if (typeof window === 'undefined') return;
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(members));
+    storage.setItem(STORAGE_KEY_HOUSEHOLDS, JSON.stringify(all));
   } catch {
-    // ignore storage errors
+    // ignore write failures in non-critical environments
   }
 }
 
-export function addMember(email: string, name?: string, role?: string): void {
-  const existing = getMembers();
-  const member: HouseholdMember = {
-    email,
-    name,
-    role,
-    joinedAt: new Date().toISOString(),
-  };
-  existing.push(member);
-  saveMembers(existing);
+export function createHousehold(userId: string, name: string): string {
+  const id = `hh_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const hh: Household = { id, name, members: [userId], createdAt: new Date().toISOString() };
+  const all = readAll();
+  all[id] = hh;
+  writeAll(all);
+  return id;
 }
 
-export function removeMember(email: string): void {
-  const existing = getMembers();
-  const next = existing.filter(m => m.email !== email);
-  saveMembers(next);
+export function addMember(householdId: string, userId: string): void {
+  const all = readAll();
+  const hh = all[householdId];
+  if (!hh) return;
+  if (!hh.members.includes(userId)) {
+    hh.members.push(userId);
+  }
+  all[householdId] = hh;
+  writeAll(all);
 }
+
+export function getHousehold(householdId: string): Household | null {
+  const all = readAll();
+  return all[householdId] || null;
+}
+
+export function listHouseholds(): Household[] {
+  const all = readAll();
+  return Object.values(all);
+}
+
+export default {
+  createHousehold,
+  addMember,
+  getHousehold,
+  listHouseholds,
+};
