@@ -66,6 +66,27 @@ OpenAPI: `backend/app/openapi.yaml`
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
 - Insights: `/insights/monthly`, `/insights/budget-suggestion`
+- Weekly Digest: `/weekly-summary` — smart weekly financial summary (see below)
+
+## Weekly Digest (Smart Summary)
+
+The **Weekly Digest** provides an at-a-glance financial summary for any given week:
+
+- **Totals**: income, expenses, net flow, and transaction count for the week
+- **Daily breakdown**: spending by day with visual bar chart
+- **Category breakdown**: where your money went, with percentage shares
+- **Top expenses**: the 5 largest purchases of the week
+- **Upcoming bills**: bills due within the current and following week
+- **Week-over-week trends**: percentage change in income and expenses vs. the previous week
+
+### Backend
+- `GET /weekly-summary?week_of=YYYY-MM-DD` — returns the digest for the week containing the given date (defaults to current week)
+- Authenticated via JWT; results are cached (1 hour) for completed weeks via Redis
+
+### Frontend
+- Navigate to `/digest` or click **Weekly Digest** in the navbar
+- Use arrow buttons to browse previous weeks
+- Cards, charts, and lists render the digest data
 
 ## MVP UI/UX Plan
 - Auth screens: register/login.
