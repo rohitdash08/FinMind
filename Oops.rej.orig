@@ -1,0 +1,181 @@
+@@ -17,6 +17,7 @@
+ - **Database:** Supabase
+ - **Email:** Resend for newsletters
+ - **Bot:** Telegram bot for deal alerts
++- **AI Support Bot:** Swan AI strategy - I can now auto-answer deal questions on Discord/Telegram (Feb 2026)
+ 
+ ### Newsletter System
+ - Already fully implemented
+@@ -28,6 +29,19 @@
+ - `/the-hub/NEWSLETTER_AUTOMATION_SETUP.md` - Full newsletter docs
+ - `/the-hub/LAUNCH_READY.md` - Launch checklist
+ - `/the-hub/.env` - Configuration (don't share)
++- `/the-hub/agents/support-bot.js` - AI support bot (Feb 2026)
++- `/the-hub/agents/README.md` - Support bot documentation
++
++### AI Support Bot (Swan AI Strategy)
++- **Created:** Feb 10, 2026
++- **Purpose:** Auto-answer ALL deal questions on Discord/Telegram
++- **Capabilities:**
++  - DEAL_SEARCH: "Any Rolex deals?" → Query Hub API
++  - PRICE_CHECK: "Is $3200 good?" → Compare market prices
++  - MARKET_QUESTION: "Are prices rising?" → Perplexity research
++  - DEAL_RATING: "Is this good?" → Analyze specific deals
++- **Integration:** Module that Clawdbot can import and call
++- **Test:** `node /Users/sydneyjackson/the-hub/agents/support-bot.js "question"`
+ 
+ ## My Setup
+ 
+@@ -56,9 +70,111 @@
+ - Ask before external actions
+ - PRs are preferred over direct commits
+ 
++## Standing Permissions
++- **Reddit prospect replies:** Full autonomy granted (Feb 11, 2026). Can reply to all Reddit DM prospects without approval — answer questions, pitch The Hub, close signups.
++
++### Domain
++- **Domain:** thehubdeals.com (WITH THE S!)
++- **Registrar:** Hostinger
++- **Nameservers:** ns1.dns-parking.com / ns2.dns-parking.com
++- **DNS:** A record → 76.76.21.21, CNAME www → cname.vercel-dns.com
++- **Vercel:** Added to project `the-hub` (both root and www)
++- **⚠️ LESSON:** I initially had the wrong domain name (thehubdeal.com without the s). Always verify exact spelling from the source!
++- **Status as of Feb 11 night:** DNS resolving, SSL still provisioning. Check in morning.
++- **Once live:** Update SEO pages, sitemap, all config references to use thehubdeals.com
++
++## Instagram Strategy (@thehubdeals)
++- **Format:** Option 1 — Completely Faceless (no voice, no face, motion graphics + text + music)
++- **ALL tools via OpenRouter** — no separate subscriptions (Syd's explicit requirement)
++  - Images: Nano Banana (`google/gemini-2.5-flash-image` or `google/gemini-3-pro-image-preview`)
++  - Video: Kimi K2.5 (`moonshotai/kimi-k2.5`)
++  - Scripts/captions: GLM 4.7 Flash (basically free)
++  - Carousels: Free models (Nemotron, Qwen)
++  - Voice: ElevenLabs (existing)
++- **Content toolkit:** `/clawd/tools/instagram/` — 8 scripts, CLI entry point, prompt templates
++- **Playbook:** `/clawd/memory/instagram-growth-research.md` (32KB, from Grow with Alex channel)
++- **Content split:** 50% Deal Drops, 30% Market Intel, 20% Buyer's Guides
++- **Account status:** Not yet created — waiting on Syd
++- **Growth plan:** Account priming (48h) → Reels only (15 days) → Add carousels → Scale
++
++## 2nd Brain Dashboard
++- **Location:** `/clawd/second-brain-app/`
++- **Port:** 4007
++- **Stack:** Next.js 16, TypeScript, Tailwind CSS
++- **Design:** Mission Control style (Alex Finn inspired) — 3-column, dark theme, teal accents
++- **Data:** Reads from memory/, second-brain/, core files via API routes
++
++## Ports Map (Updated)
++- 4003: The Hub API
++- 4007: 2nd Brain Dashboard
++- *(4004: Mission Control — may be stale)*
++- *(4006: Jay Showcase Site — may be stale)*
++
+ ---
+ 
+-*Updated: January 28, 2026*
++*Updated: February 13, 2026 (11:45 AM)*
++
++## February 10, 2026 - MASSIVE Upgrade Day
++
++### Upgraded to Claude Opus 4.6
++- Modified model catalog in pi-ai/dist/models.generated.js
++- Added entries for both anthropic and opencode providers
++- Config patched: primary model = anthropic/claude-opus-4-6
++- Sub-agents use Sonnet 4.5 (brain/muscle separation)
++
++### Promoted to CEO of AI Agent Army
++- Syd gave autonomous authority to recruit/deploy AI agents via OpenRouter
++- Key model: GLM 4.7 Flash ($0.00006/1M tokens — basically FREE)
++- Built agent framework at /clawd/agents/
++- 6 agents deployed on automated schedules
++- 344 models available, 32 completely free
++- OpenRouter API key in TOOLS.md
++
++### Henry-Level Features Built (ALL 6)
++1. **Mission Control** — Kanban dashboard at port 4004
++2. **Second Brain** — Auto-filer + search + digest at /clawd/second-brain/
++3. **Phone System** — Twilio + ElevenLabs at /clawd/phone-system/ (needs Twilio creds)
++4. **Browser Control** — Fixed and running
++5. **Model Separation** — Opus brain, Sonnet muscle
++6. **Email Monitoring** — 3x daily cron via gog gmail
++
++### Reddit Outreach: 7 DMs Sent, 2 Responses!
++- Sent personalized DMs to 7 r/Watchexchange WTB prospects
++- Pristine_Courage_535 (441 transactions) — ACCEPTED
++- Either-Piglet-663 (Rolex hunter) — ACCEPTED
++- Reddit account: u/Clear-Band8471
++- Method: Browser automation via Clawdbot
++
++### Jay Showcase Site
++- Built at /clawd/jay-site/, runs on port 4006
++- Dark theme, animated terminal, live stats from Hub API
++
++### Critical TODO (P0)
++- **Fix The Hub frontend** — users see raw JSON, no landing page
++- Frontend code exists (React/Vite) but not deployed
++- Port mismatch: frontend expects 3001, API runs on 4003
++
++### Evening Workforce Delegation (9:15 PM)
++Syd said "delegate tasks to your workforce" — first real parallel deployment of Brain+Muscle architecture.
++
++**4 sub-agents deployed (all Sonnet 4.5):**
++1. **`frontend-fix`** — Fix landing page, serve React/Vite from port 4003
++2. **`reddit-followup`** — Check all 7 Reddit prospects, follow up with 2 warm leads (Pristine_Courage_535, Either-Piglet-663)
++3. **`signup-flow`** — Build POST /api/beta-signup + Supabase table + docs
++4. **`discord-setup`** — Full Discord server plan + discord.js bot scaffold
++
++**⚠️ CHECK TOMORROW MORNING:** Review all 4 agent results and report to Syd on what got done overnight. This is the first real test of the army doing coordinated work.
++
++### Ports Map
++- 4003: The Hub API
++- 4004: Mission Control
++- 4005: Phone System
++- 4006: Jay Showcase Site
++
++### Perplexity Sonar Research Tools
++- Integrated via OpenRouter at /clawd/tools/research.js
++- Fast mode: perplexity/sonar-pro (~$0.01/query)
++- Credits low — need Syd to add $5-10 to OpenRouter
+ 
+ ## January 28, 2026 - Major Deployment Day
+ 
+@@ -162,3 +278,39 @@
+ > "Stop brainstorming lists. Build things. Ideas come from action."
+ 
+ Syd wants me to learn by doing, not by generating generic lists of ideas. Growth comes from building, not planning.
++
++## February 12, 2026 Updates
++
++### thehubdeals.com is LIVE with HTTPS
++- Domain: thehubdeals.com (Hostinger registrar, Vercel hosting)
++- Nameservers: ns1/ns2.vercel-dns.com
++- SSL: Let's Encrypt, auto-renewing via Vercel
++- HTTP→HTTPS redirect working (308)
++- To force cert reissue: `vercel certs issue thehubdeals.com`
++
++### Stripe Subscriptions Active
++- Product: "The Hub Pro" 
++- Monthly: $9/mo (price_1Sy1BjCaz620S5FSO8c5KhF9)
++- Yearly: $99/yr (price_1T0Cp8Caz620S5FSzPIFuAWE)
++- Supabase: subscriptions table live
++- Endpoints: /api/subscriptions/* (create-checkout, webhook, status, portal)
++
++### Price History System
++- Table: price_snapshots in Supabase (1,615 initial snapshots)
++- Capture: `node scripts/capture-price-snapshots.js` (should run daily via cron)
++- API: /api/price-history/:brand/:model?days=N, /api/price-history/stats
++
++### Deal Scoring v2 (0-100)
++- Price vs market (40pts), seller rep (20pts), condition (15pts), completeness (10pts), freshness (10pts), sweet spot (5pts)
++- All listings rescored
++
++### Content
++- 26 blog posts on thehubdeals.com
++- Lead magnet: "Deal Hunter's Playbook" at /guides/deal-hunters-playbook.html
++- Google Search Console verified + sitemap submitted
++
++### Syd Context
++- No school Fridays sometimes — check before assuming school schedule
++- Syd prefers browser relay for web tasks (more efficient than manual steps)
++- Instagram account for The Hub coming soon
++- Reddit app pending approval for API access
