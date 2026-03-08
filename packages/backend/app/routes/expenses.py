@@ -5,9 +5,10 @@ from decimal import Decimal, InvalidOperation
 from flask import Blueprint, current_app, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..extensions import db
-from ..models import Expense, RecurringCadence, RecurringExpense, User
+from ..models import Expense, RecurringCadence, RecurringExpense, User, WebhookEvent
 from ..services.cache import cache_delete_patterns, monthly_summary_key
 from ..services import expense_import
+from ..services.webhooks import WebhookService
 import logging
 
 bp = Blueprint("expenses", __name__)
@@ -77,6 +78,14 @@ def create_expense():
     db.session.add(e)
     db.session.commit()
     logger.info("Created expense id=%s user=%s amount=%s", e.id, uid, e.amount)
+    
+    # Trigger webhook event
+    WebhookService.trigger_event(
+        WebhookEvent.EXPENSE_CREATED,
+        _expense_to_dict(e),
+        user_id=uid
+    )
+    
     # Invalidate caches
     cache_delete_patterns(
         [
@@ -181,20 +190,27 @@ def generate_recurring_expenses(recurring_id: int):
             .first()
         )
         if not exists:
-            db.session.add(
-                Expense(
-                    user_id=uid,
-                    category_id=recurring.category_id,
-                    amount=recurring.amount,
-                    currency=recurring.currency,
-                    expense_type=recurring.expense_type,
-                    notes=recurring.notes,
-                    spent_at=at,
-                    source_recurring_id=recurring.id,
-                )
+            expense = Expense(
+                user_id=uid,
+                category_id=recurring.category_id,
+                amount=recurring.amount,
+                currency=recurring.currency,
+                expense_type=recurring.expense_type,
+                notes=recurring.notes,
+                spent_at=at,
+                source_recurring_id=recurring.id,
             )
+            db.session.add(expense)
             inserted += 1
             touched_months.add(at.strftime("%Y-%m"))
+            
+            # Trigger webhook event
+            WebhookService.trigger_event(
+                WebhookEvent.EXPENSE_CREATED,
+                _expense_to_dict(expense),
+                user_id=uid
+            )
+            
         at = _advance_recurrence_date(at, recurring.cadence.value)
     db.session.commit()
     for ym in touched_months:
@@ -230,6 +246,14 @@ def update_expense(expense_id: int):
         raw_date = data.get("date") or data.get("spent_at")
         e.spent_at = date.fromisoformat(raw_date)
     db.session.commit()
+    
+    # Trigger webhook event
+    WebhookService.trigger_event(
+        WebhookEvent.EXPENSE_UPDATED,
+        _expense_to_dict(e),
+        user_id=uid
+    )
+    
     _invalidate_expense_cache(uid, e.spent_at.isoformat())
     return jsonify(_expense_to_dict(e))
 
@@ -242,8 +266,17 @@ def delete_expense(expense_id: int):
     if not e or e.user_id != uid:
         return jsonify(error="not found"), 404
     spent_at = e.spent_at.isoformat()
+    expense_data = _expense_to_dict(e)
     db.session.delete(e)
     db.session.commit()
+    
+    # Trigger webhook event
+    WebhookService.trigger_event(
+        WebhookEvent.EXPENSE_DELETED,
+        expense_data,
+        user_id=uid
+    )
+    
     _invalidate_expense_cache(uid, spent_at)
     return jsonify(message="deleted")
 
@@ -305,6 +338,14 @@ def import_commit():
         db.session.add(expense)
         inserted += 1
         touched_months.add(t["date"][:7])
+        
+        # Trigger webhook event
+        WebhookService.trigger_event(
+            WebhookEvent.EXPENSE_CREATED,
+            _expense_to_dict(expense),
+            user_id=uid
+        )
+        
     db.session.commit()
     for ym in touched_months:
         _invalidate_expense_cache(uid, ym + "-01")
