@@ -1,84 +1,81 @@
-export type Household = {
+// Lightweight household collaboration utilities (in-browser MVP)
+// Stores households in localStorage per browser.
+type Member = string; // could be user email or id in MVP
+type Household = {
   id: string;
   name: string;
-  members: string[];
-  createdAt: string;
+  owner?: string;
+  members: Member[];
+  createdAt?: number;
 };
 
-const STORAGE_KEY_HOUSEHOLDS = 'finmind.households';
-
-function getStorage(): Storage | null {
-  // SSR-safe: avoid touching window when not available
-  if (typeof window !== 'undefined' && (window as any).localStorage) {
-    return (window as any).localStorage;
-  }
-  return null;
+function storageKey(id: string): string {
+  return `finmind_household_${id}`;
 }
 
-function readAll(): Record<string, Household> {
-  const storage = getStorage();
-  if (!storage) return {};
+function uid(): string {
+  return Math.random().toString(36).slice(2, 9) + Date.now().toString(36);
+}
+
+// Create a new household and persist it
+export function createHousehold(name: string, owner?: string): Household {
+  const id = uid();
+  const h: Household = {
+    id,
+    name,
+    owner,
+    members: owner ? [owner] : [],
+    createdAt: Date.now(),
+  };
+  localStorage.setItem(storageKey(id), JSON.stringify(h));
+  return h;
+}
+
+export function getHousehold(id: string): Household | null {
   try {
-    const raw = storage.getItem(STORAGE_KEY_HOUSEHOLDS);
-    return raw ? (JSON.parse(raw) as Record<string, Household>) : {};
+    const raw = localStorage.getItem(storageKey(id));
+    if (!raw) return null;
+    return JSON.parse(raw) as Household;
   } catch {
-    return {};
+    return null;
   }
 }
 
-function writeAll(all: Record<string, Household>) {
-  const storage = getStorage();
-  if (!storage) return;
-  try {
-    storage.setItem(STORAGE_KEY_HOUSEHOLDS, JSON.stringify(all));
-  } catch {
-    // ignore write failures in non-critical environments
+export function addMember(id: string, member: string): boolean {
+  const h = getHousehold(id);
+  if (!h) return false;
+  if (!h.members.includes(member)) {
+    h.members.push(member);
+    localStorage.setItem(storageKey(id), JSON.stringify(h));
   }
+  return true;
 }
 
-export function createHousehold(userId: string, name: string): string {
-  const id = `hh_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  const hh: Household = { id, name, members: [userId], createdAt: new Date().toISOString() };
-  const all = readAll();
-  all[id] = hh;
-  writeAll(all);
-  return id;
-}
-
-export function addMember(householdId: string, userId: string): void {
-  const all = readAll();
-  const hh = all[householdId];
-  if (!hh) return;
-  if (!hh.members.includes(userId)) {
-    hh.members.push(userId);
-  }
-  all[householdId] = hh;
-  writeAll(all);
-}
-
-export function removeMember(householdId: string, userId: string): void {
-  const all = readAll();
-  const hh = all[householdId];
-  if (!hh) return;
-  hh.members = hh.members.filter(m => m !== userId);
-  all[householdId] = hh;
-  writeAll(all);
-}
-
-export function getHousehold(householdId: string): Household | null {
-  const all = readAll();
-  return all[householdId] || null;
+export function removeMember(id: string, member: string): boolean {
+  const h = getHousehold(id);
+  if (!h) return false;
+  h.members = h.members.filter((m) => m !== member);
+  localStorage.setItem(storageKey(id), JSON.stringify(h));
+  return true;
 }
 
 export function listHouseholds(): Household[] {
-  const all = readAll();
-  return Object.values(all);
+  // Not efficient: scan all keys in localStorage. For MVP, we assume keys start with finmind_household_
+  const out: Household[] = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key && key.startsWith('finmind_household_')) {
+      const h = getHousehold(key.replace('finmind_household_', ''));
+      if (h) out.push(h);
+    }
+  }
+  return out;
 }
 
 export default {
   createHousehold,
+  getHousehold,
   addMember,
   removeMember,
-  getHousehold,
   listHouseholds,
 };
