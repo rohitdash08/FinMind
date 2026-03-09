@@ -1,11 +1,12 @@
 from datetime import date
-from sqlalchemy import extract, func
+from sqlalchemy import and_, extract, func, or_
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from ..extensions import db
 from ..models import Bill, Expense, Category
 from ..services.cache import cache_get, cache_set, dashboard_summary_key
+from ..services.households import get_household_ids
 
 bp = Blueprint("dashboard", __name__)
 
@@ -17,10 +18,30 @@ def dashboard_summary():
     ym = (request.args.get("month") or date.today().strftime("%Y-%m")).strip()
     if not _is_valid_month(ym):
         return jsonify(error="invalid month, expected YYYY-MM"), 400
+    household_ids = list(get_household_ids(uid))
+    expense_scope = (
+        or_(
+            and_(Expense.user_id == uid, Expense.household_id.is_(None)),
+            Expense.household_id.in_(household_ids),
+        )
+        if household_ids
+        else and_(Expense.user_id == uid, Expense.household_id.is_(None))
+    )
+    bill_scope = (
+        or_(
+            and_(Bill.user_id == uid, Bill.household_id.is_(None)),
+            Bill.household_id.in_(household_ids),
+        )
+        if household_ids
+        else and_(Bill.user_id == uid, Bill.household_id.is_(None))
+    )
+
     key = dashboard_summary_key(uid, ym)
-    cached = cache_get(key)
-    if cached:
-        return jsonify(cached)
+    use_cache = not household_ids
+    if use_cache:
+        cached = cache_get(key)
+        if cached:
+            return jsonify(cached)
 
     payload = {
         "period": {"month": ym},
@@ -44,7 +65,7 @@ def dashboard_summary():
         income = (
             db.session.query(func.coalesce(func.sum(Expense.amount), 0))
             .filter(
-                Expense.user_id == uid,
+                expense_scope,
                 extract("year", Expense.spent_at) == year,
                 extract("month", Expense.spent_at) == month,
                 Expense.expense_type == "INCOME",
@@ -54,7 +75,7 @@ def dashboard_summary():
         expenses = (
             db.session.query(func.coalesce(func.sum(Expense.amount), 0))
             .filter(
-                Expense.user_id == uid,
+                expense_scope,
                 extract("year", Expense.spent_at) == year,
                 extract("month", Expense.spent_at) == month,
                 Expense.expense_type != "INCOME",
@@ -74,7 +95,7 @@ def dashboard_summary():
     try:
         rows = (
             db.session.query(Expense)
-            .filter(Expense.user_id == uid)
+            .filter(expense_scope)
             .order_by(Expense.spent_at.desc(), Expense.id.desc())
             .limit(10)
             .all()
@@ -98,7 +119,7 @@ def dashboard_summary():
         bills = (
             db.session.query(Bill)
             .filter(
-                Bill.user_id == uid,
+                bill_scope,
                 Bill.active.is_(True),
                 Bill.next_due_date >= today,
             )
@@ -135,10 +156,10 @@ def dashboard_summary():
             )
             .outerjoin(
                 Category,
-                (Category.id == Expense.category_id) & (Category.user_id == uid),
+                Category.id == Expense.category_id,
             )
             .filter(
-                Expense.user_id == uid,
+                expense_scope,
                 extract("year", Expense.spent_at) == year,
                 extract("month", Expense.spent_at) == month,
                 Expense.expense_type != "INCOME",
@@ -164,7 +185,8 @@ def dashboard_summary():
     except Exception:
         payload["errors"].append("category_breakdown_unavailable")
 
-    cache_set(key, payload, ttl_seconds=300)
+    if use_cache:
+        cache_set(key, payload, ttl_seconds=300)
     return jsonify(payload)
 
 

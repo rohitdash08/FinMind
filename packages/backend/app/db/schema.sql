@@ -11,16 +11,47 @@ CREATE TABLE IF NOT EXISTS users (
 ALTER TABLE users
   ADD COLUMN IF NOT EXISTS preferred_currency VARCHAR(10) NOT NULL DEFAULT 'INR';
 
+DO $$ BEGIN
+  CREATE TYPE household_role AS ENUM ('ADMIN','MEMBER');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
+
+CREATE TABLE IF NOT EXISTS households (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(150) NOT NULL,
+  invite_code VARCHAR(32) UNIQUE NOT NULL,
+  created_by INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS household_members (
+  id SERIAL PRIMARY KEY,
+  household_id INT NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  role household_role NOT NULL DEFAULT 'MEMBER',
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  CONSTRAINT uq_household_member UNIQUE (household_id, user_id)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_household_members_user_unique ON household_members(user_id);
+CREATE INDEX IF NOT EXISTS idx_household_members_household ON household_members(household_id);
+
 CREATE TABLE IF NOT EXISTS categories (
   id SERIAL PRIMARY KEY,
   user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  household_id INT REFERENCES households(id) ON DELETE SET NULL,
   name VARCHAR(100) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+CREATE INDEX IF NOT EXISTS idx_categories_household ON categories(household_id);
+
+ALTER TABLE categories
+  ADD COLUMN IF NOT EXISTS household_id INT REFERENCES households(id) ON DELETE SET NULL;
 
 CREATE TABLE IF NOT EXISTS expenses (
   id SERIAL PRIMARY KEY,
   user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  household_id INT REFERENCES households(id) ON DELETE SET NULL,
   category_id INT REFERENCES categories(id) ON DELETE SET NULL,
   amount NUMERIC(12,2) NOT NULL,
   currency VARCHAR(10) NOT NULL DEFAULT 'INR',
@@ -30,9 +61,13 @@ CREATE TABLE IF NOT EXISTS expenses (
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_expenses_user_spent_at ON expenses(user_id, spent_at DESC);
+CREATE INDEX IF NOT EXISTS idx_expenses_household_spent_at ON expenses(household_id, spent_at DESC);
 
 ALTER TABLE expenses
   ADD COLUMN IF NOT EXISTS expense_type VARCHAR(20) NOT NULL DEFAULT 'EXPENSE';
+
+ALTER TABLE expenses
+  ADD COLUMN IF NOT EXISTS household_id INT REFERENCES households(id) ON DELETE SET NULL;
 
 DO $$ BEGIN
   CREATE TYPE recurring_cadence AS ENUM ('DAILY','WEEKLY','MONTHLY','YEARLY');
@@ -68,6 +103,7 @@ END $$;
 CREATE TABLE IF NOT EXISTS bills (
   id SERIAL PRIMARY KEY,
   user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  household_id INT REFERENCES households(id) ON DELETE SET NULL,
   name VARCHAR(200) NOT NULL,
   amount NUMERIC(12,2) NOT NULL,
   currency VARCHAR(10) NOT NULL DEFAULT 'INR',
@@ -80,9 +116,13 @@ CREATE TABLE IF NOT EXISTS bills (
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_bills_user_due ON bills(user_id, next_due_date);
+CREATE INDEX IF NOT EXISTS idx_bills_household_due ON bills(household_id, next_due_date);
 
 ALTER TABLE bills
   ADD COLUMN IF NOT EXISTS autopay_enabled BOOLEAN NOT NULL DEFAULT FALSE;
+
+ALTER TABLE bills
+  ADD COLUMN IF NOT EXISTS household_id INT REFERENCES households(id) ON DELETE SET NULL;
 
 CREATE TABLE IF NOT EXISTS reminders (
   id SERIAL PRIMARY KEY,

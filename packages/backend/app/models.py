@@ -19,10 +19,45 @@ class User(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
 
+class HouseholdRole(str, Enum):
+    ADMIN = "ADMIN"
+    MEMBER = "MEMBER"
+
+
+class Household(db.Model):
+    __tablename__ = "households"
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(150), nullable=False)
+    invite_code = db.Column(db.String(32), unique=True, nullable=False)
+    created_by = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class HouseholdMember(db.Model):
+    __tablename__ = "household_members"
+    id = db.Column(db.Integer, primary_key=True)
+    household_id = db.Column(
+        db.Integer, db.ForeignKey("households.id"), nullable=False, index=True
+    )
+    user_id = db.Column(
+        db.Integer, db.ForeignKey("users.id"), nullable=False, unique=True
+    )
+    role = db.Column(
+        SAEnum(HouseholdRole), default=HouseholdRole.MEMBER, nullable=False
+    )
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    __table_args__ = (
+        db.UniqueConstraint("household_id", "user_id", name="uq_household_member"),
+    )
+
+
 class Category(db.Model):
     __tablename__ = "categories"
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    household_id = db.Column(
+        db.Integer, db.ForeignKey("households.id"), nullable=True, index=True
+    )
     name = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
@@ -31,6 +66,9 @@ class Expense(db.Model):
     __tablename__ = "expenses"
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    household_id = db.Column(
+        db.Integer, db.ForeignKey("households.id"), nullable=True, index=True
+    )
     category_id = db.Column(db.Integer, db.ForeignKey("categories.id"), nullable=True)
     amount = db.Column(db.Numeric(12, 2), nullable=False)
     currency = db.Column(db.String(10), default="INR", nullable=False)
@@ -77,6 +115,9 @@ class Bill(db.Model):
     __tablename__ = "bills"
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    household_id = db.Column(
+        db.Integer, db.ForeignKey("households.id"), nullable=True, index=True
+    )
     name = db.Column(db.String(200), nullable=False)
     amount = db.Column(db.Numeric(12, 2), nullable=False)
     currency = db.Column(db.String(10), default="INR", nullable=False)

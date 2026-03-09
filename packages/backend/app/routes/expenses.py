@@ -1,13 +1,20 @@
 import calendar
 from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
+from sqlalchemy import and_, or_
 
 from flask import Blueprint, current_app, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..extensions import db
-from ..models import Expense, RecurringCadence, RecurringExpense, User
+from ..models import Category, Expense, RecurringCadence, RecurringExpense, User
 from ..services.cache import cache_delete_patterns, monthly_summary_key
 from ..services import expense_import
+from ..services.households import (
+    can_access_scope,
+    get_household_ids,
+    get_household_member_user_ids,
+    is_household_member,
+)
 import logging
 
 bp = Blueprint("expenses", __name__)
@@ -18,7 +25,17 @@ logger = logging.getLogger("finmind.expenses")
 @jwt_required()
 def list_expenses():
     uid = int(get_jwt_identity())
-    q = db.session.query(Expense).filter_by(user_id=uid)
+    household_ids = list(get_household_ids(uid))
+    q = db.session.query(Expense)
+    if household_ids:
+        q = q.filter(
+            or_(
+                and_(Expense.user_id == uid, Expense.household_id.is_(None)),
+                Expense.household_id.in_(household_ids),
+            )
+        )
+    else:
+        q = q.filter(and_(Expense.user_id == uid, Expense.household_id.is_(None)))
     from_date = request.args.get("from")
     to_date = request.args.get("to")
     search = (request.args.get("search") or "").strip()
@@ -63,27 +80,49 @@ def create_expense():
         return jsonify(error="invalid amount"), 400
     raw_date = data.get("date") or data.get("spent_at")
     description = (data.get("description") or data.get("notes") or "").strip()
+    household_id = data.get("household_id")
+    category_id = data.get("category_id")
     if not description:
         return jsonify(error="description required"), 400
+    if household_id is not None:
+        try:
+            household_id = int(household_id)
+        except (TypeError, ValueError):
+            return jsonify(error="invalid household_id"), 400
+        if not is_household_member(uid, household_id):
+            return jsonify(error="forbidden household"), 403
+    if category_id is not None:
+        try:
+            category_id = int(category_id)
+        except (TypeError, ValueError):
+            return jsonify(error="invalid category_id"), 400
+        category = db.session.get(Category, category_id)
+        if not category:
+            return jsonify(error="invalid category_id"), 400
+        if not can_access_scope(uid, category.user_id, category.household_id):
+            return jsonify(error="invalid category_id"), 400
+        if household_id is None and category.household_id is not None:
+            household_id = category.household_id
+        if (
+            household_id is not None
+            and category.household_id is not None
+            and category.household_id != household_id
+        ):
+            return jsonify(error="category household mismatch"), 400
     e = Expense(
         user_id=uid,
+        household_id=household_id,
         amount=amount,
         currency=(data.get("currency") or (user.preferred_currency if user else "INR")),
         expense_type=str(data.get("expense_type") or "EXPENSE").upper(),
-        category_id=data.get("category_id"),
+        category_id=category_id,
         notes=description,
         spent_at=date.fromisoformat(raw_date) if raw_date else date.today(),
     )
     db.session.add(e)
     db.session.commit()
     logger.info("Created expense id=%s user=%s amount=%s", e.id, uid, e.amount)
-    # Invalidate caches
-    cache_delete_patterns(
-        [
-            monthly_summary_key(uid, e.spent_at.strftime("%Y-%m")),
-            f"insights:{uid}:*",
-        ]
-    )
+    _invalidate_expense_cache(uid, e.spent_at.isoformat(), e.household_id)
     return jsonify(_expense_to_dict(e)), 201
 
 
@@ -207,7 +246,7 @@ def generate_recurring_expenses(recurring_id: int):
 def update_expense(expense_id: int):
     uid = int(get_jwt_identity())
     e = db.session.get(Expense, expense_id)
-    if not e or e.user_id != uid:
+    if not e or not can_access_scope(uid, e.user_id, e.household_id):
         return jsonify(error="not found"), 404
     data = request.get_json() or {}
     if "amount" in data:
@@ -220,7 +259,26 @@ def update_expense(expense_id: int):
     if "expense_type" in data:
         e.expense_type = str(data.get("expense_type") or "EXPENSE").upper()
     if "category_id" in data:
-        e.category_id = data.get("category_id")
+        category_id = data.get("category_id")
+        if category_id is None:
+            e.category_id = None
+        else:
+            try:
+                category_id = int(category_id)
+            except (TypeError, ValueError):
+                return jsonify(error="invalid category_id"), 400
+            category = db.session.get(Category, category_id)
+            if not category:
+                return jsonify(error="invalid category_id"), 400
+            if not can_access_scope(uid, category.user_id, category.household_id):
+                return jsonify(error="invalid category_id"), 400
+            if (
+                e.household_id is not None
+                and category.household_id is not None
+                and category.household_id != e.household_id
+            ):
+                return jsonify(error="category household mismatch"), 400
+            e.category_id = category_id
     if "description" in data or "notes" in data:
         description = (data.get("description") or data.get("notes") or "").strip()
         if not description:
@@ -230,7 +288,7 @@ def update_expense(expense_id: int):
         raw_date = data.get("date") or data.get("spent_at")
         e.spent_at = date.fromisoformat(raw_date)
     db.session.commit()
-    _invalidate_expense_cache(uid, e.spent_at.isoformat())
+    _invalidate_expense_cache(uid, e.spent_at.isoformat(), e.household_id)
     return jsonify(_expense_to_dict(e))
 
 
@@ -239,12 +297,13 @@ def update_expense(expense_id: int):
 def delete_expense(expense_id: int):
     uid = int(get_jwt_identity())
     e = db.session.get(Expense, expense_id)
-    if not e or e.user_id != uid:
+    if not e or not can_access_scope(uid, e.user_id, e.household_id):
         return jsonify(error="not found"), 404
     spent_at = e.spent_at.isoformat()
+    household_id = e.household_id
     db.session.delete(e)
     db.session.commit()
-    _invalidate_expense_cache(uid, spent_at)
+    _invalidate_expense_cache(uid, spent_at, household_id)
     return jsonify(message="deleted")
 
 
@@ -314,6 +373,7 @@ def import_commit():
 def _expense_to_dict(e: Expense) -> dict:
     return {
         "id": e.id,
+        "household_id": e.household_id,
         "amount": float(e.amount),
         "currency": e.currency,
         "category_id": e.category_id,
@@ -384,12 +444,14 @@ def _is_duplicate(uid: int, row: dict) -> bool:
     )
 
 
-def _invalidate_expense_cache(uid: int, at: str):
+def _invalidate_expense_cache(uid: int, at: str, household_id: int | None = None):
     ym = at[:7]
-    cache_delete_patterns(
-        [
-            monthly_summary_key(uid, ym),
-            f"insights:{uid}:*",
-            f"user:{uid}:dashboard_summary:*",
-        ]
-    )
+    affected_users = {uid, *get_household_member_user_ids(household_id)}
+    for affected_uid in affected_users:
+        cache_delete_patterns(
+            [
+                monthly_summary_key(affected_uid, ym),
+                f"insights:{affected_uid}:*",
+                f"user:{affected_uid}:dashboard_summary:*",
+            ]
+        )

@@ -1,11 +1,12 @@
 import json
 from urllib import request
 
-from sqlalchemy import extract, func
+from sqlalchemy import and_, extract, func, or_
 
 from ..config import Settings
 from ..extensions import db
 from ..models import Expense
+from .households import get_household_ids
 
 _settings = Settings()
 DEFAULT_PERSONA = (
@@ -16,10 +17,11 @@ DEFAULT_PERSONA = (
 
 def _monthly_totals(uid: int, ym: str) -> tuple[float, float]:
     year, month = map(int, ym.split("-"))
+    expense_scope = _expense_scope(uid)
     income = (
         db.session.query(func.coalesce(func.sum(Expense.amount), 0))
         .filter(
-            Expense.user_id == uid,
+            expense_scope,
             extract("year", Expense.spent_at) == year,
             extract("month", Expense.spent_at) == month,
             Expense.expense_type == "INCOME",
@@ -29,7 +31,7 @@ def _monthly_totals(uid: int, ym: str) -> tuple[float, float]:
     expenses = (
         db.session.query(func.coalesce(func.sum(Expense.amount), 0))
         .filter(
-            Expense.user_id == uid,
+            expense_scope,
             extract("year", Expense.spent_at) == year,
             extract("month", Expense.spent_at) == month,
             Expense.expense_type != "INCOME",
@@ -41,12 +43,13 @@ def _monthly_totals(uid: int, ym: str) -> tuple[float, float]:
 
 def _category_spend(uid: int, ym: str) -> dict[str, float]:
     year, month = map(int, ym.split("-"))
+    expense_scope = _expense_scope(uid)
     rows = (
         db.session.query(
             Expense.category_id, func.coalesce(func.sum(Expense.amount), 0)
         )
         .filter(
-            Expense.user_id == uid,
+            expense_scope,
             extract("year", Expense.spent_at) == year,
             extract("month", Expense.spent_at) == month,
             Expense.expense_type != "INCOME",
@@ -62,6 +65,16 @@ def _previous_month(ym: str) -> str:
     if month == 1:
         return f"{year - 1:04d}-12"
     return f"{year:04d}-{month - 1:02d}"
+
+
+def _expense_scope(uid: int):
+    household_ids = list(get_household_ids(uid))
+    if household_ids:
+        return or_(
+            and_(Expense.user_id == uid, Expense.household_id.is_(None)),
+            Expense.household_id.in_(household_ids),
+        )
+    return and_(Expense.user_id == uid, Expense.household_id.is_(None))
 
 
 def _build_analytics(uid: int, ym: str) -> dict:
