@@ -66,6 +66,30 @@ OpenAPI: `backend/app/openapi.yaml`
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
 - Insights: `/insights/monthly`, `/insights/budget-suggestion`
+- Webhooks:
+  - targets: `POST/GET /webhooks/targets`, `PATCH/DELETE /webhooks/targets/{id}`
+  - deliveries: `GET /webhooks/deliveries`, `POST /webhooks/deliveries/{id}/redeliver`
+  - event catalog: `GET /webhooks/event-types`
+
+### Webhook Event Types
+- `expense.created`
+- `expense.updated`
+- `expense.deleted`
+- `bill.created`
+- `bill.updated`
+- `bill.deleted`
+- `bill.due`
+- `subscription.updated`
+- `profile.updated`
+
+Each webhook request is signed with HMAC SHA-256 and includes:
+- `X-FinMind-Event`
+- `X-FinMind-Timestamp`
+- `X-FinMind-Signature` (`sha256=<digest>`, signed over `<timestamp>.<raw_json_payload>`)
+
+Delivery retry policy:
+- exponential backoff starting at 1 minute and capped at 1 hour
+- up to 7 retries before marking a delivery as failed
 
 ## MVP UI/UX Plan
 - Auth screens: register/login.
