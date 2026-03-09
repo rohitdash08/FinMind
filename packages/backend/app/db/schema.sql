@@ -84,6 +84,19 @@ CREATE INDEX IF NOT EXISTS idx_bills_user_due ON bills(user_id, next_due_date);
 ALTER TABLE bills
   ADD COLUMN IF NOT EXISTS autopay_enabled BOOLEAN NOT NULL DEFAULT FALSE;
 
+CREATE TABLE IF NOT EXISTS savings_goals (
+  id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name VARCHAR(200) NOT NULL,
+  target_amount NUMERIC(12,2) NOT NULL,
+  current_amount NUMERIC(12,2) NOT NULL DEFAULT 0,
+  currency VARCHAR(10) NOT NULL DEFAULT 'INR',
+  target_date DATE,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_savings_goals_user_target ON savings_goals(user_id, target_date);
+
 CREATE TABLE IF NOT EXISTS reminders (
   id SERIAL PRIMARY KEY,
   user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
