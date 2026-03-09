@@ -19,10 +19,12 @@ from datetime import datetime
 from typing import Optional, Dict, Any, List
 from dataclasses import dataclass
 from enum import Enum
+from urllib.parse import urlparse
+import re
 
 from flask import current_app
 from ..extensions import db
-from ..models import Webhook, WebhookDelivery, WebhookDeliveryStatus
+from ..models import Webhook, WebhookDelivery, WebhookDeliveryStatus, WebhookAuditLog
 
 logger = logging.getLogger("finmind.webhooks")
 
@@ -59,6 +61,36 @@ class WebhookService:
         self.retry_delay = 5  # seconds
         self.max_retry_delay = 60  # seconds
         self.timeout = 10  # seconds
+        self._validate_config()
+
+    def _validate_config(self) -> bool:
+        """Validate webhook service configuration"""
+        errors = []
+        
+        try:
+            # Validate timeout
+            if self.timeout <= 0:
+                errors.append("Timeout must be positive")
+            
+            # Validate retry delay
+            if self.retry_delay <= 0:
+                errors.append("Retry delay must be positive")
+            
+            if self.max_retry_delay < self.retry_delay:
+                errors.append("Max retry delay must be greater than or equal to retry delay")
+            
+            # Validate max retries
+            if self.max_retries < 0:
+                errors.append("Max retries must be non-negative")
+            
+            if errors:
+                logger.error(f"Webhook service configuration errors: {', '.join(errors)}")
+                return False
+            
+            return True
+        except Exception as e:
+            logger.error(f"Error validating webhook service config: {e}", exc_info=True)
+            return False
 
     def _get_webhook_secret(self) -> str:
         """Get webhook signing secret from config"""
@@ -86,6 +118,44 @@ class WebhookService:
         """Generate idempotency key to prevent duplicate deliveries"""
         return f"{event_type}:{user_id}:{int(time.time())}"
 
+    def _validate_url(self, url: str) -> tuple[bool, str]:
+        """Validate webhook URL"""
+        if not url:
+            return False, "URL is required"
+        
+        if len(url) > 500:
+            return False, "URL exceeds maximum length of 500 characters"
+        
+        if not url.startswith(("http://", "https://")):
+            return False, "URL must start with http:// or https://"
+        
+        try:
+            parsed = urlparse(url)
+            if not parsed.scheme or not parsed.netloc:
+                return False, "Invalid URL format"
+            
+            # Block common malicious patterns
+            malicious_patterns = [
+                r'javascript:',
+                r'data:',
+                r'file:',
+                r'\.\./',
+                r'\\',
+            ]
+            
+            for pattern in malicious_patterns:
+                if re.search(pattern, url, re.IGNORECASE):
+                    return False, f"URL contains blocked pattern: {pattern}"
+            
+            # Allow only common domains (optional, can be configured)
+            allowed_domains = current_app.config.get('WEBHOOK_ALLOWED_DOMAINS', [])
+            if allowed_domains and parsed.netloc not in allowed_domains:
+                return False, f"URL domain not allowed: {parsed.netloc}"
+            
+            return True, "Valid"
+        except Exception as e:
+            return False, f"URL validation error: {str(e)}"
+
     def _build_payload(
         self,
         event_type: WebhookEventType,
@@ -107,53 +177,60 @@ class WebhookService:
     def _deliver_webhook(self, payload: WebhookPayload) -> bool:
         """Deliver webhook to registered endpoints"""
         trace_id = payload.trace_id or "unknown"
-
+        
         logger.info(
             f"[{trace_id}] Delivering webhook event={payload.event_type.value} "
             f"user_id={payload.user_id}"
         )
 
-        # Get all webhooks for this user
-        webhooks = db.session.query(Webhook).filter_by(
-            user_id=payload.user_id,
-            active=True
-        ).all()
+        webhooks = []
+        try:
+            # Get all webhooks for this user
+            webhooks = db.session.query(Webhook).filter_by(
+                user_id=payload.user_id,
+                active=True
+            ).all()
 
-        if not webhooks:
-            logger.debug(f"[{trace_id}] No active webhooks for user {payload.user_id}")
-            return True
+            if not webhooks:
+                logger.debug(f"[{trace_id}] No active webhooks for user {payload.user_id}")
+                return True
 
-        success_count = 0
-        failed_count = 0
+            success_count = 0
+            failed_count = 0
 
-        for webhook in webhooks:
-            try:
-                # Check if this webhook should receive this event
-                if not self._should_deliver_event(webhook, payload.event_type):
-                    logger.debug(
-                        f"[{trace_id}] Skipping webhook {webhook.id} "
-                        f"(event filtered)"
-                    )
-                    continue
+            for webhook in webhooks:
+                try:
+                    if not self._should_deliver_event(webhook, payload.event_type):
+                        logger.debug(
+                            f"[{trace_id}] Skipping webhook {webhook.id} "
+                            f"(event filtered)"
+                        )
+                        continue
 
-                result = self._deliver_single_webhook(webhook, payload)
-                if result:
-                    success_count += 1
-                else:
+                    result = self._deliver_single_webhook(webhook, payload)
+                    if result:
+                        success_count += 1
+                    else:
+                        failed_count += 1
+                except Exception as e:
                     failed_count += 1
+                    logger.error(
+                        f"[{trace_id}] Failed to deliver webhook {webhook.id}: {e}",
+                        exc_info=True
+                    )
+
+            logger.info(
+                f"[{trace_id}] Webhook delivery complete: "
+                f"success={success_count}, failed={failed_count}"
+            )
+
+            return success_count > 0 and failed_count == 0
+        finally:
+            # Clean up sessions
+            try:
+                db.session.close()
             except Exception as e:
-                failed_count += 1
-                logger.error(
-                    f"[{trace_id}] Failed to deliver webhook {webhook.id}: {e}",
-                    exc_info=True
-                )
-
-        logger.info(
-            f"[{trace_id}] Webhook delivery complete: "
-            f"success={success_count}, failed={failed_count}"
-        )
-
-        return success_count > 0 and failed_count == 0
+                logger.error(f"Error closing session: {e}", exc_info=True)
 
     def _should_deliver_event(
         self,
@@ -201,6 +278,7 @@ class WebhookService:
             "X-Webhook-Trace-Id": trace_id,
         }
 
+        response = None
         try:
             response = requests.post(
                 webhook.url,
@@ -251,8 +329,8 @@ class WebhookService:
                         f"{self.max_retries} retries: webhook={webhook.id}, "
                         f"event={event_value}"
                     )
+                    self._notify_webhook_failure(webhook, payload, response.text[:200])
             else:
-                # Update last_delivered_at on webhook
                 webhook.last_delivered_at = datetime.utcnow()
 
             db.session.add(delivery)
@@ -285,6 +363,23 @@ class WebhookService:
             return self._handle_delivery_error(
                 webhook, payload, f"Request failed: {str(e)}"
             )
+        except Exception as e:
+            logger.error(
+                f"[{trace_id}] Unexpected error delivering webhook: {e}",
+                exc_info=True
+            )
+            try:
+                db.session.rollback()
+            except Exception as rollback_error:
+                logger.error(f"Error rolling back session: {rollback_error}", exc_info=True)
+            return False
+        finally:
+            # Ensure connection is properly closed
+            if response is not None:
+                try:
+                    response.close()
+                except Exception as e:
+                    logger.error(f"Error closing response: {e}", exc_info=True)
 
     def _handle_delivery_error(
         self,
@@ -316,24 +411,73 @@ class WebhookService:
             delivery.status = WebhookDeliveryStatus.RETRYING.value
             delivery.retry_count = 1
             self._schedule_retry(delivery)
+        else:
+            # Log alert for persistent failures
+            logger.error(
+                f"[{trace_id}] Webhook delivery failed after {self.max_retries} retries: "
+                f"webhook={webhook.id}, url={webhook.url}, event={event_value}, "
+                f"error={error_message}"
+            )
+            self._notify_webhook_failure(webhook, payload, error_message)
 
         db.session.add(delivery)
         db.session.commit()
 
         return False
 
+    def _notify_webhook_failure(self, webhook: Webhook, payload: WebhookPayload, error_message: str):
+        """Notify admins about webhook failures"""
+        try:
+            # Use email or other notification system
+            # Example with email
+            if current_app.config.get('WEBHOOK_FAILURE_NOTIFICATION_EMAIL'):
+                # Implement email sending logic here
+                pass
+            
+            # Or use alerting system like Sentry, PagerDuty, etc.
+            if current_app.config.get('WEBHOOK_FAILURE_ALERT_WEBHOOK'):
+                # Send to external alerting system
+                pass
+                
+        except Exception as e:
+            logger.error(f"Failed to send webhook failure notification: {e}", exc_info=True)
+
     def _schedule_retry(self, delivery: WebhookDelivery) -> None:
         """Schedule a retry for failed webhook delivery"""
-        # In a real implementation, this would use a background task system
-        # For now, we'll just log it
-        logger.info(
-            f"Webhook retry scheduled: webhook={delivery.webhook_id}, "
-            f"event={delivery.event_type}, attempt={delivery.retry_count}"
-        )
+        try:
+            # Import here to avoid circular dependency
+            from ..tasks import retry_webhook_delivery
+            
+            retry_webhook_delivery.apply_async(
+                args=[delivery.id],
+                countdown=self.retry_delay * delivery.retry_count,
+                retry=True,
+                retry_policy={
+                    'max_retries': self.max_retries - delivery.retry_count,
+                    'interval_start': self.retry_delay,
+                    'interval_step': self.retry_delay,
+                    'interval_max': self.max_retry_delay,
+                }
+            )
+            logger.info(
+                f"Webhook retry scheduled: webhook={delivery.webhook_id}, "
+                f"event={delivery.event_type}, attempt={delivery.retry_count}"
+            )
+        except Exception as e:
+            logger.error(f"Failed to schedule retry: {e}", exc_info=True)
 
     def _serialize_payload(self, payload_dict: Dict[str, Any]) -> str:
         """Serialize payload to JSON string"""
-        return json.dumps(payload_dict, sort_keys=True)
+        try:
+            return json.dumps(payload_dict, sort_keys=True, default=str)
+        except (TypeError, ValueError) as e:
+            logger.error(f"Failed to serialize payload: {e}", exc_info=True)
+            # Return minimal payload for error case
+            return json.dumps({
+                "event_type": payload_dict.get("event_type"),
+                "error": "Payload serialization failed",
+                "timestamp": payload_dict.get("timestamp")
+            }, sort_keys=True, default=str)
 
     def _emit_expense(
         self,
@@ -369,8 +513,12 @@ class WebhookService:
         payload = self._build_payload(WebhookEventType.EXPENSE_DELETED, data, user_id)
         return self._deliver_webhook(payload)
 
-    def emit_bill_created(self, bill: Any) -> bool:
-        """Emit webhook when bill is created"""
+    def _emit_bill(
+        self,
+        event_type: WebhookEventType,
+        bill: Any
+    ) -> bool:
+        """Emit bill webhook (common method for created/updated events)"""
         data = {
             "id": bill.id,
             "name": bill.name,
@@ -382,24 +530,16 @@ class WebhookService:
             "channel_whatsapp": bill.channel_whatsapp,
             "channel_email": bill.channel_email,
         }
-        payload = self._build_payload(WebhookEventType.BILL_CREATED, data, bill.user_id)
+        payload = self._build_payload(event_type, data, bill.user_id)
         return self._deliver_webhook(payload)
+
+    def emit_bill_created(self, bill: Any) -> bool:
+        """Emit webhook when bill is created"""
+        return self._emit_bill(WebhookEventType.BILL_CREATED, bill)
 
     def emit_bill_updated(self, bill: Any) -> bool:
         """Emit webhook when bill is updated"""
-        data = {
-            "id": bill.id,
-            "name": bill.name,
-            "amount": float(bill.amount),
-            "currency": bill.currency,
-            "next_due_date": bill.next_due_date.isoformat(),
-            "cadence": bill.cadence.value,
-            "autopay_enabled": bill.autopay_enabled,
-            "channel_whatsapp": bill.channel_whatsapp,
-            "channel_email": bill.channel_email,
-        }
-        payload = self._build_payload(WebhookEventType.BILL_UPDATED, data, bill.user_id)
-        return self._deliver_webhook(payload)
+        return self._emit_bill(WebhookEventType.BILL_UPDATED, bill)
 
     def emit_bill_paid(self, bill_id: int, user_id: int) -> bool:
         """Emit webhook when bill is marked as paid"""

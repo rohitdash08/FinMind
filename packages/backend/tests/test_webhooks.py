@@ -242,7 +242,7 @@ def test_webhook_idempotency_key_generation():
         WebhookEventType.EXPENSE_CREATED,
         123
     )
-    key2 = webhook_service._generate_idempency_key(
+    key2 = webhook_service._generate_idempotency_key(
         WebhookEventType.EXPENSE_CREATED,
         456
     )
