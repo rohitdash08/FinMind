@@ -37,7 +37,44 @@ export type DashboardSummary = {
   errors?: string[];
 };
 
+export type MultiAccountOverview = {
+  period: { month: string };
+  aggregated: {
+    monthly_income: number;
+    monthly_expenses: number;
+    net_flow: number;
+    upcoming_bills_total: number;
+    upcoming_bills_count: number;
+    account_count: number;
+  };
+  accounts: Array<{
+    account_key: string;
+    summary: {
+      net_flow: number;
+      monthly_income: number;
+      monthly_expenses: number;
+      upcoming_bills_total: number;
+      upcoming_bills_count: number;
+    };
+    errors?: string[];
+  }>;
+  errors?: string[];
+};
+
 export async function getDashboardSummary(month?: string): Promise<DashboardSummary> {
   const query = month ? `?month=${encodeURIComponent(month)}` : '';
   return api<DashboardSummary>(`/dashboard/summary${query}`);
+}
+
+export async function getMultiAccountOverview(
+  month?: string,
+  accountKeys?: string[],
+): Promise<MultiAccountOverview> {
+  const params = new URLSearchParams();
+  if (month) params.set('month', month);
+  if (accountKeys && accountKeys.length > 0) {
+    params.set('account_keys', accountKeys.join(','));
+  }
+  const query = params.toString();
+  return api<MultiAccountOverview>(`/dashboard/multi-account-overview${query ? `?${query}` : ''}`);
 }

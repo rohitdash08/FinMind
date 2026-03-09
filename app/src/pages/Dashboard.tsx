@@ -18,8 +18,14 @@ import {
   AlertTriangle,
   Calendar,
   Plus,
+  Landmark,
 } from 'lucide-react';
-import { getDashboardSummary, type DashboardSummary } from '@/api/dashboard';
+import {
+  getDashboardSummary,
+  getMultiAccountOverview,
+  type DashboardSummary,
+  type MultiAccountOverview,
+} from '@/api/dashboard';
 import { useNavigate } from 'react-router-dom';
 import { formatMoney } from '@/lib/currency';
 
@@ -30,24 +36,33 @@ function currency(n: number, code?: string) {
 export function Dashboard() {
   const navigate = useNavigate();
   const [data, setData] = useState<DashboardSummary | null>(null);
+  const [overview, setOverview] = useState<MultiAccountOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  const [selectedAccount, setSelectedAccount] = useState('ALL');
 
   useEffect(() => {
     (async () => {
       setLoading(true);
       setError(null);
       try {
-        const res = await getDashboardSummary(month);
-        setData(res);
+        const [summaryRes, overviewRes] = await Promise.all([
+          getDashboardSummary(month),
+          getMultiAccountOverview(
+            month,
+            selectedAccount === 'ALL' ? undefined : [selectedAccount],
+          ),
+        ]);
+        setData(summaryRes);
+        setOverview(overviewRes);
       } catch (error: unknown) {
         setError(error instanceof Error ? error.message : 'Failed to load dashboard');
       } finally {
         setLoading(false);
       }
     })();
-  }, [month]);
+  }, [month, selectedAccount]);
 
   const summary = useMemo(() => {
     if (!data) {
@@ -100,6 +115,8 @@ export function Dashboard() {
   const transactions = data?.recent_transactions ?? [];
   const upcomingBills = data?.upcoming_bills ?? [];
   const categoryBreakdown = data?.category_breakdown ?? [];
+  const accountCards = overview?.accounts ?? [];
+  const accountCount = overview?.aggregated?.account_count ?? 0;
 
   return (
     <div className="page-wrap">
@@ -130,6 +147,56 @@ export function Dashboard() {
           </div>
         </div>
       </div>
+
+      <FinancialCard variant="financial" className="fade-in-up mb-6">
+        <FinancialCardHeader>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <FinancialCardTitle className="section-title">Account Overview</FinancialCardTitle>
+              <FinancialCardDescription>
+                Combined totals across {accountCount} account(s) for {month}
+              </FinancialCardDescription>
+            </div>
+            <div className="flex items-center gap-2">
+              <Landmark className="w-4 h-4 text-muted-foreground" />
+              <label className="sr-only" htmlFor="dashboard-account">Dashboard account</label>
+              <select
+                id="dashboard-account"
+                aria-label="Dashboard account"
+                className="input h-9 min-w-[170px]"
+                value={selectedAccount}
+                onChange={(event) => setSelectedAccount(event.target.value)}
+              >
+                <option value="ALL">All Accounts</option>
+                {accountCards.map((account) => (
+                  <option key={account.account_key} value={account.account_key}>
+                    {account.account_key}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </FinancialCardHeader>
+        <FinancialCardContent>
+          {accountCards.length === 0 ? (
+            <div className="text-sm text-muted-foreground">No account data available for this period.</div>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {accountCards.map((account) => (
+                <div key={account.account_key} className="card p-3">
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground mb-1">{account.account_key}</div>
+                  <div className="text-sm text-foreground font-medium">
+                    Net {currency(account.summary.net_flow, account.account_key)}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    In {currency(account.summary.monthly_income, account.account_key)} · Out {currency(account.summary.monthly_expenses, account.account_key)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </FinancialCardContent>
+      </FinancialCard>
 
       {error && (
         <div className="error mb-6">{error}. Showing empty fallback state.</div>
