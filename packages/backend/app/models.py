@@ -1,6 +1,6 @@
 from datetime import datetime, date
 from enum import Enum
-from sqlalchemy import Enum as SAEnum
+from sqlalchemy import Enum as SAEnum, Index
 from .extensions import db
 
 
@@ -132,4 +132,66 @@ class AuditLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class Webhook(db.Model):
+    __tablename__ = "webhooks"
+    __table_args__ = (
+        Index('idx_webhook_user_active', 'user_id', 'active'),
+        Index('idx_webhook_user_created', 'user_id', 'created_at'),
+    )
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    url = db.Column(db.String(500), nullable=False)
+    secret = db.Column(db.String(100), nullable=True)  # Optional custom secret
+    events = db.Column(db.JSON, nullable=True)  # Filter for specific events
+    active = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    last_delivered_at = db.Column(db.DateTime, nullable=True)
+    # Version field for optimistic locking
+    version = db.Column(db.Integer, default=0, nullable=False)
+
+
+class WebhookDeliveryStatus(str, Enum):
+    """Delivery status enum"""
+    PENDING = "pending"
+    SENT = "sent"
+    FAILED = "failed"
+    RETRYING = "retrying"
+
+
+class WebhookDelivery(db.Model):
+    __tablename__ = "webhook_deliveries"
+    __table_args__ = (
+        Index('idx_delivery_webhook_status', 'webhook_id', 'status'),
+        Index('idx_delivery_webhook_created', 'webhook_id', 'created_at'),
+    )
+    
+    id = db.Column(db.Integer, primary_key=True)
+    webhook_id = db.Column(db.Integer, db.ForeignKey("webhooks.id"), nullable=False)
+    event_type = db.Column(db.String(100), nullable=False)
+    payload = db.Column(db.JSON, nullable=True)
+    status = db.Column(db.String(20), nullable=False, default=WebhookDeliveryStatus.PENDING.value)
+    response_status = db.Column(db.Integer, nullable=True)
+    error_message = db.Column(db.Text, nullable=True)
+    retry_count = db.Column(db.Integer, default=0, nullable=False)
+    last_attempt_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    # Version field for optimistic locking
+    version = db.Column(db.Integer, default=0, nullable=False)
+
+
+class WebhookAuditLog(db.Model):
+    """Audit log for webhook operations"""
+    __tablename__ = "webhook_audit_logs"
+    id = db.Column(db.Integer, primary_key=True)
+    webhook_id = db.Column(db.Integer, db.ForeignKey("webhooks.id"), nullable=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    action = db.Column(db.String(50), nullable=False)  # created, updated, deleted, activated, deactivated
+    old_data = db.Column(db.JSON, nullable=True)
+    new_data = db.Column(db.JSON, nullable=True)
+    ip_address = db.Column(db.String(45), nullable=True)
+    user_agent = db.Column(db.String(500), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
