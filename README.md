@@ -62,6 +62,7 @@ See `backend/app/db/schema.sql`. Key tables:
 ## API Endpoints
 OpenAPI: `backend/app/openapi.yaml`
 - Auth: `/auth/register`, `/auth/login`, `/auth/refresh`
+- Dashboard: `/dashboard/summary`, `/dashboard/multi-account-overview`
 - Expenses: CRUD `/expenses`
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
@@ -70,6 +71,8 @@ OpenAPI: `backend/app/openapi.yaml`
 ## MVP UI/UX Plan
 - Auth screens: register/login.
 - Dashboard:
+  - Multi-account overview cards with combined totals and per-account net flow.
+  - Account filter for consolidated or single-account financial view.
   - Monthly spend chart, category breakdown donut.
   - Upcoming bills list with due dates and pay status.
   - AI budget suggestion card.

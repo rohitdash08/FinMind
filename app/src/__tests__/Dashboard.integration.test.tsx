@@ -11,13 +11,49 @@ jest.mock('@/components/ui/button', () => ({
 }));
 
 const getDashboardSummaryMock = jest.fn();
+const getMultiAccountOverviewMock = jest.fn();
 jest.mock('@/api/dashboard', () => ({
   getDashboardSummary: (...args: unknown[]) => getDashboardSummaryMock(...args),
+  getMultiAccountOverview: (...args: unknown[]) => getMultiAccountOverviewMock(...args),
 }));
 
 describe('Dashboard integration', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    getMultiAccountOverviewMock.mockResolvedValue({
+      period: { month: '2026-02' },
+      aggregated: {
+        monthly_income: 3200,
+        monthly_expenses: 550,
+        net_flow: 2650,
+        upcoming_bills_total: 49.99,
+        upcoming_bills_count: 1,
+        account_count: 2,
+      },
+      accounts: [
+        {
+          account_key: 'USD',
+          summary: {
+            net_flow: 1900,
+            monthly_income: 2200,
+            monthly_expenses: 300,
+            upcoming_bills_total: 49.99,
+            upcoming_bills_count: 1,
+          },
+        },
+        {
+          account_key: 'EUR',
+          summary: {
+            net_flow: 750,
+            monthly_income: 1000,
+            monthly_expenses: 250,
+            upcoming_bills_total: 0,
+            upcoming_bills_count: 0,
+          },
+        },
+      ],
+      errors: [],
+    });
   });
 
   it('renders summary, transactions and upcoming bills from backend payload', async () => {
@@ -74,8 +110,8 @@ describe('Dashboard integration', () => {
     await waitFor(() => expect(getDashboardSummaryMock).toHaveBeenCalled());
 
     expect(screen.getByText(/financial dashboard/i)).toBeInTheDocument();
-    expect(screen.getByText(/salary/i)).toBeInTheDocument();
-    expect(screen.getByText(/internet/i)).toBeInTheDocument();
+    expect(await screen.findByText(/salary/i)).toBeInTheDocument();
+    expect(await screen.findByText(/internet/i)).toBeInTheDocument();
     expect(screen.getByText(/category breakdown/i)).toBeInTheDocument();
   });
 
@@ -138,5 +174,37 @@ describe('Dashboard integration', () => {
     await waitFor(() => expect(getDashboardSummaryMock).toHaveBeenCalledTimes(1));
     fireEvent.change(screen.getByLabelText(/dashboard month/i), { target: { value: '2026-01' } });
     await waitFor(() => expect(getDashboardSummaryMock).toHaveBeenLastCalledWith('2026-01'));
+  });
+
+  it('shows multi-account combined totals and per-account overview', async () => {
+    const currentMonth = new Date().toISOString().slice(0, 7);
+    getDashboardSummaryMock.mockResolvedValue({
+      period: { month: '2026-02' },
+      summary: {
+        net_flow: 2650,
+        monthly_income: 3200,
+        monthly_expenses: 550,
+        upcoming_bills_total: 49.99,
+        upcoming_bills_count: 1,
+      },
+      recent_transactions: [],
+      upcoming_bills: [],
+      category_breakdown: [],
+      errors: [],
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/dashboard']}>
+        <Routes>
+          <Route path="/dashboard" element={<Dashboard />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(getMultiAccountOverviewMock).toHaveBeenCalledWith(currentMonth, undefined));
+    expect(screen.getByRole('heading', { name: /account overview/i })).toBeInTheDocument();
+    expect((await screen.findAllByText('USD')).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText('EUR')).length).toBeGreaterThan(0);
+    expect(await screen.findByText(/2 account\(s\)/i)).toBeInTheDocument();
   });
 });

@@ -22,6 +22,89 @@ def dashboard_summary():
     if cached:
         return jsonify(cached)
 
+    payload = _build_account_summary(uid=uid, ym=ym, account_key=None)
+    cache_set(key, payload, ttl_seconds=300)
+    return jsonify(payload)
+
+
+@bp.get("/multi-account-overview")
+@jwt_required()
+def multi_account_overview():
+    uid = int(get_jwt_identity())
+    ym = (request.args.get("month") or date.today().strftime("%Y-%m")).strip()
+    if not _is_valid_month(ym):
+        return jsonify(error="invalid month, expected YYYY-MM"), 400
+
+    account_keys_raw = (request.args.get("account_keys") or "").strip()
+    account_keys: list[str] = []
+    if account_keys_raw:
+        account_keys = [
+            k.strip().upper() for k in account_keys_raw.split(",") if k.strip()
+        ]
+    else:
+        expense_keys = {
+            (row[0] or "UNKNOWN").upper()
+            for row in db.session.query(Expense.currency)
+            .filter(Expense.user_id == uid)
+            .distinct()
+            .all()
+        }
+        bill_keys = {
+            (row[0] or "UNKNOWN").upper()
+            for row in db.session.query(Bill.currency)
+            .filter(Bill.user_id == uid, Bill.active.is_(True))
+            .distinct()
+            .all()
+        }
+        account_keys = sorted(expense_keys | bill_keys)
+
+    accounts = []
+    aggregated = {
+        "monthly_income": 0.0,
+        "monthly_expenses": 0.0,
+        "net_flow": 0.0,
+        "upcoming_bills_total": 0.0,
+        "upcoming_bills_count": 0,
+        "account_count": len(account_keys),
+    }
+    errors: set[str] = set()
+
+    for account_key in account_keys:
+        account_payload = _build_account_summary(
+            uid=uid, ym=ym, account_key=account_key
+        )
+        accounts.append(
+            {
+                "account_key": account_key,
+                "summary": account_payload["summary"],
+                "errors": account_payload["errors"],
+            }
+        )
+        summary = account_payload["summary"]
+        aggregated["monthly_income"] += float(summary["monthly_income"])
+        aggregated["monthly_expenses"] += float(summary["monthly_expenses"])
+        aggregated["upcoming_bills_total"] += float(summary["upcoming_bills_total"])
+        aggregated["upcoming_bills_count"] += int(summary["upcoming_bills_count"])
+        errors.update(account_payload.get("errors", []))
+
+    aggregated["monthly_income"] = round(aggregated["monthly_income"], 2)
+    aggregated["monthly_expenses"] = round(aggregated["monthly_expenses"], 2)
+    aggregated["upcoming_bills_total"] = round(aggregated["upcoming_bills_total"], 2)
+    aggregated["net_flow"] = round(
+        aggregated["monthly_income"] - aggregated["monthly_expenses"], 2
+    )
+
+    return jsonify(
+        {
+            "period": {"month": ym},
+            "aggregated": aggregated,
+            "accounts": accounts,
+            "errors": sorted(errors),
+        }
+    )
+
+
+def _build_account_summary(uid: int, ym: str, account_key: str | None):
     payload = {
         "period": {"month": ym},
         "summary": {
@@ -41,17 +124,13 @@ def dashboard_summary():
     today = date.today()
 
     try:
-        income = (
-            db.session.query(func.coalesce(func.sum(Expense.amount), 0))
-            .filter(
-                Expense.user_id == uid,
-                extract("year", Expense.spent_at) == year,
-                extract("month", Expense.spent_at) == month,
-                Expense.expense_type == "INCOME",
-            )
-            .scalar()
+        income_q = db.session.query(func.coalesce(func.sum(Expense.amount), 0)).filter(
+            Expense.user_id == uid,
+            extract("year", Expense.spent_at) == year,
+            extract("month", Expense.spent_at) == month,
+            Expense.expense_type == "INCOME",
         )
-        expenses = (
+        expenses_q = (
             db.session.query(func.coalesce(func.sum(Expense.amount), 0))
             .filter(
                 Expense.user_id == uid,
@@ -59,8 +138,14 @@ def dashboard_summary():
                 extract("month", Expense.spent_at) == month,
                 Expense.expense_type != "INCOME",
             )
-            .scalar()
         )
+        if account_key:
+            income_q = income_q.filter(func.upper(Expense.currency) == account_key)
+            expenses_q = expenses_q.filter(func.upper(Expense.currency) == account_key)
+
+        income = income_q.scalar()
+        expenses = expenses_q.scalar()
+
         payload["summary"]["monthly_income"] = float(income or 0)
         payload["summary"]["monthly_expenses"] = float(expenses or 0)
         payload["summary"]["net_flow"] = round(
@@ -72,13 +157,11 @@ def dashboard_summary():
         payload["errors"].append("summary_unavailable")
 
     try:
-        rows = (
-            db.session.query(Expense)
-            .filter(Expense.user_id == uid)
-            .order_by(Expense.spent_at.desc(), Expense.id.desc())
-            .limit(10)
-            .all()
-        )
+        tx_q = db.session.query(Expense).filter(Expense.user_id == uid)
+        if account_key:
+            tx_q = tx_q.filter(func.upper(Expense.currency) == account_key)
+
+        rows = tx_q.order_by(Expense.spent_at.desc(), Expense.id.desc()).limit(10).all()
         payload["recent_transactions"] = [
             {
                 "id": e.id,
@@ -95,17 +178,15 @@ def dashboard_summary():
         payload["errors"].append("recent_transactions_unavailable")
 
     try:
-        bills = (
-            db.session.query(Bill)
-            .filter(
-                Bill.user_id == uid,
-                Bill.active.is_(True),
-                Bill.next_due_date >= today,
-            )
-            .order_by(Bill.next_due_date.asc())
-            .limit(8)
-            .all()
+        bills_q = db.session.query(Bill).filter(
+            Bill.user_id == uid,
+            Bill.active.is_(True),
+            Bill.next_due_date >= today,
         )
+        if account_key:
+            bills_q = bills_q.filter(func.upper(Bill.currency) == account_key)
+
+        bills = bills_q.order_by(Bill.next_due_date.asc()).limit(8).all()
         payload["upcoming_bills"] = [
             {
                 "id": b.id,
@@ -127,7 +208,7 @@ def dashboard_summary():
         payload["errors"].append("upcoming_bills_unavailable")
 
     try:
-        category_rows = (
+        category_q = (
             db.session.query(
                 Expense.category_id,
                 func.coalesce(Category.name, "Uncategorized").label("category_name"),
@@ -143,7 +224,12 @@ def dashboard_summary():
                 extract("month", Expense.spent_at) == month,
                 Expense.expense_type != "INCOME",
             )
-            .group_by(Expense.category_id, Category.name)
+        )
+        if account_key:
+            category_q = category_q.filter(func.upper(Expense.currency) == account_key)
+
+        category_rows = (
+            category_q.group_by(Expense.category_id, Category.name)
             .order_by(func.sum(Expense.amount).desc())
             .all()
         )
@@ -163,9 +249,7 @@ def dashboard_summary():
         ]
     except Exception:
         payload["errors"].append("category_breakdown_unavailable")
-
-    cache_set(key, payload, ttl_seconds=300)
-    return jsonify(payload)
+    return payload
 
 
 def _is_valid_month(ym: str) -> bool:
