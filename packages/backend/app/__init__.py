@@ -110,10 +110,69 @@ def _ensure_schema_compatibility(app: Flask) -> None:
             NOT NULL DEFAULT 'INR'
             """
         )
+        cur.execute(
+            """
+            DO $$ BEGIN
+              CREATE TYPE household_role AS ENUM ('ADMIN','MEMBER');
+            EXCEPTION
+              WHEN duplicate_object THEN NULL;
+            END $$;
+            """
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS households (
+              id SERIAL PRIMARY KEY,
+              name VARCHAR(150) NOT NULL,
+              invite_code VARCHAR(32) UNIQUE NOT NULL,
+              created_by INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              created_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+            """
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS household_members (
+              id SERIAL PRIMARY KEY,
+              household_id INT NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+              user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              role household_role NOT NULL DEFAULT 'MEMBER',
+              created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+              CONSTRAINT uq_household_member UNIQUE (household_id, user_id)
+            )
+            """
+        )
+        cur.execute(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_household_members_user_unique
+            ON household_members(user_id)
+            """
+        )
+        cur.execute(
+            """
+            ALTER TABLE categories
+            ADD COLUMN IF NOT EXISTS household_id INT
+            REFERENCES households(id) ON DELETE SET NULL
+            """
+        )
+        cur.execute(
+            """
+            ALTER TABLE expenses
+            ADD COLUMN IF NOT EXISTS household_id INT
+            REFERENCES households(id) ON DELETE SET NULL
+            """
+        )
+        cur.execute(
+            """
+            ALTER TABLE bills
+            ADD COLUMN IF NOT EXISTS household_id INT
+            REFERENCES households(id) ON DELETE SET NULL
+            """
+        )
         conn.commit()
     except Exception:
         app.logger.exception(
-            "Schema compatibility patch failed for users.preferred_currency"
+            "Schema compatibility patch failed for household compatibility changes"
         )
         conn.rollback()
     finally:

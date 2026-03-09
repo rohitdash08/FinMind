@@ -45,7 +45,8 @@ flowchart LR
 
 ## PostgreSQL Schema (DDL)
 See `backend/app/db/schema.sql`. Key tables:
-- users, categories, expenses, bills, reminders
+- users, households, household_members
+- categories, expenses, bills, reminders (each supports optional `household_id` for shared records)
 - ad_impressions, subscription_plans, user_subscriptions
 - refresh_tokens (optional if rotating), audit_logs
 
@@ -62,8 +63,10 @@ See `backend/app/db/schema.sql`. Key tables:
 ## API Endpoints
 OpenAPI: `backend/app/openapi.yaml`
 - Auth: `/auth/register`, `/auth/login`, `/auth/refresh`
-- Expenses: CRUD `/expenses`
-- Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
+- Households: `/households`, `/households/current`, `/households/join`, `/households/leave`, `/households/members/{memberUserId}`
+- Categories: CRUD `/categories` (supports optional `household_id`)
+- Expenses: CRUD `/expenses` (supports optional `household_id`)
+- Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay` (supports optional `household_id`)
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
 - Insights: `/insights/monthly`, `/insights/budget-suggestion`
 
