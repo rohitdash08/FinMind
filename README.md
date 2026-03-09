@@ -45,7 +45,7 @@ flowchart LR
 
 ## PostgreSQL Schema (DDL)
 See `backend/app/db/schema.sql`. Key tables:
-- users, categories, expenses, bills, reminders
+- users, categories, expenses, bills, reminders, savings_goals
 - ad_impressions, subscription_plans, user_subscriptions
 - refresh_tokens (optional if rotating), audit_logs
 
@@ -66,6 +66,7 @@ OpenAPI: `backend/app/openapi.yaml`
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
 - Insights: `/insights/monthly`, `/insights/budget-suggestion`
+- Savings: goal tracking `/savings/goals`, contribute `/savings/goals/{id}/contributions`
 
 ## MVP UI/UX Plan
 - Auth screens: register/login.
