@@ -1,0 +1,11 @@
+{
+  "agent": "prospect-finder",
+  "role": "Finds and qualifies potential users for The Hub",
+  "timestamp": "2026-02-13T16:00:23.205Z",
+  "title": "Daily Prospect Scan",
+  "findings": [],
+  "stats": {
+    "totalCalls": 0,
+    "totalCost": 0
+  }
+}

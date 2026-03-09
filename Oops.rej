@@ -1,0 +1,89 @@
+@@ -34,6 +34,88 @@
+ - Use direct voice IDs instead of listing voices
+ - Verified working: 2026-02-06
+ 
++## The Hub Command Center
++- **URL:** http://localhost:4003
++- **Purpose:** Main API server + dashboard for The Hub
++- **Key endpoint:** `/api/dashboard/status` (system health, metrics)
++- **Startup:** `cd /Users/sydneyjackson/the-hub && PORT=4003 npm start`
++- **Logs:** `/Users/sydneyjackson/the-hub/logs/nohup-4003.log`
++- **Check regularly:** Server status, scraper health, Telegram bot, deal counts
++
++## Perplexity Sonar Research (OpenRouter)
++- **API Key:** `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`
++- **Location:** `tools/research.js` (Node.js) and `tools/research.py` (Python)
++- **Purpose:** Deep web research with citations in one API call
++- **Integrated:** 2026-02-10
++
++### Modes
++- **fast** - `perplexity/sonar-pro` (~$0.01/query, 2-3 seconds)
++- **reasoning** - `perplexity/sonar-reasoning` (more thoughtful)
++- **deep** - `perplexity/sonar-deep-research` (comprehensive, requires credits)
++
++### Usage Examples
++
++**Command Line (Node.js):**
++```bash
++# Quick research
++node tools/research.js "What are the best Rolex deals right now?"
++
++# Deep research
++node tools/research.js --mode deep "History of Nike Dunk market"
++
++# JSON output for parsing
++node tools/research.js --json "Current sneaker market trends"
++```
++
++**Command Line (Python):**
++```bash
++# Quick research
++python3 tools/research.py "Best Nike Dunk colorways under $200"
++
++# Deep mode
++python3 tools/research.py --mode deep "Luxury watch market analysis"
++```
++
++**Programmatic (Python for The Hub):**
++```python
++from tools.research import research, research_deals, research_market_trends
++
++# General research
++result = research("What are current Rolex market trends?")
++print(result['content'])      # Answer text
++print(result['citations'])    # Source URLs
++print(result['cost'])         # API cost
++
++# Deal-specific research
++deals = research_deals("Rolex Submariner", category="watches")
++
++# Market trends
++trends = research_market_trends("sneakers")
++```
++
++**Programmatic (Node.js):**
++```javascript
++const { research } = require('./tools/research.js');
++
++research("What are the best watch deals?", { mode: 'fast' })
++  .then(result => {
++    console.log(result.content);
++    console.log(result.citations);
++  });
++```
++
++### Integration Ideas
++- Morning brief research (stocks, sports, weather context)
++- Deal validation for The Hub scrapers
++- Market trend analysis for newsletters
++- Product research before scraping
++- Competitive intelligence
++
++### Cost Tracking
++- Fast mode: ~$0.01 per query
++- Deep mode: ~$0.05-0.10 per query (requires OpenRouter credits)
++- Monthly budget: TBD (track in memory files)
++
+ ## What Goes Here
+ 
+ Things like:
