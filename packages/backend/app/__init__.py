@@ -110,10 +110,17 @@ def _ensure_schema_compatibility(app: Flask) -> None:
             NOT NULL DEFAULT 'INR'
             """
         )
+        # Added in issue-76: audit_logs.details for richer PII audit trail
+        cur.execute(
+            """
+            ALTER TABLE audit_logs
+            ADD COLUMN IF NOT EXISTS details VARCHAR(500)
+            """
+        )
         conn.commit()
     except Exception:
         app.logger.exception(
-            "Schema compatibility patch failed for users.preferred_currency"
+            "Schema compatibility patch failed"
         )
         conn.rollback()
     finally:
