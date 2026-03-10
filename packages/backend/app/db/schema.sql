@@ -121,5 +121,12 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   id SERIAL PRIMARY KEY,
   user_id INT REFERENCES users(id) ON DELETE SET NULL,
   action VARCHAR(100) NOT NULL,
+  -- details holds optional free-text metadata for the audit event
+  -- (e.g. which endpoint triggered the event, anonymised IP, etc.)
+  details VARCHAR(500),
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+-- Migration: add details column if upgrading from an older schema
+ALTER TABLE audit_logs
+  ADD COLUMN IF NOT EXISTS details VARCHAR(500);
