@@ -17,6 +17,8 @@ class User(db.Model):
     preferred_currency = db.Column(db.String(10), default="INR", nullable=False)
     role = db.Column(db.String(20), default=Role.USER.value, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    deletion_requested_at = db.Column(db.DateTime, nullable=True)
+    deletion_scheduled_for = db.Column(db.DateTime, nullable=True)
 
 
 class Category(db.Model):
@@ -130,6 +132,11 @@ class UserSubscription(db.Model):
 class AuditLog(db.Model):
     __tablename__ = "audit_logs"
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    user_id = db.Column(
+        db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
     action = db.Column(db.String(100), nullable=False)
+    detail = db.Column(db.String(1000), nullable=True)
+    ip_address = db.Column(db.String(45), nullable=True)
+    user_agent = db.Column(db.String(500), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)

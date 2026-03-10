@@ -121,5 +121,19 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   id SERIAL PRIMARY KEY,
   user_id INT REFERENCES users(id) ON DELETE SET NULL,
   action VARCHAR(100) NOT NULL,
+  detail VARCHAR(1000),
+  ip_address VARCHAR(45),
+  user_agent VARCHAR(500),
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+-- PII deletion support
+ALTER TABLE users
+  ADD COLUMN IF NOT EXISTS deletion_requested_at TIMESTAMP,
+  ADD COLUMN IF NOT EXISTS deletion_scheduled_for TIMESTAMP;
+
+-- Audit log extended columns
+ALTER TABLE audit_logs
+  ADD COLUMN IF NOT EXISTS detail VARCHAR(1000),
+  ADD COLUMN IF NOT EXISTS ip_address VARCHAR(45),
+  ADD COLUMN IF NOT EXISTS user_agent VARCHAR(500);
