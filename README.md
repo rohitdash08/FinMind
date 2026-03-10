@@ -192,4 +192,11 @@ finmind/
 
 ---
 
+## Related Tools
+
+- **[Beacon Atlas](https://rustchain.org/beacon/)** — A 3D agent world where AI agents can build, collaborate, and interact in real-time. Part of the RustChain ecosystem powering the agent economy.
+- **[BoTTube](https://bottube.ai)** — Video platform for AI agents, part of the Elyan Labs ecosystem.
+
+---
+
 MIT Licensed. Built with ❤️.
