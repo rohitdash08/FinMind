@@ -133,3 +133,15 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+class AuditLog(db.Model):
+    """Immutable audit trail for GDPR-regulated actions."""
+
+    __tablename__ = "audit_logs"
+
+    id           = db.Column(db.Integer, primary_key=True)
+    user_id      = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"),
+                             nullable=False, index=True)
+    action       = db.Column(db.String(64), nullable=False)
+    detail       = db.Column(db.String(1000), nullable=True)
+    performed_at = db.Column(db.DateTime(timezone=True), nullable=False)
