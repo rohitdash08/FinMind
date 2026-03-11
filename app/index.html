@@ -11,6 +11,17 @@
     <meta property="og:title" content="FinMind - AI-Powered Financial Intelligence" />
     <meta property="og:description" content="Smart budget tracking and bill management with AI-powered insights to help you save more and stress less." />
     <meta property="og:type" content="website" />
+    <script>
+      (function () {
+        var stored = localStorage.getItem('finmind-ui-theme');
+        var valid = ['dark', 'light', 'system'];
+        var theme = valid.indexOf(stored) !== -1 ? stored : 'system';
+        var resolved = theme === 'system'
+          ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+          : theme;
+        document.documentElement.classList.add(resolved);
+      })();
+    </script>
   </head>
 
   <body>

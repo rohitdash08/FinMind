@@ -2,14 +2,16 @@ import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import { Navbar } from '@/components/layout/Navbar';
+import { ThemeProvider } from '@/hooks/use-theme';
 
-// Mock toast
 jest.mock('@/components/ui/use-toast', () => ({ useToast: () => ({ toast: jest.fn() }) }));
 
 const renderNav = () => render(
-  <BrowserRouter>
-    <Navbar />
-  </BrowserRouter>
+  <ThemeProvider defaultTheme="light" storageKey="test-theme">
+    <BrowserRouter>
+      <Navbar />
+    </BrowserRouter>
+  </ThemeProvider>
 );
 
 describe('Navbar auth state', () => {
