@@ -73,6 +73,74 @@
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
 
+  .dark {
+    --background: 222 47% 7%;
+    --foreground: 213 31% 91%;
+
+    --card: 222 47% 10%;
+    --card-foreground: 213 31% 91%;
+
+    --popover: 222 47% 10%;
+    --popover-foreground: 213 31% 91%;
+
+    --primary: 161 72% 45%;
+    --primary-foreground: 222 47% 7%;
+    --primary-hover: 161 72% 40%;
+    --primary-light: 161 30% 15%;
+
+    --secondary: 213 31% 91%;
+    --secondary-foreground: 222 47% 7%;
+    --secondary-hover: 213 31% 85%;
+    --secondary-light: 222 30% 15%;
+
+    --accent: 44 93% 56%;
+    --accent-foreground: 222 47% 7%;
+    --accent-hover: 44 93% 50%;
+    --accent-light: 44 40% 15%;
+
+    --success: 142 71% 45%;
+    --success-foreground: 222 47% 7%;
+    --success-light: 142 30% 15%;
+
+    --warning: 36 94% 55%;
+    --warning-foreground: 222 47% 7%;
+    --warning-light: 36 30% 15%;
+
+    --destructive: 0 72% 55%;
+    --destructive-foreground: 213 31% 91%;
+    --destructive-light: 0 30% 15%;
+
+    --muted: 222 30% 15%;
+    --muted-foreground: 215 20% 65%;
+    --muted-dark: 222 25% 20%;
+
+    --border: 215 20% 20%;
+    --input: 215 20% 20%;
+    --ring: 161 72% 45%;
+
+    --gradient-primary: linear-gradient(135deg, hsl(161 72% 45%), hsl(167 72% 50%));
+    --gradient-secondary: linear-gradient(135deg, hsl(213 31% 25%), hsl(215 28% 30%));
+    --gradient-hero: linear-gradient(135deg, hsl(213 31% 18%), hsl(161 72% 45%) 65%, hsl(44 93% 56%));
+    --gradient-card: linear-gradient(150deg, hsl(222 47% 10%), hsl(222 35% 12%));
+
+    --shadow-sm: 0 6px 20px hsl(220 40% 5% / 0.4);
+    --shadow-md: 0 12px 30px hsl(220 40% 5% / 0.5);
+    --shadow-lg: 0 20px 48px hsl(220 40% 5% / 0.6);
+    --shadow-xl: 0 28px 64px hsl(220 40% 5% / 0.7);
+    --shadow-primary: 0 14px 36px hsl(161 72% 45% / 0.35);
+
+    --radius: 0.95rem;
+
+    --sidebar-background: 222 47% 8%;
+    --sidebar-foreground: 213 31% 80%;
+    --sidebar-primary: 161 72% 45%;
+    --sidebar-primary-foreground: 222 47% 7%;
+    --sidebar-accent: 222 30% 15%;
+    --sidebar-accent-foreground: 213 31% 91%;
+    --sidebar-border: 215 20% 18%;
+    --sidebar-ring: 161 72% 45%;
+  }
+
   * {
     @apply border-border;
   }
@@ -116,8 +184,8 @@
 
   .page-header {
     @apply relative mb-8 overflow-hidden rounded-2xl border p-6 shadow-md backdrop-blur-xl md:p-8;
-    border-color: hsl(0 0% 100% / 0.5);
-    background-color: hsl(0 0% 100% / 0.75);
+    border-color: hsl(var(--border) / 0.5);
+    background-color: hsl(var(--card) / 0.75);
   }
 
   .page-header::before {
@@ -138,14 +206,14 @@
 
   .glass-nav {
     @apply sticky top-0 z-50 border-b shadow-sm backdrop-blur-xl;
-    border-color: hsl(0 0% 100% / 0.5);
-    background-color: hsl(0 0% 100% / 0.72);
+    border-color: hsl(var(--border) / 0.5);
+    background-color: hsl(var(--background) / 0.72);
   }
 
   .card {
     @apply rounded-2xl border p-5 shadow-md backdrop-blur;
-    border-color: hsl(0 0% 100% / 0.5);
-    background-color: hsl(0 0% 100% / 0.9);
+    border-color: hsl(var(--border) / 0.5);
+    background-color: hsl(var(--card) / 0.9);
   }
 
   .card-interactive {
@@ -232,7 +300,7 @@
   input.input,
   select.input,
   textarea.input {
-    @apply h-11 w-full rounded-lg border border-input bg-white px-3 text-sm outline-none transition-all focus:border-primary focus:ring-2;
+    @apply h-11 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none transition-all focus:border-primary focus:ring-2;
     --tw-ring-color: hsl(var(--primary) / 0.2);
   }
 
@@ -241,7 +309,7 @@
   }
 
   .error {
-    @apply rounded-lg border bg-destructive-light px-3 py-2 text-sm text-destructive;
+    @apply rounded-lg border bg-destructive/10 px-3 py-2 text-sm text-destructive;
     border-color: hsl(var(--destructive) / 0.25);
   }
 
@@ -251,7 +319,7 @@
   }
 
   .btn.secondary {
-    @apply border border-input bg-white text-foreground hover:bg-muted;
+    @apply border border-input bg-background text-foreground hover:bg-muted;
   }
 
   .list {
@@ -268,17 +336,17 @@
     background-image: linear-gradient(
       to right,
       hsl(var(--primary) / 0.1),
-      hsl(0 0% 100%),
+      hsl(var(--card)),
       hsl(var(--accent) / 0.2)
     );
   }
 
   .auth-shell {
-    @apply min-h-screen bg-gradient-to-br from-background via-white;
+    @apply min-h-screen;
     background-image: linear-gradient(
       to bottom right,
       hsl(var(--background)),
-      hsl(0 0% 100%),
+      hsl(var(--card)),
       hsl(var(--primary-light) / 0.4)
     );
   }

@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Menu, X, TrendingUp, ShieldCheck } from 'lucide-react';
+import { Menu, X, TrendingUp, ShieldCheck, Sun, Moon, Monitor } from 'lucide-react';
 import { getToken, getRefreshToken, clearToken, clearRefreshToken } from '@/lib/auth';
 import { useToast } from '@/components/ui/use-toast';
 import { logout as logoutApi } from '@/api/auth';
+import { useTheme } from '@/hooks/use-theme';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard' },
@@ -14,6 +15,30 @@ const navigation = [
   { name: 'Expenses', href: '/expenses' },
   { name: 'Analytics', href: '/analytics' },
 ];
+
+function ThemeToggle() {
+  const { theme, setTheme } = useTheme();
+
+  const cycle = () => {
+    if (theme === 'light') setTheme('dark');
+    else if (theme === 'dark') setTheme('system');
+    else setTheme('light');
+  };
+
+  const Icon = theme === 'dark' ? Moon : theme === 'light' ? Sun : Monitor;
+  const label = theme === 'dark' ? 'Dark' : theme === 'light' ? 'Light' : 'System';
+
+  return (
+    <button
+      onClick={cycle}
+      aria-label={`Theme: ${label}. Click to cycle.`}
+      className="flex items-center gap-1.5 rounded-full border border-border/70 bg-card/70 px-3 py-1 text-[11px] font-medium text-muted-foreground transition hover:border-border hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+    >
+      <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+      <span>{label}</span>
+    </button>
+  );
+}
 
 export function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
@@ -80,10 +105,11 @@ export function Navbar() {
           </div>
 
           <div className="hidden items-center gap-3 md:flex">
-            <div className="flex items-center gap-1 rounded-full border border-border/70 bg-white/70 px-3 py-1 text-[11px] text-muted-foreground">
+            <div className="flex items-center gap-1 rounded-full border border-border/70 bg-card/70 px-3 py-1 text-[11px] text-muted-foreground">
               <ShieldCheck className="h-3.5 w-3.5 text-primary" />
               Enterprise-grade security
             </div>
+            <ThemeToggle />
             {isAuthed ? (
               <>
                 <Button variant="outline" size="sm" asChild>
@@ -114,7 +140,7 @@ export function Navbar() {
 
         {isOpen && (
           <div className="md:hidden pb-4">
-            <div className="space-y-2 rounded-2xl border border-border/60 bg-white/90 p-3 shadow-md">
+            <div className="space-y-2 rounded-2xl border border-border/60 bg-card/90 p-3 shadow-md">
               {navigation.map((item) => {
                 const active = location.pathname === item.href;
                 return (
@@ -132,6 +158,9 @@ export function Navbar() {
                   </Link>
                 );
               })}
+              <div className="pt-2">
+                <ThemeToggle />
+              </div>
               <div className="grid grid-cols-2 gap-2 pt-2">
                 {isAuthed ? (
                   <>
