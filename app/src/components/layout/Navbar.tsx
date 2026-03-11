@@ -10,6 +10,7 @@ const navigation = [
   { name: 'Dashboard', href: '/dashboard' },
   { name: 'Budgets', href: '/budgets' },
   { name: 'Bills', href: '/bills' },
+  { name: 'Cash Flow', href: '/cashflow' },
   { name: 'Reminders', href: '/reminders' },
   { name: 'Expenses', href: '/expenses' },
   { name: 'Analytics', href: '/analytics' },
