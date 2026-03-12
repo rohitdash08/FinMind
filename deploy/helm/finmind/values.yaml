@@ -1,0 +1,51 @@
+# Default values for finmind.
+# This is a YAML-formatted file.
+
+namespace: finmind
+
+images:
+  backend: ghcr.io/rohitdash08/finmind-backend:latest
+  frontend: ghcr.io/rohitdash08/finmind-frontend:latest
+  postgres: postgres:16
+  redis: redis:7
+  nginx: nginx:1.27-alpine
+
+replicas:
+  backend: 2
+  nginx: 1
+  postgres: 1
+  redis: 1
+
+config:
+  logLevel: INFO
+  geminiModel: gemini-1.5-flash
+  redisUrl: redis://redis:6379/0
+  apiHost: api.finmind.local
+
+persistence:
+  postgres:
+    size: 10Gi
+    accessMode: ReadWriteOnce
+
+hpa:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPU: 80
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations: {}
+  hosts:
+    - host: api.finmind.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+exporters:
+  enabled: true
+  postgres: quay.io/prometheuscommunity/postgres-exporter:v0.16.0
+  redis: oliver006/redis_exporter:v1.63.0
+  nginx: nginx/nginx-prometheus-exporter:1.3.0
