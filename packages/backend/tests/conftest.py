@@ -1,9 +1,10 @@
 import os
 import pytest
+import fakeredis
 from app import create_app
 from app.config import Settings
 from app.extensions import db
-from app.extensions import redis_client
+from app.extensions import redis_client as real_redis_client
 from app import models  # noqa: F401 - ensure models are registered
 
 
@@ -19,8 +20,20 @@ def _setup_db(app):
         db.create_all()
 
 
+@pytest.fixture(autouse=True)
+def mock_redis(monkeypatch):
+    fake = fakeredis.FakeRedis(decode_responses=True)
+    monkeypatch.setattr("app.extensions.redis_client", fake)
+    monkeypatch.setattr("app.routes.auth.redis_client", fake)
+    monkeypatch.setattr("app.services.cache.redis_client", fake)
+    # Also patch where it might be imported directly in my new code
+    monkeypatch.setattr("app.routes.insights.cache_get", lambda k: fake.get(k))
+    monkeypatch.setattr("app.routes.insights.cache_set", lambda k, v, ttl_seconds=None: fake.setex(k, ttl_seconds, v) if ttl_seconds else fake.set(k, v))
+    return fake
+
+
 @pytest.fixture()
-def app_fixture():
+def app_fixture(mock_redis):
     # Ensure a clean env for tests
     os.environ.setdefault("FLASK_ENV", "testing")
     settings = TestSettings(
@@ -31,18 +44,12 @@ def app_fixture():
     app = create_app(settings)
     app.config.update(TESTING=True)
     _setup_db(app)
-    try:
-        redis_client.flushdb()
-    except Exception:
-        pass
+    mock_redis.flushdb()
     yield app
     with app.app_context():
         db.session.remove()
         db.drop_all()
-    try:
-        redis_client.flushdb()
-    except Exception:
-        pass
+    mock_redis.flushdb()
 
 
 @pytest.fixture()

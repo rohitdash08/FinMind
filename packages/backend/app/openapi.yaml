@@ -481,6 +481,50 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
 
+  /insights/weekly-digest:
+    get:
+      summary: Get weekly financial summary digest
+      tags: [Insights]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: week
+          required: false
+          schema: { type: string, pattern: '^\d{4}-W\d{2}$' }
+      responses:
+        '200':
+          description: Weekly Digest
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  week: { type: string }
+                  total_spent: { type: number }
+                  total_income: { type: number }
+                  net_flow: { type: number }
+                  insights:
+                    type: array
+                    items: { type: string }
+                  category_breakdown:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        category_name: { type: string }
+                        amount: { type: number }
+                  top_expenses:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        amount: { type: number }
+                        notes: { type: string }
+        '400':
+          description: Invalid week format
+        '401':
+          description: Unauthorized
+
 components:
   securitySchemes:
     bearerAuth:
