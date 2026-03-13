@@ -2,6 +2,7 @@ from flask import Flask, jsonify
 from .config import Settings
 from .extensions import db, jwt
 from .routes import register_routes
+from .compression import init_compression
 from .observability import (
     Observability,
     configure_logging,
@@ -51,6 +52,9 @@ def create_app(settings: Settings | None = None) -> Flask:
     # Redis (already global)
     # Blueprint routes
     register_routes(app)
+
+    # Response compression (gzip)
+    init_compression(app)
 
     # Backward-compatible schema patch for existing databases.
     with app.app_context():
