@@ -3,7 +3,6 @@ from flask_jwt_extended import JWTManager
 import redis
 from .config import Settings
 
-
 db = SQLAlchemy()
 jwt = JWTManager()
 

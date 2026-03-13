@@ -146,7 +146,10 @@ class Goal(db.Model):
     deadline = db.Column(db.Date, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
-    milestones = db.relationship("GoalMilestone", backref="goal", lazy=True, cascade="all, delete-orphan")
+    milestones = db.relationship(
+        "GoalMilestone", backref="goal", lazy=True, cascade="all, delete-orphan"
+    )
+
 
 class GoalMilestone(db.Model):
     __tablename__ = "goal_milestones"
