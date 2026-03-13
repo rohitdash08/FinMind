@@ -9,7 +9,8 @@ from flask_jwt_extended import (
     get_jwt_identity,
 )
 from ..extensions import db, redis_client
-from ..models import User
+from ..models import User, WebhookEvent
+from ..services.webhooks import WebhookService
 import logging
 import time
 
@@ -94,6 +95,15 @@ def update_me():
             return jsonify(error="unsupported preferred_currency"), 400
         user.preferred_currency = cur
     db.session.commit()
+    WebhookService.trigger_event(
+        WebhookEvent.PROFILE_UPDATED,
+        {
+            "id": user.id,
+            "email": user.email,
+            "preferred_currency": user.preferred_currency or "INR",
+        },
+        user_id=uid,
+    )
     return jsonify(
         id=user.id,
         email=user.email,

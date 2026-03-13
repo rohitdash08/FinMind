@@ -60,6 +60,12 @@ class Observability:
             ["event", "channel", "status"],
             registry=self.registry,
         )
+        self.webhook_delivery_events_total = Counter(
+            "finmind_webhook_delivery_events_total",
+            "Webhook delivery lifecycle events by event type and outcome.",
+            ["event_type", "result"],
+            registry=self.registry,
+        )
 
     def observe_http_request(
         self, method: str, endpoint: str, status_code: int, duration_seconds: float
@@ -77,6 +83,11 @@ class Observability:
     ) -> None:
         self.reminder_events_total.labels(
             event=event, channel=channel, status=status
+        ).inc()
+
+    def record_webhook_delivery_event(self, event_type: str, result: str) -> None:
+        self.webhook_delivery_events_total.labels(
+            event_type=event_type, result=result
         ).inc()
 
     def metrics_response(self) -> Response:
@@ -137,3 +148,9 @@ def track_reminder_event(event: str, channel: str, status: str = "ok") -> None:
     obs = current_app.extensions.get("observability")
     if obs:
         obs.record_reminder_event(event=event, channel=channel, status=status)
+
+
+def track_webhook_delivery_event(event_type: str, result: str) -> None:
+    obs = current_app.extensions.get("observability")
+    if obs:
+        obs.record_webhook_delivery_event(event_type=event_type, result=result)
