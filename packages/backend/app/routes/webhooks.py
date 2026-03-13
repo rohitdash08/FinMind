@@ -29,6 +29,38 @@ def get_webhook_config():
     )
 
 
+@bp.route("", methods=["POST"])
+@jwt_required()
+def configure_webhook():
+    """
+    Configure webhook URL and secret for the user.
+    """
+    from ..services.webhooks import get_webhook_manager
+
+    data = request.get_json() or {}
+    webhook_url = data.get("webhook_url")
+    webhook_secret = data.get("webhook_secret")
+
+    manager = get_webhook_manager()
+
+    # Update settings (in production, store in database per-user)
+    if webhook_url is not None:
+        manager.settings.webhook_url = webhook_url
+        manager._enabled = bool(webhook_url)
+
+    if webhook_secret is not None:
+        manager.settings.webhook_secret = webhook_secret
+
+    return jsonify(
+        {
+            "enabled": manager.enabled,
+            "webhook_url": manager.settings.webhook_url,
+            "has_secret": bool(manager.settings.webhook_secret),
+            "message": "Webhook configuration updated",
+        }
+    )
+
+
 @bp.route("/test", methods=["POST"])
 @jwt_required()
 def test_webhook():
