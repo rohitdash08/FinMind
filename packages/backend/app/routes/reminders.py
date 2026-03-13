@@ -2,9 +2,10 @@ from datetime import datetime, time, timedelta
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..extensions import db
-from ..models import Bill, Reminder
+from ..models import Bill, JobRun, Reminder
 from ..observability import track_reminder_event
 from ..services.reminders import send_reminder
+from ..services.job_runner import run_due_reminders
 import logging
 
 bp = Blueprint("reminders", __name__)
@@ -159,24 +160,42 @@ def autopay_result_followup(bill_id: int):
 @bp.post("/run")
 @jwt_required()
 def run_due():
+    """Dispatch due reminders for the current user with retry semantics."""
     uid = int(get_jwt_identity())
-    now = datetime.utcnow() + timedelta(minutes=1)
-    items = (
-        db.session.query(Reminder)
-        .filter(
-            Reminder.user_id == uid,
-            Reminder.sent.is_(False),
-            Reminder.send_at <= now,
-        )
+    stats = run_due_reminders(user_id=uid)
+    logger.info(
+        "Processed due reminders user=%s stats=%s", uid, stats
+    )
+    return jsonify(stats)
+
+
+@bp.get("/job-runs")
+@jwt_required()
+def list_job_runs():
+    """Return recent job-run audit records (admin/monitoring endpoint)."""
+    limit = min(int(request.args.get("limit", 20)), 100)
+    runs = (
+        db.session.query(JobRun)
+        .filter_by(job_name="reminder_dispatch")
+        .order_by(JobRun.started_at.desc())
+        .limit(limit)
         .all()
     )
-    for r in items:
-        send_reminder(r)
-        r.sent = True
-        track_reminder_event(event="sent", channel=r.channel)
-    db.session.commit()
-    logger.info("Processed due reminders user=%s count=%s", uid, len(items))
-    return jsonify(processed=len(items))
+    return jsonify(
+        [
+            {
+                "id": r.id,
+                "started_at": r.started_at.isoformat(),
+                "finished_at": r.finished_at.isoformat() if r.finished_at else None,
+                "status": r.status,
+                "processed": r.processed,
+                "succeeded": r.succeeded,
+                "errors": r.errors,
+                "retried": r.retried,
+            }
+            for r in runs
+        ]
+    )
 
 
 def _bill_channels(bill: Bill) -> list[str]:

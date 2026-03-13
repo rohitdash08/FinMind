@@ -98,6 +98,28 @@ class Reminder(db.Model):
     send_at = db.Column(db.DateTime, nullable=False)
     sent = db.Column(db.Boolean, default=False, nullable=False)
     channel = db.Column(db.String(20), default="email", nullable=False)
+    # Retry / resilience fields
+    retry_count = db.Column(db.Integer, default=0, nullable=False)
+    max_retries = db.Column(db.Integer, default=3, nullable=False)
+    next_retry_at = db.Column(db.DateTime, nullable=True)
+    last_error = db.Column(db.String(500), nullable=True)
+    failed_permanently = db.Column(db.Boolean, default=False, nullable=False)
+
+
+class JobRun(db.Model):
+    """Audit log for background job executions (monitoring)."""
+
+    __tablename__ = "job_runs"
+    id = db.Column(db.Integer, primary_key=True)
+    job_name = db.Column(db.String(100), nullable=False)
+    started_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    finished_at = db.Column(db.DateTime, nullable=True)
+    status = db.Column(db.String(20), nullable=False)  # success | partial | failed
+    processed = db.Column(db.Integer, default=0, nullable=False)
+    succeeded = db.Column(db.Integer, default=0, nullable=False)
+    errors = db.Column(db.Integer, default=0, nullable=False)
+    retried = db.Column(db.Integer, default=0, nullable=False)
+    details = db.Column(db.Text, nullable=True)
 
 
 class AdImpression(db.Model):
