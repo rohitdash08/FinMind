@@ -123,3 +123,22 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   action VARCHAR(100) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE users
+  ADD COLUMN IF NOT EXISTS digest_email_enabled BOOLEAN NOT NULL DEFAULT TRUE;
+
+CREATE TABLE IF NOT EXISTS weekly_digests (
+  id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  week_start DATE NOT NULL,
+  week_end DATE NOT NULL,
+  payload JSONB NOT NULL DEFAULT '{}',
+  ai_insight TEXT,
+  method VARCHAR(20) NOT NULL DEFAULT 'heuristic',
+  delivered_at TIMESTAMP,
+  channel VARCHAR(20) NOT NULL DEFAULT 'email',
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  UNIQUE(user_id, week_start)
+);
+CREATE INDEX IF NOT EXISTS idx_weekly_digests_user_week
+  ON weekly_digests(user_id, week_start DESC);

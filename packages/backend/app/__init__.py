@@ -110,11 +110,33 @@ def _ensure_schema_compatibility(app: Flask) -> None:
             NOT NULL DEFAULT 'INR'
             """
         )
+        cur.execute(
+            """
+            ALTER TABLE users
+            ADD COLUMN IF NOT EXISTS digest_email_enabled BOOLEAN
+            NOT NULL DEFAULT TRUE
+            """
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS weekly_digests (
+              id SERIAL PRIMARY KEY,
+              user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              week_start DATE NOT NULL,
+              week_end DATE NOT NULL,
+              payload JSONB NOT NULL DEFAULT '{}',
+              ai_insight TEXT,
+              method VARCHAR(20) NOT NULL DEFAULT 'heuristic',
+              delivered_at TIMESTAMP,
+              channel VARCHAR(20) NOT NULL DEFAULT 'email',
+              created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+              UNIQUE(user_id, week_start)
+            )
+            """
+        )
         conn.commit()
     except Exception:
-        app.logger.exception(
-            "Schema compatibility patch failed for users.preferred_currency"
-        )
+        app.logger.exception("Schema compatibility patch failed")
         conn.rollback()
     finally:
         conn.close()

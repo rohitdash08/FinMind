@@ -12,6 +12,7 @@ tags:
   - name: Bills
   - name: Reminders
   - name: Insights
+  - name: Digest
 paths:
   /auth/register:
     post:
@@ -481,6 +482,116 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
 
+  /digest/weekly:
+    get:
+      summary: Get weekly financial digest
+      description: Returns a comprehensive weekly spending summary with AI insight. Generates a new digest if one does not exist for the requested week.
+      tags: [Digest]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: week_start
+          required: false
+          schema: { type: string, format: date }
+          description: Monday of the desired week (YYYY-MM-DD). Defaults to last completed week.
+      responses:
+        '200':
+          description: Weekly digest
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WeeklyDigest'
+              example:
+                id: 1
+                user_id: 1
+                week_start: "2026-03-02"
+                week_end: "2026-03-08"
+                payload:
+                  summary:
+                    total_income: 25000
+                    total_expenses: 12450
+                    net_flow: 12550
+                    week_over_week_change_pct: -8.5
+                    transaction_count: 23
+                  category_breakdown:
+                    - { name: "Food & Dining", amount: 4200, share_pct: 33.7 }
+                  highlights:
+                    top_category: "Food & Dining"
+                    daily_average: 1778.57
+                  upcoming_bills:
+                    - { name: Internet, amount: 999, due_date: "2026-03-12" }
+                ai_insight: "Your spending decreased by 8.5% — great job!"
+                method: gemini
+        '400':
+          description: Invalid week_start
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /digest/weekly/history:
+    get:
+      summary: List past weekly digests
+      tags: [Digest]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: limit
+          required: false
+          schema: { type: integer, default: 10, maximum: 52 }
+      responses:
+        '200':
+          description: List of digest summaries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id: { type: integer }
+                    week_start: { type: string, format: date }
+                    week_end: { type: string, format: date }
+                    total_expenses: { type: number }
+                    net_flow: { type: number }
+                    method: { type: string }
+                    delivered_at: { type: string, format: date-time, nullable: true }
+                    created_at: { type: string, format: date-time }
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /digest/weekly/send:
+    post:
+      summary: Send weekly digest email
+      description: Generates the digest if not already created, then sends it via email to the authenticated user.
+      tags: [Digest]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Send result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sent: { type: boolean }
+                  digest_id: { type: integer }
+              example:
+                sent: true
+                digest_id: 1
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -587,3 +698,16 @@ components:
         message: { type: string }
         send_at: { type: string, format: date-time }
         channel: { type: string, enum: [email, whatsapp], default: email }
+    WeeklyDigest:
+      type: object
+      properties:
+        id: { type: integer }
+        user_id: { type: integer }
+        week_start: { type: string, format: date }
+        week_end: { type: string, format: date }
+        payload: { type: object, additionalProperties: true }
+        ai_insight: { type: string, nullable: true }
+        method: { type: string, enum: [gemini, heuristic] }
+        delivered_at: { type: string, format: date-time, nullable: true }
+        channel: { type: string }
+        created_at: { type: string, format: date-time }

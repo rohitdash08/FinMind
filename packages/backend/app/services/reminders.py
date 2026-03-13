@@ -1,7 +1,13 @@
 import smtplib
+import logging
 from email.message import EmailMessage
 from ..config import Settings
 from ..models import Reminder
+
+try:
+    import resend as resend_sdk
+except Exception:  # pragma: no cover
+    resend_sdk = None  # type: ignore[assignment]
 
 try:
     from twilio.rest import Client as TwilioClient
@@ -10,17 +16,39 @@ except Exception:  # pragma: no cover
 
 
 _settings = Settings()
+logger = logging.getLogger("finmind.reminders")
 
 
-def send_email(to_email: str, subject: str, body: str):
+def _send_via_resend(to_email: str, subject: str, body: str) -> bool:
+    """Send email using Resend SDK (recommended)."""
+    if not resend_sdk or not _settings.resend_api_key:
+        return False
+    try:
+        resend_sdk.api_key = _settings.resend_api_key
+        params: dict = {
+            "from": _settings.email_from or "FinMind <onboarding@resend.dev>",
+            "to": [to_email],
+            "subject": subject,
+            "text": body,
+        }
+        result = resend_sdk.Emails.send(params)
+        logger.info("Email sent via Resend to=%s id=%s", to_email, result.get("id"))
+        return True
+    except Exception:
+        logger.exception("Resend send failed to=%s", to_email)
+        return False
+
+
+def _send_via_smtp(to_email: str, subject: str, body: str) -> bool:
+    """Send email using SMTP (fallback)."""
     if not _settings.smtp_url or not _settings.email_from:
         return False
     try:
-        # Very light SMTP URL parser: smtp+ssl://user:pass@host:465
         import re
 
         m = re.match(r"smtp\+ssl://(.+?):(.+?)@(.+?):(\d+)", _settings.smtp_url)
         if not m:
+            logger.error("Email not sent: invalid SMTP_URL format")
             return False
         user, pwd, host, port = m.groups()
         msg = EmailMessage()
@@ -31,9 +59,26 @@ def send_email(to_email: str, subject: str, body: str):
         with smtplib.SMTP_SSL(host, int(port)) as s:
             s.login(user, pwd)
             s.send_message(msg)
+        logger.info("Email sent via SMTP to=%s subject=%s", to_email, subject)
         return True
     except Exception:
+        logger.exception("SMTP send failed to=%s", to_email)
         return False
+
+
+def send_email(to_email: str, subject: str, body: str) -> bool:
+    """Send email using Resend SDK (primary) or SMTP (fallback).
+
+    Priority: Resend API key > SMTP URL > skip.
+    """
+    if _settings.resend_api_key:
+        return _send_via_resend(to_email, subject, body)
+
+    if _settings.smtp_url:
+        return _send_via_smtp(to_email, subject, body)
+
+    logger.warning("Email not sent: neither RESEND_API_KEY nor SMTP_URL configured")
+    return False
 
 
 def send_whatsapp(to_number: str, body: str):

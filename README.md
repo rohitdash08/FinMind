@@ -48,6 +48,7 @@ See `backend/app/db/schema.sql`. Key tables:
 - users, categories, expenses, bills, reminders
 - ad_impressions, subscription_plans, user_subscriptions
 - refresh_tokens (optional if rotating), audit_logs
+- weekly_digests (weekly financial summary persistence)
 
 ## Redis Caching Policy
 - Keys
@@ -55,6 +56,7 @@ See `backend/app/db/schema.sql`. Key tables:
   - `user:{id}:categories` — 24h TTL
   - `user:{id}:upcoming_bills` — 15 min TTL
   - `insights:{id}` — 24h TTL (invalidate on new expense/bill)
+  - `user:{id}:weekly_digest:{yyyy-mm-dd}` — 1h TTL
 - Invalidation
   - On expense/bill create/update/delete -> delete affected monthly_summary, upcoming_bills, insights
 - Rate limiting (optional): `rl:{userId}:{endpoint}:{minute}` with short TTL
@@ -66,6 +68,7 @@ OpenAPI: `backend/app/openapi.yaml`
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
 - Insights: `/insights/monthly`, `/insights/budget-suggestion`
+- Digest: `/digest/weekly`, `/digest/weekly/history`, `/digest/weekly/send`
 
 ## MVP UI/UX Plan
 - Auth screens: register/login.

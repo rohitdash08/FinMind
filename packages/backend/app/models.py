@@ -16,6 +16,7 @@ class User(db.Model):
     password_hash = db.Column(db.String(255), nullable=False)
     preferred_currency = db.Column(db.String(10), default="INR", nullable=False)
     role = db.Column(db.String(20), default=Role.USER.value, nullable=False)
+    digest_email_enabled = db.Column(db.Boolean, default=True, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
 
@@ -132,4 +133,21 @@ class AuditLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class WeeklyDigest(db.Model):
+    __tablename__ = "weekly_digests"
+    __table_args__ = (
+        db.UniqueConstraint("user_id", "week_start", name="uq_digest_user_week"),
+    )
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    week_start = db.Column(db.Date, nullable=False)
+    week_end = db.Column(db.Date, nullable=False)
+    payload = db.Column(db.JSON, nullable=False, default=dict)
+    ai_insight = db.Column(db.Text, nullable=True)
+    method = db.Column(db.String(20), default="heuristic", nullable=False)
+    delivered_at = db.Column(db.DateTime, nullable=True)
+    channel = db.Column(db.String(20), default="email", nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
