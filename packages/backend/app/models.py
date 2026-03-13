@@ -41,6 +41,7 @@ class Expense(db.Model):
         db.Integer, db.ForeignKey("recurring_expenses.id"), nullable=True
     )
     created_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
+    account_id = db.Column(db.Integer, db.ForeignKey("accounts.id"), nullable=True)
 
 
 class RecurringCadence(str, Enum):
@@ -133,3 +134,29 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+# ── Accounts ───────────────────────────────────────────────────────────────────
+
+class AccountType(str, Enum):
+    BANK       = "BANK"
+    CREDIT     = "CREDIT"
+    CASH       = "CASH"
+    INVESTMENT = "INVESTMENT"
+    WALLET     = "WALLET"
+    OTHER      = "OTHER"
+
+
+class Account(db.Model):
+    """A financial account (bank, credit card, cash, etc.)."""
+
+    __tablename__ = "accounts"
+    id           = db.Column(db.Integer, primary_key=True)
+    user_id      = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    name         = db.Column(db.String(200), nullable=False)
+    account_type = db.Column(db.String(20), default=AccountType.BANK.value, nullable=False)
+    currency     = db.Column(db.String(10), default="INR", nullable=False)
+    initial_balance = db.Column(db.Numeric(12, 2), default=0, nullable=False)
+    color        = db.Column(db.String(20), nullable=True)   # hex colour for UI
+    active       = db.Column(db.Boolean, default=True, nullable=False)
+    created_at   = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
