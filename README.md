@@ -69,6 +69,7 @@ OpenAPI: `backend/app/openapi.yaml`
 - Webhooks:
   - targets: `POST/GET /webhooks/targets`, `PATCH/DELETE /webhooks/targets/{id}`
   - deliveries: `GET /webhooks/deliveries`, `POST /webhooks/deliveries/{id}/redeliver`
+  - monitoring summary: `GET /webhooks/deliveries/summary`
   - event catalog: `GET /webhooks/event-types`
 
 ### Webhook Event Types
@@ -90,6 +91,11 @@ Each webhook request is signed with HMAC SHA-256 and includes:
 Delivery retry policy:
 - exponential backoff starting at 1 minute and capped at 1 hour
 - up to 7 retries before marking a delivery as failed
+
+Delivery monitoring:
+- `GET /webhooks/deliveries/summary` returns pending/success/failed counts
+- retry backlog is split into `due_now` and `scheduled`
+- oldest pending delivery and latest failure timestamps help operators spot stuck jobs
 
 ## MVP UI/UX Plan
 - Auth screens: register/login.
@@ -197,6 +203,7 @@ finmind/
   - request count by endpoint/status
   - request duration histograms (latency, including dashboard p95 KPI)
   - reminder event counters (engagement KPI)
+  - webhook delivery lifecycle counters by event type and outcome (`success`, `retry_scheduled`, `failed`, `redeliver_requested`)
 - Logs are emitted as JSON with `request_id` and shipped to Loki via Promtail.
 - Pre-provisioned Grafana dashboard: `FinMind Operations and KPI`.
 

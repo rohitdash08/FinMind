@@ -8,6 +8,7 @@ from urllib.parse import urlparse
 import requests
 from sqlalchemy import or_
 
+from ..observability import track_webhook_delivery_event
 from ..extensions import db
 from ..models import WebhookDelivery, WebhookEvent, WebhookTarget
 
@@ -201,6 +202,59 @@ class WebhookService:
         return query.order_by(WebhookDelivery.created_at.desc()).all()
 
     @staticmethod
+    def get_delivery_summary(
+        *, user_id: int, target_id: int | None = None
+    ) -> dict[str, object]:
+        now = datetime.utcnow()
+        query = WebhookDelivery.query.join(
+            WebhookTarget, WebhookTarget.id == WebhookDelivery.target_id
+        ).filter(WebhookTarget.user_id == user_id)
+        target_query = WebhookTarget.query.filter(WebhookTarget.user_id == user_id)
+        if target_id is not None:
+            query = query.filter(WebhookDelivery.target_id == target_id)
+            target_query = target_query.filter(WebhookTarget.id == target_id)
+
+        deliveries = query.order_by(WebhookDelivery.created_at.asc()).all()
+        pending = [item for item in deliveries if item.status == "pending"]
+        failed = [item for item in deliveries if item.status == "failed"]
+        success = [item for item in deliveries if item.status == "success"]
+        due_now = [
+            item
+            for item in pending
+            if item.next_attempt_at is None or item.next_attempt_at <= now
+        ]
+        scheduled = [
+            item
+            for item in pending
+            if item.next_attempt_at is not None and item.next_attempt_at > now
+        ]
+        oldest_pending = pending[0].created_at if pending else None
+        latest_failure = max(
+            (
+                item.updated_at or item.last_attempt_at or item.created_at
+                for item in failed
+            ),
+            default=None,
+        )
+
+        return {
+            "targets_total": target_query.count(),
+            "max_retries": WebhookService.MAX_RETRIES,
+            "deliveries": {
+                "pending": len(pending),
+                "success": len(success),
+                "failed": len(failed),
+                "total": len(deliveries),
+            },
+            "retry_backlog": {
+                "due_now": len(due_now),
+                "scheduled": len(scheduled),
+            },
+            "oldest_pending": oldest_pending.isoformat() if oldest_pending else None,
+            "latest_failure": latest_failure.isoformat() if latest_failure else None,
+        }
+
+    @staticmethod
     def trigger_event(
         event_type: WebhookEvent | str, payload: dict, user_id: int | None = None
     ) -> int:
@@ -274,6 +328,7 @@ class WebhookService:
             delivery.next_attempt_at = None
             delivery.response_body = "target not found or disabled"
             db.session.commit()
+            track_webhook_delivery_event(delivery.event_type, "target_unavailable")
             return
 
         payload_json = json.dumps(
@@ -305,15 +360,17 @@ class WebhookService:
             if response.status_code in WebhookService.SUCCESS_STATUS_CODES:
                 delivery.status = "success"
                 delivery.next_attempt_at = None
+                result = "success"
             else:
-                WebhookService._schedule_retry_or_fail(delivery)
+                result = WebhookService._schedule_retry_or_fail(delivery)
 
         except requests.RequestException as exc:
             delivery.response_status = None
             delivery.response_body = str(exc)[:2000]
-            WebhookService._schedule_retry_or_fail(delivery)
+            result = WebhookService._schedule_retry_or_fail(delivery)
 
         db.session.commit()
+        track_webhook_delivery_event(delivery.event_type, result)
 
     @staticmethod
     def redeliver(*, delivery_id: int, user_id: int) -> WebhookDelivery | None:
@@ -329,6 +386,7 @@ class WebhookService:
         delivery.status = "pending"
         delivery.next_attempt_at = datetime.utcnow()
         db.session.commit()
+        track_webhook_delivery_event(delivery.event_type, "redeliver_requested")
         WebhookService.process_pending_deliveries(limit=1)
         return delivery
 
@@ -376,15 +434,17 @@ class WebhookService:
         return event_name in events or "*" in events
 
     @staticmethod
-    def _schedule_retry_or_fail(delivery: WebhookDelivery) -> None:
+    def _schedule_retry_or_fail(delivery: WebhookDelivery) -> str:
         if delivery.attempt_count <= WebhookService.MAX_RETRIES:
             delivery.status = "pending"
             delivery.next_attempt_at = WebhookService.calculate_next_attempt(
                 delivery.attempt_count
             )
+            return "retry_scheduled"
         else:
             delivery.status = "failed"
             delivery.next_attempt_at = None
+            return "failed"
 
     @staticmethod
     def _validate_url(url: str) -> None:

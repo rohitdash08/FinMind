@@ -12,6 +12,7 @@ tags:
   - name: Bills
   - name: Reminders
   - name: Insights
+  - name: Webhooks
 paths:
   /auth/register:
     post:
@@ -475,6 +476,51 @@ paths:
                   wants: 360
                   savings: 240
                 tips: ["Cap dining spend to 80% of last month", "Automate weekly transfer to savings"]
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /webhooks/deliveries/summary:
+    get:
+      summary: Get webhook delivery monitoring summary
+      tags: [Webhooks]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: target_id
+          required: false
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Aggregated delivery health and retry backlog
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  targets_total: { type: integer }
+                  max_retries: { type: integer }
+                  deliveries:
+                    type: object
+                    properties:
+                      pending: { type: integer }
+                      success: { type: integer }
+                      failed: { type: integer }
+                      total: { type: integer }
+                  retry_backlog:
+                    type: object
+                    properties:
+                      due_now: { type: integer }
+                      scheduled: { type: integer }
+                  oldest_pending: { type: string, format: date-time, nullable: true }
+                  latest_failure: { type: string, format: date-time, nullable: true }
+        '400':
+          description: Invalid target identifier
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
         '401':
           description: Unauthorized
           content:

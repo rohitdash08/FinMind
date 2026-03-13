@@ -1,9 +1,11 @@
 from datetime import datetime, timedelta
 
 import requests
+from flask_jwt_extended import create_access_token
+from werkzeug.security import generate_password_hash
 
 from app.extensions import db
-from app.models import WebhookDelivery
+from app.models import User, WebhookDelivery, WebhookTarget
 from app.services.webhooks import WebhookService
 
 
@@ -32,6 +34,19 @@ def _create_target(client, auth_header, events: list[str]):
     )
     assert response.status_code == 201
     return response.get_json()["id"]
+
+
+def _direct_auth_header(client) -> dict[str, str]:
+    with client.application.app_context():
+        user = User(
+            email="direct-webhook@example.com",
+            password_hash=generate_password_hash("password123"),
+            preferred_currency="INR",
+        )
+        db.session.add(user)
+        db.session.commit()
+        token = create_access_token(identity=str(user.id))
+    return {"Authorization": f"Bearer {token}"}
 
 
 def test_webhook_event_types_documented(client, auth_header):
@@ -131,3 +146,65 @@ def test_webhook_retry_and_failure_handling(client, auth_header, monkeypatch):
         assert failed_delivery is not None
         assert failed_delivery.status == "failed"
         assert failed_delivery.attempt_count == WebhookService.MAX_RETRIES + 1
+
+
+def test_webhook_delivery_summary_reports_retry_backlog(client):
+    auth_header = _direct_auth_header(client)
+    target_id = _create_target(client, auth_header, ["expense.created"])
+
+    with client.application.app_context():
+        target = db.session.get(WebhookTarget, target_id)
+        assert target is not None
+        now = datetime.utcnow()
+        db.session.add_all(
+            [
+                WebhookDelivery(
+                    target_id=target.id,
+                    event_type="expense.created",
+                    payload={"type": "expense.created", "data": {"id": 1}},
+                    status="pending",
+                    attempt_count=2,
+                    next_attempt_at=now - timedelta(minutes=5),
+                ),
+                WebhookDelivery(
+                    target_id=target.id,
+                    event_type="expense.created",
+                    payload={"type": "expense.created", "data": {"id": 2}},
+                    status="pending",
+                    attempt_count=1,
+                    next_attempt_at=now + timedelta(minutes=10),
+                ),
+                WebhookDelivery(
+                    target_id=target.id,
+                    event_type="expense.created",
+                    payload={"type": "expense.created", "data": {"id": 3}},
+                    status="success",
+                    attempt_count=1,
+                    next_attempt_at=None,
+                ),
+                WebhookDelivery(
+                    target_id=target.id,
+                    event_type="expense.created",
+                    payload={"type": "expense.created", "data": {"id": 4}},
+                    status="failed",
+                    attempt_count=8,
+                    next_attempt_at=None,
+                    response_body="connection failed",
+                ),
+            ]
+        )
+        db.session.commit()
+
+    response = client.get("/webhooks/deliveries/summary", headers=auth_header)
+    assert response.status_code == 200
+
+    payload = response.get_json()
+    assert payload["max_retries"] == WebhookService.MAX_RETRIES
+    assert payload["targets_total"] == 1
+    assert payload["deliveries"]["pending"] == 2
+    assert payload["deliveries"]["success"] == 1
+    assert payload["deliveries"]["failed"] == 1
+    assert payload["retry_backlog"]["due_now"] == 1
+    assert payload["retry_backlog"]["scheduled"] == 1
+    assert payload["latest_failure"] is not None
+    assert payload["oldest_pending"] is not None

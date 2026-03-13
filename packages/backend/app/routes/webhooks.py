@@ -82,6 +82,24 @@ def get_webhook_deliveries():
     return jsonify([_delivery_to_dict(item) for item in deliveries]), 200
 
 
+@bp.get("/deliveries/summary")
+@jwt_required()
+def get_webhook_delivery_summary():
+    uid = int(get_jwt_identity())
+    target_id = request.args.get("target_id")
+    parsed_target_id: int | None = None
+    if target_id is not None:
+        try:
+            parsed_target_id = int(target_id)
+        except ValueError:
+            return jsonify(error="target_id must be an integer"), 400
+
+    summary = WebhookService.get_delivery_summary(
+        user_id=uid, target_id=parsed_target_id
+    )
+    return jsonify(summary), 200
+
+
 @bp.post("/deliveries/<int:delivery_id>/redeliver")
 @jwt_required()
 def redeliver_webhook(delivery_id: int):
