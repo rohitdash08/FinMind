@@ -77,12 +77,14 @@ def me():
         id=user.id,
         email=user.email,
         preferred_currency=user.preferred_currency or "INR",
+        preferred_locale=user.preferred_locale or "en_IN",
     )
 
 
 @bp.patch("/me")
 @jwt_required()
 def update_me():
+    from ..services.locale_fmt import SUPPORTED_LOCALES
     uid = int(get_jwt_identity())
     user = db.session.get(User, uid)
     if not user:
@@ -93,11 +95,17 @@ def update_me():
         if cur not in SUPPORTED_CURRENCIES:
             return jsonify(error="unsupported preferred_currency"), 400
         user.preferred_currency = cur
+    if "preferred_locale" in data:
+        loc = str(data.get("preferred_locale") or "").strip()
+        if loc not in SUPPORTED_LOCALES:
+            return jsonify(error=f"unsupported preferred_locale"), 400
+        user.preferred_locale = loc
     db.session.commit()
     return jsonify(
         id=user.id,
         email=user.email,
         preferred_currency=user.preferred_currency or "INR",
+        preferred_locale=user.preferred_locale or "en_IN",
     )
 
 
