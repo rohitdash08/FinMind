@@ -95,9 +95,17 @@ def digest_history():
 def send_weekly_digest():
     """Generate (if needed) and send digest email for the current user."""
     uid = int(get_jwt_identity())
+    week_start_param = (request.args.get("week_start") or "").strip()
     user_gemini_key = (request.headers.get("X-Gemini-Api-Key") or "").strip() or None
 
-    w_start, _ = week_boundaries()
+    if week_start_param:
+        try:
+            w_start = date.fromisoformat(week_start_param)
+        except ValueError:
+            return jsonify(error="invalid week_start, expected YYYY-MM-DD"), 400
+    else:
+        w_start, _ = week_boundaries()
+
     digest_data = get_or_create_digest(
         uid, w_start=w_start, gemini_api_key=user_gemini_key
     )

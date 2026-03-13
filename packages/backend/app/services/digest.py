@@ -369,8 +369,8 @@ def _digest_to_dict(d: WeeklyDigest) -> dict:
 # Delivery
 
 
-def _format_digest_email(user: User, digest_data: dict) -> tuple[str, str]:
-    """Return (subject, body) for the weekly digest email."""
+def _format_digest_email(user: User, digest_data: dict) -> tuple[str, str, str]:
+    """Return (subject, text_body, html_body) for the weekly digest email."""
     payload = digest_data.get("payload", {})
     summary = payload.get("summary", {})
     cats = payload.get("category_breakdown", [])
@@ -383,9 +383,10 @@ def _format_digest_email(user: User, digest_data: dict) -> tuple[str, str]:
     w_end = digest_data["week_end"]
 
     subject = f"FinMind Weekly Digest — {w_start} to {w_end}"
+    user_name = user.email.split("@")[0] if user and user.email else "there"
 
     lines = [
-        "Hi there,\n",
+        f"Hi {user_name},\n",
         "Here's your FinMind weekly spending summary for " f"{w_start} to {w_end}.\n",
         "─── SUMMARY ───",
         f"  Income:       {currency} {summary.get('total_income', 0):,.2f}",
@@ -433,7 +434,120 @@ def _format_digest_email(user: User, digest_data: dict) -> tuple[str, str]:
 
     lines.append("Stay on track! — FinMind")
 
-    return subject, "\n".join(lines)
+    # --- HTML Formatting ---
+    def format_money(amount: float) -> str:
+        return f"{currency} {amount:,.2f}"
+
+    inc_str = format_money(summary.get("total_income", 0))
+    exp_str = format_money(summary.get("total_expenses", 0))
+    net_flow = summary.get("net_flow", 0)
+    net_str = format_money(net_flow)
+    wow_pct = summary.get("week_over_week_change_pct", 0)
+    wow_str = f"{wow_pct:+.1f}%"
+
+    html_lines = [
+        "<!DOCTYPE html>",
+        "<html>",
+        "<head><style>",
+        "body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; color: #1e293b; margin: 0; padding: 20px; }",  # noqa: E501
+        ".container { max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }",  # noqa: E501
+        ".header { background-color: #0f172a; color: #ffffff; padding: 24px; text-align: center; }",  # noqa: E501
+        ".header h1 { margin: 0; font-size: 24px; font-weight: 600; letter-spacing: -0.025em; }",  # noqa: E501
+        ".content { padding: 32px; }",
+        ".greeting { font-size: 18px; font-weight: 600; margin-bottom: 24px; }",
+        ".section { margin-bottom: 32px; }",
+        ".section-title { font-size: 16px; font-weight: 600; color: #0f172a; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid #e2e8f0; }",  # noqa: E501
+        ".insight-box { background-color: #f0fdf4; border: 1px solid #bbf7d0; padding: 16px; border-radius: 8px; color: #166534; font-size: 14px; line-height: 1.5; }",  # noqa: E501
+        ".footer { text-align: center; padding: 24px; color: #64748b; font-size: 12px; background-color: #f8fafc; }",  # noqa: E501
+        "</style></head>",
+        "<body>",
+        "<div class='container'>",
+        "<div class='header'>",
+        "<h1>FinMind Weekly Digest</h1>",
+        "</div>",
+        "<div class='content'>",
+        f"<div class='greeting'>Hi {user_name},</div>",
+        f"<p style='color: #475569; font-size: 15px; line-height: 1.5;'>Here is your financial summary for <strong>{w_start}</strong> to <strong>{w_end}</strong>.</p>",  # noqa: E501
+        # Summary Cards (Income, Expenses, Net Flow)
+        "<div class='section'>",
+        "<table width='100%' cellpadding='0' cellspacing='0' style='margin-bottom: 16px;'><tr>",  # noqa: E501
+        f"<td width='32%' style='background-color: #f8fafc; padding: 16px; border-radius: 8px; border: 1px solid #e2e8f0; text-align: center;'><div style='font-size: 12px; color: #64748b; text-transform: uppercase; font-weight: 600; margin-bottom: 8px;'>Income</div><div style='font-size: 20px; font-weight: 700; color: #16a34a;'>{inc_str}</div></td>",  # noqa: E501
+        "<td width='2%'></td>",
+        f"<td width='32%' style='background-color: #f8fafc; padding: 16px; border-radius: 8px; border: 1px solid #e2e8f0; text-align: center;'><div style='font-size: 12px; color: #64748b; text-transform: uppercase; font-weight: 600; margin-bottom: 8px;'>Expenses</div><div style='font-size: 20px; font-weight: 700; color: #dc2626;'>{exp_str}</div></td>",  # noqa: E501
+        "<td width='2%'></td>",
+        f"<td width='32%' style='background-color: #f8fafc; padding: 16px; border-radius: 8px; border: 1px solid #e2e8f0; text-align: center;'><div style='font-size: 12px; color: #64748b; text-transform: uppercase; font-weight: 600; margin-bottom: 8px;'>Net Flow</div><div style='font-size: 20px; font-weight: 700; color: {'#16a34a' if net_flow >= 0 else '#dc2626'};'>{net_str}</div></td>",  # noqa: E501
+        "</tr></table>",
+        "</div>",
+    ]
+
+    if insight:
+        html_lines.extend(
+            [
+                "<div class='section'>",
+                "<div class='section-title'>AI Insight</div>",
+                f"<div class='insight-box'>✨ {insight}</div>",
+                "</div>",
+            ]
+        )
+
+    if cats:
+        html_lines.extend(
+            [
+                "<div class='section'>",
+                "<div class='section-title'>Category Breakdown</div>",
+                "<table width='100%' cellpadding='0' cellspacing='0'>",
+            ]
+        )
+        for c in cats[:5]:
+            html_lines.append(
+                f"<tr><td style='padding: 12px 0; border-bottom: 1px solid #f1f5f9; color: #334155; font-size: 15px;'>{c['name']}</td><td style='padding: 12px 0; border-bottom: 1px solid #f1f5f9; text-align: right; color: #0f172a; font-weight: 600; font-size: 15px;'>{format_money(c['amount'])} <span style='color: #64748b; font-size: 13px; font-weight: 400;'>({c['share_pct']}%)</span></td></tr>"  # noqa: E501
+            )
+        html_lines.append("</table></div>")
+
+    if highlights.get("biggest_expense"):
+        biggest = highlights.get("biggest_expense")
+        html_lines.extend(
+            [
+                "<div class='section'>",
+                "<div class='section-title'>Highlights</div>",
+                "<table width='100%' cellpadding='0' cellspacing='0'>",
+                f"<tr><td style='padding: 12px 0; border-bottom: 1px solid #f1f5f9; color: #334155; font-size: 15px;'>Biggest Expense ({biggest['date']})<br><span style='color: #64748b; font-size: 13px;'>{biggest['notes']}</span></td><td style='padding: 12px 0; border-bottom: 1px solid #f1f5f9; text-align: right; color: #dc2626; font-weight: 600; font-size: 15px;'>{format_money(biggest['amount'])}</td></tr>",  # noqa: E501
+                f"<tr><td style='padding: 12px 0; border-bottom: 1px solid #f1f5f9; color: #334155; font-size: 15px;'>Daily Average</td><td style='padding: 12px 0; border-bottom: 1px solid #f1f5f9; text-align: right; color: #0f172a; font-weight: 600; font-size: 15px;'>{format_money(highlights.get('daily_average', 0))}</td></tr>",  # noqa: E501
+                f"<tr><td style='padding: 12px 0; border-bottom: 1px solid #f1f5f9; color: #334155; font-size: 15px;'>vs Last Week</td><td style='padding: 12px 0; border-bottom: 1px solid #f1f5f9; text-align: right; color: {'#16a34a' if wow_pct <= 0 else '#dc2626'}; font-weight: 600; font-size: 15px;'>{wow_str}</td></tr>",  # noqa: E501
+                "</table></div>",
+            ]
+        )
+
+    if bills:
+        html_lines.extend(
+            [
+                "<div class='section'>",
+                "<div class='section-title'>Upcoming Bills (Next 7 Days)</div>",
+                "<table width='100%' cellpadding='0' cellspacing='0'>",
+            ]
+        )
+        for b in bills:
+            html_lines.append(
+                f"<tr><td style='padding: 12px 0; border-bottom: 1px solid #f1f5f9; color: #334155; font-size: 15px;'>{b['name']}<br><span style='color: #64748b; font-size: 13px;'>Due: {b['due_date']}</span></td><td style='padding: 12px 0; border-bottom: 1px solid #f1f5f9; text-align: right; color: #0f172a; font-weight: 600; font-size: 15px;'>{currency} {b['amount']:,.2f}</td></tr>"  # noqa: E501
+            )
+        html_lines.append("</table></div>")
+
+    html_lines.extend(
+        [
+            "</div>",
+            "<div class='footer'>",
+            "You are receiving this because you opted into Weekly Digests.<br>",
+            "FinMind Money OS",
+            "</div>",
+            "</div>",
+            "</body>",
+            "</html>",
+        ]
+    )
+
+    html_body = "".join(html_lines)
+
+    return subject, "\n".join(lines), html_body
 
 
 def deliver_digest_email(uid: int, digest_data: dict) -> bool:
@@ -442,8 +556,8 @@ def deliver_digest_email(uid: int, digest_data: dict) -> bool:
     if not user:
         return False
 
-    subject, body = _format_digest_email(user, digest_data)
-    success = send_email(user.email, subject, body)
+    subject, body, html_body = _format_digest_email(user, digest_data)
+    success = send_email(user.email, subject, body, html_body=html_body)
 
     if success:
         digest = db.session.get(WeeklyDigest, digest_data["id"])

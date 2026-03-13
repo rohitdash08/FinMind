@@ -1,6 +1,8 @@
 import smtplib
 import logging
 from email.message import EmailMessage
+from typing import Optional
+
 from ..config import Settings
 from ..models import Reminder
 
@@ -19,7 +21,9 @@ _settings = Settings()
 logger = logging.getLogger("finmind.reminders")
 
 
-def _send_via_resend(to_email: str, subject: str, body: str) -> bool:
+def _send_via_resend(
+    to_email: str, subject: str, body: str, html_body: Optional[str] = None
+) -> bool:
     """Send email using Resend SDK (recommended)."""
     if not resend_sdk or not _settings.resend_api_key:
         return False
@@ -31,6 +35,8 @@ def _send_via_resend(to_email: str, subject: str, body: str) -> bool:
             "subject": subject,
             "text": body,
         }
+        if html_body:
+            params["html"] = html_body
         result = resend_sdk.Emails.send(params)
         logger.info("Email sent via Resend to=%s id=%s", to_email, result.get("id"))
         return True
@@ -39,7 +45,9 @@ def _send_via_resend(to_email: str, subject: str, body: str) -> bool:
         return False
 
 
-def _send_via_smtp(to_email: str, subject: str, body: str) -> bool:
+def _send_via_smtp(
+    to_email: str, subject: str, body: str, html_body: Optional[str] = None
+) -> bool:
     """Send email using SMTP (fallback)."""
     if not _settings.smtp_url or not _settings.email_from:
         return False
@@ -56,6 +64,8 @@ def _send_via_smtp(to_email: str, subject: str, body: str) -> bool:
         msg["To"] = to_email
         msg["Subject"] = subject
         msg.set_content(body)
+        if html_body:
+            msg.add_alternative(html_body, subtype="html")
         with smtplib.SMTP_SSL(host, int(port)) as s:
             s.login(user, pwd)
             s.send_message(msg)
@@ -66,16 +76,18 @@ def _send_via_smtp(to_email: str, subject: str, body: str) -> bool:
         return False
 
 
-def send_email(to_email: str, subject: str, body: str) -> bool:
+def send_email(
+    to_email: str, subject: str, body: str, html_body: Optional[str] = None
+) -> bool:
     """Send email using Resend SDK (primary) or SMTP (fallback).
 
     Priority: Resend API key > SMTP URL > skip.
     """
     if _settings.resend_api_key:
-        return _send_via_resend(to_email, subject, body)
+        return _send_via_resend(to_email, subject, body, html_body)
 
     if _settings.smtp_url:
-        return _send_via_smtp(to_email, subject, body)
+        return _send_via_smtp(to_email, subject, body, html_body)
 
     logger.warning("Email not sent: neither RESEND_API_KEY nor SMTP_URL configured")
     return False
