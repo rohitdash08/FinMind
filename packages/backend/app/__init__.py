@@ -1,6 +1,6 @@
 from flask import Flask, jsonify
 from .config import Settings
-from .extensions import db, jwt
+from .extensions import db, jwt, redis_client
 from .routes import register_routes
 from .observability import (
     Observability,
@@ -8,11 +8,13 @@ from .observability import (
     finalize_request,
     init_request_context,
 )
+from .services.job_manager import job_manager, RetryPolicy
 from flask_cors import CORS
+import atexit
 import click
 import os
 import logging
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 
 
 def create_app(settings: Settings | None = None) -> Flask:
@@ -55,6 +57,53 @@ def create_app(settings: Settings | None = None) -> Flask:
     # Backward-compatible schema patch for existing databases.
     with app.app_context():
         _ensure_schema_compatibility(app)
+
+    # Background job manager with retry & monitoring
+    obs = app.extensions["observability"]
+    job_manager.init_app(app, redis_client=redis_client, registry=obs.registry)
+
+    def _process_due_reminders():
+        """Background job: send all due reminders."""
+        from .models import Reminder
+        from .services.reminders import send_reminder
+
+        now = datetime.now(timezone.utc) + timedelta(minutes=1)
+        items = (
+            db.session.query(Reminder)
+            .filter(Reminder.sent.is_(False), Reminder.send_at <= now)
+            .all()
+        )
+        sent_count = 0
+        for r in items:
+            if send_reminder(r):
+                r.sent = True
+                sent_count += 1
+            else:
+                # Let the job manager's retry handle transient failures
+                raise RuntimeError(
+                    f"Failed to send reminder {r.id} via {r.channel}"
+                ) if sent_count == 0 else None
+        if items:
+            db.session.commit()
+        logger.info("Processed %d/%d due reminders", sent_count, len(items))
+
+    job_manager.add_job(
+        _process_due_reminders,
+        job_id="process_due_reminders",
+        trigger="interval",
+        retry_policy=RetryPolicy(
+            max_retries=5,
+            base_delay_seconds=10.0,
+            max_delay_seconds=600.0,
+            backoff_factor=2.0,
+        ),
+        minutes=1,
+    )
+
+    # Only start scheduler in the main process (not in reloader child)
+    if not app.debug or os.environ.get("WERKZEUG_RUN_MAIN") == "true":
+        job_manager.start()
+        atexit.register(lambda: job_manager.shutdown(wait=False))
 
     @app.before_request
     def _before_request():
