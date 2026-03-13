@@ -100,6 +100,38 @@ def create_app(settings: Settings | None = None) -> Flask:
         minutes=1,
     )
 
+    def _send_weekly_digests():
+        """Background job: generate and email weekly digests to all users."""
+        from .models import User
+        from .services.digest import generate_weekly_digest, generate_digest_email_body
+        from .services.reminders import send_email
+
+        users = db.session.query(User).all()
+        sent = 0
+        for user in users:
+            try:
+                digest = generate_weekly_digest(user.id)
+                body = generate_digest_email_body(digest)
+                if send_email(user.email, "Your FinMind Weekly Digest", body):
+                    sent += 1
+            except Exception:
+                logger.warning("Digest failed for user %s", user.id, exc_info=True)
+        logger.info("Weekly digests sent: %d/%d users", sent, len(users))
+
+    job_manager.add_job(
+        _send_weekly_digests,
+        job_id="send_weekly_digests",
+        trigger="cron",
+        retry_policy=RetryPolicy(
+            max_retries=3,
+            base_delay_seconds=60.0,
+            max_delay_seconds=600.0,
+        ),
+        day_of_week="mon",
+        hour=9,
+        minute=0,
+    )
+
     # Only start scheduler in the main process (not in reloader child)
     if not app.debug or os.environ.get("WERKZEUG_RUN_MAIN") == "true":
         job_manager.start()
