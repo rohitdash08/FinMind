@@ -1,15 +1,17 @@
 from flask import Blueprint, jsonify, request
-from app.models import Goal, GoalMilestone, db
-from app.auth import token_required
+from flask_jwt_extended import jwt_required, get_jwt_identity
+from ..extensions import db
+from ..models import Goal, GoalMilestone
 from datetime import datetime
 
 bp = Blueprint("goals", __name__)
 
 
 @bp.route("", methods=["GET"])
-@token_required
-def get_goals(current_user):
-    goals = Goal.query.filter_by(user_id=current_user.id).all()
+@jwt_required()
+def get_goals():
+    uid = int(get_jwt_identity())
+    goals = Goal.query.filter_by(user_id=uid).all()
     result = []
     for g in goals:
         milestones = GoalMilestone.query.filter_by(goal_id=g.id).all()
@@ -37,8 +39,9 @@ def get_goals(current_user):
 
 
 @bp.route("", methods=["POST"])
-@token_required
-def create_goal(current_user):
+@jwt_required()
+def create_goal():
+    uid = int(get_jwt_identity())
     data = request.json
     try:
         deadline = (
@@ -50,7 +53,7 @@ def create_goal(current_user):
         return jsonify({"error": "Invalid date format, use YYYY-MM-DD"}), 400
 
     new_goal = Goal(
-        user_id=current_user.id,
+        user_id=uid,
         name=data["name"],
         target_amount=data["target_amount"],
         current_amount=data.get("current_amount", 0.0),
@@ -75,9 +78,10 @@ def create_goal(current_user):
 
 
 @bp.route("/<int:goal_id>", methods=["PUT"])
-@token_required
-def update_goal(current_user, goal_id):
-    goal = Goal.query.filter_by(id=goal_id, user_id=current_user.id).first()
+@jwt_required()
+def update_goal(goal_id):
+    uid = int(get_jwt_identity())
+    goal = Goal.query.filter_by(id=goal_id, user_id=uid).first()
     if not goal:
         return jsonify({"error": "Goal not found"}), 404
 
@@ -103,9 +107,10 @@ def update_goal(current_user, goal_id):
 
 
 @bp.route("/<int:goal_id>", methods=["DELETE"])
-@token_required
-def delete_goal(current_user, goal_id):
-    goal = Goal.query.filter_by(id=goal_id, user_id=current_user.id).first()
+@jwt_required()
+def delete_goal(goal_id):
+    uid = int(get_jwt_identity())
+    goal = Goal.query.filter_by(id=goal_id, user_id=uid).first()
     if not goal:
         return jsonify({"error": "Goal not found"}), 404
     db.session.delete(goal)
