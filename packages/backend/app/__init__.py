@@ -103,13 +103,11 @@ def _ensure_schema_compatibility(app: Flask) -> None:
     conn = db.engine.raw_connection()
     try:
         cur = conn.cursor()
-        cur.execute(
-            """
+        cur.execute("""
             ALTER TABLE users
             ADD COLUMN IF NOT EXISTS preferred_currency VARCHAR(10)
             NOT NULL DEFAULT 'INR'
-            """
-        )
+            """)
         conn.commit()
     except Exception:
         app.logger.exception(
