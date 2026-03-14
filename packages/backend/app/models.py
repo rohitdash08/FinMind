@@ -1,6 +1,7 @@
 from datetime import datetime, date
 from enum import Enum
 from sqlalchemy import Enum as SAEnum
+from sqlalchemy.dialects.postgresql import JSON as PG_JSON
 from .extensions import db
 
 
@@ -133,3 +134,13 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class WeeklyDigest(db.Model):
+    __tablename__ = "weekly_digests"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    week_start = db.Column(db.Date, nullable=False)
+    week_end = db.Column(db.Date, nullable=False)
+    summary = db.Column(db.JSON, nullable=False)
+    generated_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
