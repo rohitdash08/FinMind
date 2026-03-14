@@ -481,6 +481,76 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
 
+  /insights/weekly-summary:
+    get:
+      summary: Get weekly financial summary with trends and insights
+      description: |
+        Generate a weekly financial digest that includes:
+        - Week-over-week spending comparison
+        - Category breakdown
+        - Daily spending pattern
+        - Upcoming bills
+        - Trend analysis (increasing/decreasing/stable)
+        - AI-powered insights and tips
+      tags: [Insights]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: week
+          required: false
+          schema: { type: integer, default: 0 }
+          description: Week offset (0 = current week, -1 = last week, etc.)
+      responses:
+        '200':
+          description: Weekly summary
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+              example:
+                week_start: "2025-08-11"
+                week_end: "2025-08-17"
+                trend: "increasing"
+                method: "heuristic"
+                analytics:
+                  week_over_week_change_pct: 15.5
+                  current_week_expenses: 350.0
+                  previous_week_expenses: 303.0
+                  current_week_income: 500.0
+                  net_flow: 150.0
+                  top_categories:
+                    - category_id: "food"
+                      amount: 120.0
+                    - category_id: "transport"
+                      amount: 80.0
+                  daily_spending:
+                    "2025-08-11": 50.0
+                    "2025-08-12": 45.0
+                    "2025-08-13": 30.0
+                    "2025-08-14": 75.0
+                    "2025-08-15": 60.0
+                    "2025-08-16": 55.0
+                    "2025-08-17": 35.0
+                upcoming_bills:
+                  - id: 1
+                    name: "Internet Bill"
+                    amount: 50.0
+                    currency: "INR"
+                    due_date: "2025-08-15"
+                    days_until_due: 3
+                insights:
+                  - "Spending increased by 15.5% compared to last week."
+                  - "Your top spending category was food at 120.0."
+                  - "You have 1 bill(s) due this week totaling 50.0."
+                tips:
+                  - "Try to identify one expense you can reduce next week."
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
 components:
   securitySchemes:
     bearerAuth:
