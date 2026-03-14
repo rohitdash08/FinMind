@@ -133,3 +133,27 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class AccountType(str, Enum):
+    BANK = "BANK"
+    CREDIT = "CREDIT"
+    CASH = "CASH"
+    INVESTMENT = "INVESTMENT"
+    WALLET = "WALLET"
+    OTHER = "OTHER"
+
+
+class FinancialAccount(db.Model):
+    __tablename__ = "financial_accounts"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    name = db.Column(db.String(200), nullable=False)
+    account_type = db.Column(db.String(20), default=AccountType.BANK.value, nullable=False)
+    currency = db.Column(db.String(10), default="INR", nullable=False)
+    balance = db.Column(db.Numeric(14, 2), default=0, nullable=False)
+    institution = db.Column(db.String(200), nullable=True)
+    last_four = db.Column(db.String(4), nullable=True)
+    color = db.Column(db.String(7), default="#3B82F6", nullable=False)
+    active = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
