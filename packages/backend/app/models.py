@@ -98,6 +98,11 @@ class Reminder(db.Model):
     send_at = db.Column(db.DateTime, nullable=False)
     sent = db.Column(db.Boolean, default=False, nullable=False)
     channel = db.Column(db.String(20), default="email", nullable=False)
+    # Retry tracking
+    retry_count = db.Column(db.Integer, default=0, nullable=False)
+    last_error = db.Column(db.Text, nullable=True)
+    next_retry_at = db.Column(db.DateTime, nullable=True)
+    failed = db.Column(db.Boolean, default=False, nullable=False)
 
 
 class AdImpression(db.Model):

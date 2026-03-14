@@ -56,6 +56,18 @@ def create_app(settings: Settings | None = None) -> Flask:
     with app.app_context():
         _ensure_schema_compatibility(app)
 
+    # Start background scheduler (skip in testing mode)
+    if not app.config.get("TESTING"):
+        from .services.scheduler import init_scheduler
+        import atexit
+        scheduler = init_scheduler(app)
+
+        def _shutdown():
+            if scheduler.running:
+                scheduler.shutdown(wait=False)
+
+        atexit.register(_shutdown)
+
     @app.before_request
     def _before_request():
         init_request_context()
@@ -111,6 +123,18 @@ def _ensure_schema_compatibility(app: Flask) -> None:
             """
         )
         conn.commit()
+        # Retry tracking columns for reminders
+        for col_sql in [
+            "ALTER TABLE reminders ADD COLUMN IF NOT EXISTS retry_count INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE reminders ADD COLUMN IF NOT EXISTS last_error TEXT",
+            "ALTER TABLE reminders ADD COLUMN IF NOT EXISTS next_retry_at TIMESTAMP",
+            "ALTER TABLE reminders ADD COLUMN IF NOT EXISTS failed BOOLEAN NOT NULL DEFAULT FALSE",
+        ]:
+            try:
+                cur.execute(col_sql)
+                conn.commit()
+            except Exception:
+                conn.rollback()
     except Exception:
         app.logger.exception(
             "Schema compatibility patch failed for users.preferred_currency"
