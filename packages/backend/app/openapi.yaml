@@ -480,6 +480,72 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
+  /insights/weekly-digest:
+    get:
+      summary: Get weekly financial summary with trends and insights
+      description: >
+        Generates a comprehensive weekly financial digest including spending
+        breakdown, week-over-week trends, category analysis, and actionable
+        insights.
+      tags: [Insights]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: week_start
+          required: false
+          description: "Monday of the target week (YYYY-MM-DD). Defaults to current week."
+          schema: { type: string, pattern: '^\d{4}-\d{2}-\d{2}$' }
+      responses:
+        '200':
+          description: Weekly digest
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  period:
+                    type: object
+                    properties:
+                      week_start: { type: string, example: "2026-03-09" }
+                      week_end: { type: string, example: "2026-03-15" }
+                      label: { type: string, example: "Week of Mar 09, 2026" }
+                  summary:
+                    type: object
+                    properties:
+                      income: { type: number, example: 500.00 }
+                      expenses: { type: number, example: 175.00 }
+                      net: { type: number, example: 325.00 }
+                      transaction_count: { type: integer, example: 5 }
+                  trends:
+                    type: object
+                    properties:
+                      spending_wow_change_pct: { type: number, example: -12.5 }
+                      previous_week_expenses: { type: number, example: 200.00 }
+                      previous_week_income: { type: number, example: 450.00 }
+                      previous_week_net: { type: number, example: 250.00 }
+                  categories:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        category_id: { type: integer, nullable: true }
+                        category_name: { type: string }
+                        amount: { type: number }
+                        share_pct: { type: number }
+                  insights:
+                    type: array
+                    items: { type: string }
+                    example: ["You're in the green this week!", "Great savings rate: 65% this week."]
+        '400':
+          description: Invalid week_start format
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
 
 components:
   securitySchemes:
