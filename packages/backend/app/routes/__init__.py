@@ -7,6 +7,11 @@ from .insights import bp as insights_bp
 from .categories import bp as categories_bp
 from .docs import bp as docs_bp
 from .dashboard import bp as dashboard_bp
+<<<<<<< Updated upstream
+=======
+from .savings_goals import bp as savings_goals_bp
+from .accounts import bp as accounts_bp
+>>>>>>> Stashed changes
 
 
 def register_routes(app: Flask):
@@ -18,3 +23,8 @@ def register_routes(app: Flask):
     app.register_blueprint(categories_bp, url_prefix="/categories")
     app.register_blueprint(docs_bp, url_prefix="/docs")
     app.register_blueprint(dashboard_bp, url_prefix="/dashboard")
+<<<<<<< Updated upstream
+=======
+    app.register_blueprint(savings_goals_bp, url_prefix="/savings-goals")
+    app.register_blueprint(accounts_bp, url_prefix="/accounts")
+>>>>>>> Stashed changes

@@ -16,6 +16,11 @@ import NotFound from "./pages/NotFound";
 import { Landing } from "./pages/Landing";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
 import Account from "./pages/Account";
+<<<<<<< Updated upstream
+=======
+import SavingsGoals from "./pages/SavingsGoals";
+import AccountsOverview from "./pages/AccountsOverview";
+>>>>>>> Stashed changes
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -84,6 +89,25 @@ const App = () => (
               }
             />
             <Route
+<<<<<<< Updated upstream
+=======
+              path="savings"
+              element={
+                <ProtectedRoute>
+                  <SavingsGoals />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="accounts"
+              element={
+                <ProtectedRoute>
+                  <AccountsOverview />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+>>>>>>> Stashed changes
               path="account"
               element={
                 <ProtectedRoute>
