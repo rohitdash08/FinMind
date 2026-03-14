@@ -20,6 +20,7 @@ import {
   Plus,
 } from 'lucide-react';
 import { getDashboardSummary, type DashboardSummary } from '@/api/dashboard';
+import { getWeeklyDigest, type WeeklyDigestResponse } from '@/api/digest';
 import { useNavigate } from 'react-router-dom';
 import { formatMoney } from '@/lib/currency';
 
@@ -30,6 +31,7 @@ function currency(n: number, code?: string) {
 export function Dashboard() {
   const navigate = useNavigate();
   const [data, setData] = useState<DashboardSummary | null>(null);
+  const [digestData, setDigestData] = useState<WeeklyDigestResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7));
@@ -47,6 +49,8 @@ export function Dashboard() {
         setLoading(false);
       }
     })();
+    // Fetch weekly digest for the widget (fire-and-forget)
+    getWeeklyDigest().then(setDigestData).catch(() => {});
   }, [month]);
 
   const summary = useMemo(() => {
@@ -277,6 +281,68 @@ export function Dashboard() {
           </FinancialCard>
         </div>
       </div>
+
+      {/* Weekly Digest Widget */}
+      {digestData?.summary && (
+        <FinancialCard variant="premium" className="mt-8 fade-in-up">
+          <FinancialCardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <FinancialCardTitle className="section-title">Weekly Digest</FinancialCardTitle>
+                <FinancialCardDescription>
+                  {new Date(digestData.summary.period.week_start + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                  {' - '}
+                  {new Date(digestData.summary.period.week_end + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                </FinancialCardDescription>
+              </div>
+              <Button variant="ghost" size="sm" onClick={() => navigate('/digest')}>View Full Digest</Button>
+            </div>
+          </FinancialCardHeader>
+          <FinancialCardContent>
+            <div className="grid sm:grid-cols-3 gap-4 mb-4">
+              <div className="text-center">
+                <div className="text-xs text-muted-foreground uppercase tracking-wider">Spending</div>
+                <div className="text-lg font-bold text-foreground">{currency(digestData.summary.overview.total_expenses)}</div>
+                {digestData.summary.comparison.spending_change_pct !== null && (
+                  <div className={`text-xs font-medium ${digestData.summary.comparison.spending_change_pct > 0 ? 'text-destructive' : 'text-success'}`}>
+                    {digestData.summary.comparison.spending_change_pct > 0 ? '+' : ''}{digestData.summary.comparison.spending_change_pct.toFixed(1)}% vs last week
+                  </div>
+                )}
+              </div>
+              <div className="text-center">
+                <div className="text-xs text-muted-foreground uppercase tracking-wider">Net Flow</div>
+                <div className={`text-lg font-bold ${digestData.summary.overview.net_flow >= 0 ? 'text-success' : 'text-destructive'}`}>
+                  {digestData.summary.overview.net_flow >= 0 ? '+' : ''}{currency(digestData.summary.overview.net_flow)}
+                </div>
+              </div>
+              <div className="text-center">
+                <div className="text-xs text-muted-foreground uppercase tracking-wider">Savings Rate</div>
+                <div className="text-lg font-bold text-foreground">
+                  {digestData.summary.overview.savings_rate !== null ? `${digestData.summary.overview.savings_rate.toFixed(1)}%` : '--'}
+                </div>
+              </div>
+            </div>
+            {digestData.summary.insights.length > 0 && (
+              <div className="space-y-2">
+                {digestData.summary.insights.slice(0, 2).map((insight, idx) => (
+                  <div key={idx} className={`rounded-lg p-3 text-sm ${
+                    insight.type === 'success' ? 'bg-success-light text-success' :
+                    insight.type === 'warning' ? 'bg-warning-light text-warning' :
+                    'bg-primary-light/10 text-primary'
+                  }`}>
+                    <span className="font-medium">{insight.title}:</span> {insight.message}
+                  </div>
+                ))}
+              </div>
+            )}
+          </FinancialCardContent>
+          <FinancialCardFooter>
+            <Button variant="financial" size="sm" className="w-full" onClick={() => navigate('/digest')}>
+              View Full Weekly Digest
+            </Button>
+          </FinancialCardFooter>
+        </FinancialCard>
+      )}
     </div>
   );
 }
