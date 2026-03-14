@@ -3,6 +3,7 @@ from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..extensions import db
 from ..models import Category
+from ..services.cache import TTL, cache_delete, cache_get, cache_set, categories_key
 
 bp = Blueprint("categories", __name__)
 logger = logging.getLogger("finmind.categories")
@@ -12,11 +13,21 @@ logger = logging.getLogger("finmind.categories")
 @jwt_required()
 def list_categories():
     uid = int(get_jwt_identity())
+    key = categories_key(uid)
+
+    # Categories are static — cache for 1 hour, invalidate on write
+    cached = cache_get(key)
+    if cached is not None:
+        logger.debug("categories cache HIT user=%s", uid)
+        return jsonify(cached)
+
     items = (
         db.session.query(Category).filter_by(user_id=uid).order_by(Category.name).all()
     )
-    logger.info("List categories for user=%s count=%s", uid, len(items))
-    return jsonify([{"id": c.id, "name": c.name} for c in items])
+    result = [{"id": c.id, "name": c.name} for c in items]
+    cache_set(key, result, ttl_seconds=TTL.STATIC)
+    logger.info("List categories user=%s count=%s (cache MISS)", uid, len(items))
+    return jsonify(result)
 
 
 @bp.post("")
@@ -28,13 +39,13 @@ def create_category():
     if not name:
         logger.warning("Create category missing name user=%s", uid)
         return jsonify(error="name required"), 400
-    # Optional: enforce unique name per user
     exists = db.session.query(Category).filter_by(user_id=uid, name=name).first()
     if exists:
         return jsonify(error="category already exists"), 409
     c = Category(user_id=uid, name=name)
     db.session.add(c)
     db.session.commit()
+    cache_delete(categories_key(uid))  # invalidate
     logger.info("Created category id=%s user=%s", c.id, uid)
     return jsonify(id=c.id, name=c.name), 201
 
@@ -52,6 +63,7 @@ def update_category(category_id: int):
         return jsonify(error="name required"), 400
     c.name = name
     db.session.commit()
+    cache_delete(categories_key(uid))  # invalidate
     logger.info("Updated category id=%s user=%s", c.id, uid)
     return jsonify(id=c.id, name=c.name)
 
@@ -65,5 +77,6 @@ def delete_category(category_id: int):
         return jsonify(error="not found"), 404
     db.session.delete(c)
     db.session.commit()
+    cache_delete(categories_key(uid))  # invalidate
     logger.info("Deleted category id=%s user=%s", c.id, uid)
     return jsonify(message="deleted")
