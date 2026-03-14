@@ -1,12 +1,22 @@
 from datetime import datetime, date
 from enum import Enum
 from sqlalchemy import Enum as SAEnum
+from sqlalchemy.orm import relationship
 from .extensions import db
 
 
 class Role(str, Enum):
     USER = "USER"
     ADMIN = "ADMIN"
+
+
+class AccountType(str, Enum):
+    CHECKING = "CHECKING"
+    SAVINGS = "SAVINGS"
+    CREDIT_CARD = "CREDIT_CARD"
+    INVESTMENT = "INVESTMENT"
+    CASH = "CASH"
+    OTHER = "OTHER"
 
 
 class User(db.Model):
@@ -17,6 +27,25 @@ class User(db.Model):
     preferred_currency = db.Column(db.String(10), default="INR", nullable=False)
     role = db.Column(db.String(20), default=Role.USER.value, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class Account(db.Model):
+    __tablename__ = "accounts"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    name = db.Column(db.String(100), nullable=False)
+    account_type = db.Column(SAEnum(AccountType), nullable=False)
+    institution = db.Column(db.String(200), nullable=True)
+    currency = db.Column(db.String(10), default="INR", nullable=False)
+    balance = db.Column(db.Numeric(12, 2), default=0, nullable=False)
+    is_default = db.Column(db.Boolean, default=False, nullable=False)
+    active = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(
+        db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+    )
+
+    expenses = relationship("Expense", backref="account", lazy="dynamic")
 
 
 class Category(db.Model):
@@ -32,6 +61,7 @@ class Expense(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     category_id = db.Column(db.Integer, db.ForeignKey("categories.id"), nullable=True)
+    account_id = db.Column(db.Integer, db.ForeignKey("accounts.id"), nullable=True)
     amount = db.Column(db.Numeric(12, 2), nullable=False)
     currency = db.Column(db.String(10), default="INR", nullable=False)
     expense_type = db.Column(db.String(20), default="EXPENSE", nullable=False)
