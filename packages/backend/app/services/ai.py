@@ -166,6 +166,108 @@ def _gemini_budget_suggestion(
     return parsed
 
 
+def detect_lifestyle_inflation(
+    uid: int,
+    months: int = 6,
+) -> dict:
+    """Detect categories where spending is trending upward over recent months.
+
+    Returns a list of categories with rising spend, month-by-month totals,
+    and an overall lifestyle inflation score.
+    """
+    from datetime import date
+
+    today = date.today().replace(day=1)
+    month_labels: list[str] = []
+    for i in range(months - 1, -1, -1):
+        year = today.year
+        month = today.month - i
+        while month <= 0:
+            month += 12
+            year -= 1
+        month_labels.append(f"{year:04d}-{month:02d}")
+
+    # Build per-category monthly spend
+    category_trends: dict[str, list[float]] = {}
+    for ym in month_labels:
+        year, month = map(int, ym.split("-"))
+        rows = (
+            db.session.query(
+                Expense.category_id,
+                func.coalesce(func.sum(Expense.amount), 0),
+            )
+            .filter(
+                Expense.user_id == uid,
+                extract("year", Expense.spent_at) == year,
+                extract("month", Expense.spent_at) == month,
+                Expense.expense_type != "INCOME",
+            )
+            .group_by(Expense.category_id)
+            .all()
+        )
+        for cat_id, total in rows:
+            key = str(cat_id or "uncat")
+            category_trends.setdefault(key, []).append(float(total or 0))
+
+    # Fill missing months with 0
+    for key in category_trends:
+        while len(category_trends[key]) < months:
+            category_trends[key].insert(0, 0.0)
+
+    # Detect rising categories
+    rising: list[dict] = []
+    for cat_id, spends in category_trends.items():
+        first_half = sum(spends[: months // 2])
+        second_half = sum(spends[months // 2 :])
+        if first_half > 0:
+            change_pct = round(((second_half - first_half) / first_half) * 100, 2)
+        elif second_half > 0:
+            change_pct = 100.0
+        else:
+            change_pct = 0.0
+        if change_pct > 10:  # >10% increase = lifestyle creep
+            rising.append(
+                {
+                    "category_id": cat_id,
+                    "change_pct": change_pct,
+                    "first_half_total": round(first_half, 2),
+                    "second_half_total": round(second_half, 2),
+                    "monthly": [round(s, 2) for s in spends],
+                }
+            )
+
+    rising.sort(key=lambda x: x["change_pct"], reverse=True)
+
+    # Overall inflation score: average change across all categories with spend
+    all_cats = [
+        c
+        for c in category_trends.values()
+        if sum(c) > 0
+    ]
+    if all_cats:
+        overall_changes = []
+        for spends in all_cats:
+            fh = sum(spends[: months // 2])
+            sh = sum(spends[months // 2 :])
+            if fh > 0:
+                overall_changes.append(((sh - fh) / fh) * 100)
+        inflation_score = (
+            round(sum(overall_changes) / len(overall_changes), 2)
+            if overall_changes
+            else 0.0
+        )
+    else:
+        inflation_score = 0.0
+
+    return {
+        "period_months": months,
+        "month_labels": month_labels,
+        "inflation_score": inflation_score,
+        "rising_categories": rising,
+        "total_rising": len(rising),
+    }
+
+
 def monthly_budget_suggestion(
     uid: int,
     ym: str,

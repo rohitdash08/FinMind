@@ -90,3 +90,62 @@ def test_budget_suggestion_falls_back_when_gemini_fails(
     assert payload["method"] == "heuristic"
     assert "warnings" in payload
     assert "gemini_unavailable" in payload["warnings"]
+
+
+def test_lifestyle_inflation_returns_expected_fields(client, auth_header):
+    r = client.get("/insights/lifestyle-inflation", headers=auth_header)
+    assert r.status_code == 200
+    payload = r.get_json()
+    assert "period_months" in payload
+    assert "month_labels" in payload
+    assert "inflation_score" in payload
+    assert "rising_categories" in payload
+    assert "total_rising" in payload
+    assert isinstance(payload["month_labels"], list)
+
+
+def test_lifestyle_inflation_detects_rising_spend(client, auth_header):
+    today = date.today().replace(day=15)
+    # Low spend 3 months ago
+    old = today - timedelta(days=90)
+    # High spend this month
+    r = client.post(
+        "/expenses",
+        json={
+            "amount": 100,
+            "description": "Old dining",
+            "date": old.isoformat(),
+            "expense_type": "EXPENSE",
+        },
+        headers=auth_header,
+    )
+    assert r.status_code == 201
+
+    r = client.post(
+        "/expenses",
+        json={
+            "amount": 500,
+            "description": "New dining",
+            "date": today.isoformat(),
+            "expense_type": "EXPENSE",
+        },
+        headers=auth_header,
+    )
+    assert r.status_code == 201
+
+    r = client.get("/insights/lifestyle-inflation?months=6", headers=auth_header)
+    assert r.status_code == 200
+    payload = r.get_json()
+    assert payload["inflation_score"] > 0
+
+
+def test_lifestyle_inflation_months_clamped(client, auth_header):
+    r = client.get("/insights/lifestyle-inflation?months=999", headers=auth_header)
+    assert r.status_code == 200
+    payload = r.get_json()
+    assert payload["period_months"] <= 24
+
+    r = client.get("/insights/lifestyle-inflation?months=0", headers=auth_header)
+    assert r.status_code == 200
+    payload = r.get_json()
+    assert payload["period_months"] >= 2
