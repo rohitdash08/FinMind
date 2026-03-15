@@ -1,0 +1,12 @@
+feat(security): add login anomaly detection & suspicious activity alerts
+
+Implements issue #124 — detect unusual login behavior and alert users.
+
+Changes:
+- Add login_events and security_alerts migrations (032_login_anomaly.sql)
+- Add LoginEvent and SecurityAlert models
+- Add login anomaly service with risk scoring, anomaly detection,
+  auto-alert generation, history tracking, and statistics
+- Add 6 REST endpoints under /security/*
+- Add 37 passing tests
+- Add documentation
