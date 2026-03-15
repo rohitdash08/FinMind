@@ -127,6 +127,25 @@ class UserSubscription(db.Model):
     started_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
 
+class Notification(db.Model):
+    __tablename__ = "notifications"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    title = db.Column(db.String(200), nullable=False)
+    message = db.Column(db.Text, nullable=False)
+    priority = db.Column(db.String(20), default="normal")
+    category = db.Column(db.String(50), default="general")
+    group_key = db.Column(db.String(100))
+    is_read = db.Column(db.Boolean, default=False)
+    is_dismissed = db.Column(db.Boolean, default=False)
+    action_url = db.Column(db.String(500))
+    action_type = db.Column(db.String(50))
+    extra_data = db.Column(db.JSON, default=dict)
+    expires_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
 class AuditLog(db.Model):
     __tablename__ = "audit_logs"
     id = db.Column(db.Integer, primary_key=True)

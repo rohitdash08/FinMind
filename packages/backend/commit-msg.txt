@@ -1,0 +1,26 @@
+feat(notifications): implement notification priority & grouping system
+
+Resolves #122
+
+Add intelligent notification management with priority-weighted sorting,
+category-based organization, notification grouping, batch operations,
+and analytics dashboard.
+
+Changes:
+- Add notifications table migration (034_notification_priority.sql)
+- Add Notification model with 15 columns and 6 indexes
+- Add notification priority service with grouping and analytics
+- Add 9 REST endpoints under /notifications blueprint
+- Add 38 tests covering service logic and route integration
+- Add documentation (docs/notification-priority.md)
+
+Features:
+- Priority levels: critical (4), high (3), normal (2), low (1)
+- Categories: general, bill_due, budget_alert, transaction, security, etc.
+- Group related notifications by group_key with unread counts
+- Mark individual or all notifications as read (with category/group filters)
+- Dismiss single notifications or entire groups (soft delete)
+- Unread counts broken down by priority and category
+- Statistics: read rates, volume trends, daily counts
+- Expired notification auto-filtering
+- Pagination with offset/limit support
