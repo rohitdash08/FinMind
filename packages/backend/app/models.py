@@ -133,3 +133,76 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+# ---------------------------------------------------------------------------
+# Goal-based Savings Tracking
+# ---------------------------------------------------------------------------
+
+class GoalStatus(str, Enum):
+    ACTIVE = "ACTIVE"
+    PAUSED = "PAUSED"
+    COMPLETED = "COMPLETED"
+    CANCELLED = "CANCELLED"
+
+
+MILESTONE_DEFAULTS = [
+    (25, "Quarter way there!"),
+    (50, "Halfway to your goal!"),
+    (75, "Three quarters done!"),
+    (100, "Goal achieved! 🎉"),
+]
+
+
+class SavingsGoal(db.Model):
+    __tablename__ = "savings_goals"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    name = db.Column(db.String(200), nullable=False)
+    target_amount = db.Column(db.Numeric(12, 2), nullable=False)
+    current_amount = db.Column(db.Numeric(12, 2), default=0, nullable=False)
+    currency = db.Column(db.String(10), default="INR", nullable=False)
+    status = db.Column(db.String(20), default=GoalStatus.ACTIVE.value,
+                       nullable=False)
+    target_date = db.Column(db.Date, nullable=True)
+    icon = db.Column(db.String(50), default="piggy-bank")
+    color = db.Column(db.String(7), default="#4F46E5")
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    completed_at = db.Column(db.DateTime, nullable=True)
+
+    contributions = db.relationship("GoalContribution", backref="goal",
+                                     cascade="all, delete-orphan",
+                                     lazy="dynamic")
+    milestones = db.relationship("GoalMilestone", backref="goal",
+                                  cascade="all, delete-orphan",
+                                  lazy="dynamic",
+                                  order_by="GoalMilestone.percentage")
+
+    @property
+    def progress_pct(self):
+        if float(self.target_amount) == 0:
+            return 0.0
+        return round(float(self.current_amount) / float(self.target_amount) * 100, 1)
+
+
+class GoalContribution(db.Model):
+    __tablename__ = "goal_contributions"
+    id = db.Column(db.Integer, primary_key=True)
+    goal_id = db.Column(db.Integer, db.ForeignKey("savings_goals.id"),
+                        nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    amount = db.Column(db.Numeric(12, 2), nullable=False)
+    notes = db.Column(db.String(500), nullable=True)
+    contributed_at = db.Column(db.Date, default=date.today, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class GoalMilestone(db.Model):
+    __tablename__ = "goal_milestones"
+    id = db.Column(db.Integer, primary_key=True)
+    goal_id = db.Column(db.Integer, db.ForeignKey("savings_goals.id"),
+                        nullable=False)
+    percentage = db.Column(db.Integer, nullable=False)
+    title = db.Column(db.String(200), nullable=False)
+    reached_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
