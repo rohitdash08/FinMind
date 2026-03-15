@@ -90,3 +90,55 @@ def test_budget_suggestion_falls_back_when_gemini_fails(
     assert payload["method"] == "heuristic"
     assert "warnings" in payload
     assert "gemini_unavailable" in payload["warnings"]
+
+
+def test_weekly_digest_returns_stats(client, auth_header):
+    current = date.today()
+
+    r = client.post(
+        "/expenses",
+        json={
+            "amount": 200,
+            "description": "Weekly expense",
+            "date": current.isoformat(),
+            "expense_type": "EXPENSE",
+        },
+        headers=auth_header,
+    )
+    assert r.status_code == 201
+
+    r = client.get("/insights/weekly-digest", headers=auth_header)
+    assert r.status_code == 200
+    payload = r.get_json()
+
+    assert "total_spent" in payload
+    assert payload["total_spent"] == 200.0
+    assert "insights" in payload
+    assert len(payload["insights"]) > 0
+    assert "daily_breakdown" in payload
+    assert current.isoformat() in payload["daily_breakdown"]
+    assert payload["daily_breakdown"][current.isoformat()] == 200.0
+
+
+def test_weekly_digest_with_gemini_mock(client, auth_header, monkeypatch):
+    def _fake_gemini_weekly(*args, **kwargs):
+        return {
+            "insights": ["AI Insight 1", "AI Insight 2"],
+            "method": "gemini",
+            "total_spent": 100.0,
+            "wow_change_pct": 10.5
+        }
+
+    monkeypatch.setattr("app.services.ai._gemini_weekly_digest", _fake_gemini_weekly)
+
+    r = client.get(
+        "/insights/weekly-digest",
+        headers={
+            **auth_header,
+            "X-Gemini-Api-Key": "test-key",
+        },
+    )
+    assert r.status_code == 200
+    payload = r.get_json()
+    assert payload["method"] == "gemini"
+    assert "AI Insight 1" in payload["insights"]
