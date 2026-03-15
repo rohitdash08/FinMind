@@ -133,3 +133,24 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class ReminderDelivery(db.Model):
+    __tablename__ = "reminder_deliveries"
+    id = db.Column(db.Integer, primary_key=True)
+    reminder_id = db.Column(db.Integer, db.ForeignKey("reminders.id"), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    channel = db.Column(db.String(20), nullable=False, default="email")
+    status = db.Column(db.String(20), nullable=False, default="pending")
+    attempt_number = db.Column(db.Integer, default=1)
+    sent_at = db.Column(db.DateTime)
+    delivered_at = db.Column(db.DateTime)
+    failed_at = db.Column(db.DateTime)
+    failure_reason = db.Column(db.String(256))
+    response_code = db.Column(db.String(10))
+    latency_ms = db.Column(db.Integer)
+    opened = db.Column(db.Boolean, default=False)
+    opened_at = db.Column(db.DateTime)
+    clicked = db.Column(db.Boolean, default=False)
+    clicked_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
