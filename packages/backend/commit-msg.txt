@@ -1,0 +1,20 @@
+feat(currency): Multi-Currency & FX Conversion Support (#95)
+
+Add comprehensive multi-currency support with exchange-rate management,
+real-time conversion, and currency-aware analytics.
+
+New components:
+- ExchangeRate & SupportedCurrency models with 15 pre-seeded currencies
+- Currency service: rate CRUD, bulk import, conversion, multi-currency summary
+- 9 REST endpoints under /currency/ (list, seed, rates, convert, summary)
+- Migration 006_multi_currency.sql (2 tables + indexes + seed data)
+- 24 tests — all passing
+
+Key features:
+- Automatic inverse rate calculation
+- Date-stamped rate history with fallback to most recent
+- Cross-currency expense & bill aggregation analytics
+- Bulk rate import for efficient updates
+- Full backwards compatibility with existing currency fields
+
+/claim #95

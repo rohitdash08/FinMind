@@ -133,3 +133,47 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+# ── Multi-Currency & FX ──────────────────────────────────
+
+class ExchangeRate(db.Model):
+    __tablename__ = "exchange_rates"
+    id = db.Column(db.Integer, primary_key=True)
+    base_currency = db.Column(db.String(10), nullable=False)
+    target_currency = db.Column(db.String(10), nullable=False)
+    rate = db.Column(db.Numeric(18, 8), nullable=False)
+    rate_date = db.Column(db.Date, nullable=False)
+    source = db.Column(db.String(50), default="manual", nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        db.UniqueConstraint(
+            "base_currency", "target_currency", "rate_date",
+            name="uq_exchange_rate_pair_date",
+        ),
+    )
+
+
+class SupportedCurrency(db.Model):
+    __tablename__ = "supported_currencies"
+    code = db.Column(db.String(10), primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    symbol = db.Column(db.String(10), nullable=False)
+    decimal_places = db.Column(db.Integer, default=2, nullable=False)
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+
+
+# Default seed currencies
+DEFAULT_CURRENCIES = [
+    ("USD", "US Dollar", "$", 2),
+    ("EUR", "Euro", "€", 2),
+    ("GBP", "British Pound", "£", 2),
+    ("INR", "Indian Rupee", "₹", 2),
+    ("JPY", "Japanese Yen", "¥", 0),
+    ("CAD", "Canadian Dollar", "CA$", 2),
+    ("AUD", "Australian Dollar", "A$", 2),
+    ("CHF", "Swiss Franc", "CHF", 2),
+    ("CNY", "Chinese Yuan", "¥", 2),
+    ("SGD", "Singapore Dollar", "S$", 2),
+]
