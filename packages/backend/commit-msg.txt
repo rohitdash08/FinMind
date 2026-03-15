@@ -1,0 +1,16 @@
+feat(cache): smart caching strategy for dashboard & analytics
+
+Closes #127
+
+Add intelligent multi-layer caching system with:
+- L1 in-memory cache with LRU eviction and TTL expiry
+- L2 Redis cache with automatic promotion
+- 8 configurable TTL policies per data type
+- @cached decorator for easy function-level caching
+- Smart invalidation: per-user, per-type, and global
+- Cache warming/preloading support
+- Cache health monitoring and statistics
+- cache_get/set/delete operations across both layers
+- 8 REST endpoints for management and monitoring
+- 46 tests, all passing
+- Documentation
