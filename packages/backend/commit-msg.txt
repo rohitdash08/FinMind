@@ -1,0 +1,25 @@
+feat(savings): implement savings opportunity detection engine
+
+Resolves #119
+
+Add intelligent spending analysis that identifies areas where users can
+reduce spending and save money, with confidence-scored recommendations
+and actionable opportunity management.
+
+Changes:
+- Add savings_opportunities table migration (035_savings_opportunity.sql)
+- Add SavingsOpportunity model with 18 columns
+- Add savings detection service with spending spike and overspend algorithms
+- Add 6 REST endpoints under /savings blueprint
+- Add 29 tests covering detection logic and route integration
+- Add documentation (docs/savings-opportunity.md)
+
+Features:
+- Spending spike detection: compare recent vs historical average by category
+- Category overspend detection: flag categories > 40% of total spending
+- Confidence scoring (0-1) based on deviation severity
+- Duplicate prevention with opportunity upsert
+- Opportunity lifecycle: active → dismissed or acted
+- Savings summary with totals, acted vs pending, by-type breakdown
+- Configurable analysis period and detection thresholds
+- Sorted by potential savings (highest first)
