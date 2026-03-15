@@ -1,0 +1,17 @@
+feat(dedup): add transaction deduplication intelligence
+
+Implements duplicate detection across imports and syncs using
+fingerprint-based matching with exact and fuzzy detection,
+group management, and multiple resolution strategies.
+
+Resolves #113
+
+Changes:
+- app/models.py: Add fingerprint to Expense, DuplicateGroup model
+- app/db/028_transaction_dedup.sql: Migration for new tables/columns
+- app/services/dedup.py: Dedup engine with fingerprinting and matching
+- app/routes/dedup.py: 4 endpoints (scan, groups, resolve, stats)
+- app/routes/__init__.py: Register dedup blueprint
+- tests/test_dedup.py: 37 comprehensive tests
+- docs/transaction-dedup.md: Full documentation
+- tests/conftest.py: Add fakeredis for test isolation
