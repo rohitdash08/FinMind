@@ -133,3 +133,36 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class LoginEvent(db.Model):
+    __tablename__ = "login_events"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    event_type = db.Column(db.String(20), nullable=False, default="login")
+    ip_address = db.Column(db.String(45))
+    user_agent = db.Column(db.String(512))
+    device_type = db.Column(db.String(20))
+    browser = db.Column(db.String(64))
+    os = db.Column(db.String(64))
+    location = db.Column(db.String(128))
+    country_code = db.Column(db.String(5))
+    is_suspicious = db.Column(db.Boolean, default=False)
+    risk_score = db.Column(db.Float, default=0.0)
+    anomaly_reasons = db.Column(db.Text)
+    session_id = db.Column(db.String(64))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class SecurityAlert(db.Model):
+    __tablename__ = "security_alerts"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    alert_type = db.Column(db.String(50), nullable=False)
+    severity = db.Column(db.String(20), default="medium")
+    title = db.Column(db.String(256), nullable=False)
+    description = db.Column(db.Text)
+    metadata_ = db.Column("metadata", db.Text)
+    acknowledged = db.Column(db.Boolean, default=False)
+    acknowledged_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
