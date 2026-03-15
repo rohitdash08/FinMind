@@ -1,0 +1,22 @@
+feat(subscriptions): add subscription cost increase detection (#110)
+
+Add price monitoring system that detects subscription cost increases
+and notifies affected users automatically.
+
+New features:
+- Price history tracking for all subscription plan changes
+- Automatic alert generation for active subscribers on increases
+- Alert acknowledgement (individual + bulk)
+- Cost summary with monthly normalization (yearly/12, weekly*4)
+- Price increase detection with affected user counts
+- No alerts for price decreases or inactive subscribers
+
+Implementation:
+- Migration 039: subscription_price_history + subscription_cost_alerts
+- SubscriptionPriceHistory and SubscriptionCostAlert models
+- Subscription cost service with 8 public functions
+- 8 REST endpoints under /subscriptions
+- 38 tests (unit + integration), all passing
+- Full API documentation
+
+Closes #110
