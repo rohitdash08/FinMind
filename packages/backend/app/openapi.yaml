@@ -481,6 +481,50 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
 
+  /savings/opportunities:
+    get:
+      summary: Detect savings opportunities from spending analysis
+      tags: [Insights]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Detected opportunities
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  opportunities:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        type:
+                          type: string
+                          enum: [spiking_category, duplicate_recurring, top_spender, trend_increase]
+                        title:
+                          type: string
+                        description:
+                          type: string
+                        estimated_monthly_saving:
+                          type: number
+                        category:
+                          type: string
+                          nullable: true
+                        details:
+                          type: object
+                  total_estimated_monthly_saving:
+                    type: number
+                  opportunity_count:
+                    type: integer
+                  analysis_months:
+                    type: integer
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
 components:
   securitySchemes:
     bearerAuth:
