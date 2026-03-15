@@ -133,3 +133,31 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class Merchant(db.Model):
+    __tablename__ = "merchants"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    name = db.Column(db.String(200), nullable=False)
+    normalized_name = db.Column(db.String(200), nullable=False)
+    category_id = db.Column(db.Integer, db.ForeignKey("categories.id"), nullable=True)
+    default_currency = db.Column(db.String(10), default="INR")
+    notes = db.Column(db.Text, nullable=True)
+    transaction_count = db.Column(db.Integer, default=0)
+    total_spent = db.Column(db.Numeric(14, 2), default=0)
+    last_transaction_date = db.Column(db.Date, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    aliases = db.relationship("MerchantAlias", backref="merchant", lazy=True, cascade="all, delete-orphan")
+    __table_args__ = (db.UniqueConstraint("user_id", "normalized_name"),)
+
+
+class MerchantAlias(db.Model):
+    __tablename__ = "merchant_aliases"
+    id = db.Column(db.Integer, primary_key=True)
+    merchant_id = db.Column(db.Integer, db.ForeignKey("merchants.id"), nullable=False)
+    alias = db.Column(db.String(200), nullable=False)
+    normalized_alias = db.Column(db.String(200), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    __table_args__ = (db.UniqueConstraint("merchant_id", "normalized_alias"),)

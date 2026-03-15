@@ -1,0 +1,41 @@
+feat(merchants): add smart payee & merchant alias management
+
+Closes #114
+
+Add comprehensive merchant/payee management with alias support, fuzzy
+matching, merge functionality, and duplicate detection.
+
+Features:
+- Merchant CRUD with name normalization
+- Alias management (add, remove, list) per merchant
+- Smart matching by name, alias, or partial substring
+- Merge multiple merchants into one (moves aliases, aggregates stats)
+- Duplicate detection via substring match and word overlap
+- Search, filter by category, sort by name/transactions/spent/recent
+- Pagination support
+
+Database:
+- merchants table with normalized name, stats tracking, category link
+- merchant_aliases table with normalized alias, unique per merchant
+
+Endpoints (under /merchants):
+- GET / — List with search, filter, sort, pagination
+- POST / — Create merchant
+- GET /:id — Get merchant detail
+- PUT /:id — Update merchant
+- DELETE /:id — Delete merchant + aliases
+- GET /:id/aliases — List aliases
+- POST /:id/aliases — Add alias
+- DELETE /:id/aliases/:alias_id — Remove alias
+- POST /merge — Merge source merchants into target
+- GET /match?name= — Find merchant by name/alias
+- GET /duplicates — Suggest potential duplicates
+
+Files added/modified:
+- migrations/037_smart_payee.sql — Schema
+- app/models.py — Merchant, MerchantAlias models
+- app/services/smart_payee.py — Service layer
+- app/routes/smart_payee.py — 11 endpoints
+- app/routes/__init__.py — Blueprint registration
+- tests/test_smart_payee.py — 35 tests (all passing)
+- docs/smart-payee.md — Documentation
