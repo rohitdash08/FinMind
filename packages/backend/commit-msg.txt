@@ -1,0 +1,34 @@
+feat(statements): add universal bank statement normalization layer
+
+Closes #112
+
+Add comprehensive bank statement parser that normalizes diverse formats
+(CSV, OFX/QFX, plain text) into a unified transaction schema.
+
+Features:
+- Auto-detection of statement format (CSV, OFX/QFX, text)
+- Smart column header detection with alias mapping
+- Support for separate debit/credit columns or combined amount
+- Currency symbol cleanup ($, €, £, ₹, commas)
+- European number format support (1.234,56)
+- 14+ date format auto-detection
+- OFX 1.x (SGML) and 2.x (XML) parser
+- Plain text/PDF pattern-based extraction
+- Custom column mapping and date format override
+- Transaction summary statistics
+
+Unified schema:
+- date, amount, description, transaction_type (debit|credit)
+- reference, balance, category_hint
+
+Endpoints (under /statements):
+- POST /normalize — Parse and normalize any statement format
+- POST /detect-format — Detect format without full parse
+- POST /detect-columns — Auto-detect CSV column mapping
+
+Files added/modified:
+- app/services/bank_statement.py — Multi-format parser
+- app/routes/bank_statement.py — 3 endpoints with JWT auth
+- app/routes/__init__.py — Blueprint registration
+- tests/test_bank_statement.py — 32 tests (all passing)
+- docs/bank-statement.md — Documentation
