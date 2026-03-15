@@ -66,6 +66,98 @@ def normalize_import_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return normalized
 
 
+def validate_import_rows(
+    rows: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Validate normalized import rows and return per-row warnings + summary stats.
+
+    Returns dict with:
+    - warnings: list of {row_index, field, message} per-row issues
+    - summary: aggregate stats (total_amount, date_range, income_total, expense_total)
+    """
+    warnings: list[dict[str, Any]] = []
+    total_amount = Decimal("0")
+    income_total = Decimal("0")
+    expense_total = Decimal("0")
+    dates: list[date] = []
+
+    for i, row in enumerate(rows):
+        row_warnings: list[dict[str, Any]] = []
+
+        # Check amount reasonableness
+        amt = row.get("amount", 0)
+        try:
+            amt_dec = Decimal(str(amt))
+            if amt_dec > 100_000:
+                row_warnings.append(
+                    {"field": "amount", "message": f"Unusually large amount: {amt}"}
+                )
+            if amt_dec <= 0:
+                row_warnings.append(
+                    {"field": "amount", "message": "Amount is zero or negative"}
+                )
+        except (InvalidOperation, ValueError, TypeError):
+            row_warnings.append({"field": "amount", "message": "Invalid amount"})
+
+        # Check date validity and future dates
+        raw_date = row.get("date")
+        try:
+            dt = date.fromisoformat(str(raw_date))
+            dates.append(dt)
+            if dt > date.today():
+                row_warnings.append(
+                    {"field": "date", "message": f"Future date: {raw_date}"}
+                )
+            if dt.year < 2000:
+                row_warnings.append(
+                    {"field": "date", "message": f"Suspiciously old date: {raw_date}"}
+                )
+        except (ValueError, TypeError):
+            row_warnings.append({"field": "date", "message": f"Invalid date: {raw_date}"})
+
+        # Check description length
+        desc = str(row.get("description") or "").strip()
+        if len(desc) < 2:
+            row_warnings.append(
+                {"field": "description", "message": "Description is very short or empty"}
+            )
+        if len(desc) > 500:
+            row_warnings.append(
+                {"field": "description", "message": "Description truncated (over 500 chars)"}
+            )
+
+        # Accumulate totals
+        expense_type = str(row.get("expense_type") or "EXPENSE").upper()
+        try:
+            amt_dec = Decimal(str(amt))
+            total_amount += amt_dec
+            if expense_type == "INCOME":
+                income_total += amt_dec
+            else:
+                expense_total += amt_dec
+        except (InvalidOperation, ValueError, TypeError):
+            pass
+
+        for w in row_warnings:
+            warnings.append({"row_index": i, **w})
+
+    date_range = None
+    if dates:
+        date_range = {"earliest": min(dates).isoformat(), "latest": max(dates).isoformat()}
+
+    return {
+        "warnings": warnings,
+        "summary": {
+            "total_amount": float(total_amount),
+            "income_total": float(income_total),
+            "expense_total": float(expense_total),
+            "row_count": len(rows),
+            "warning_count": len(warnings),
+            "date_range": date_range,
+        },
+    }
+
+
 def _parse_csv_rows(data: bytes) -> list[dict[str, Any]]:
     text = data.decode("utf-8-sig", errors="ignore")
     reader = csv.DictReader(io.StringIO(text))

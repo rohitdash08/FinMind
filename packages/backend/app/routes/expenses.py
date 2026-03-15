@@ -271,8 +271,13 @@ def import_preview():
         logger.exception("Import preview failed user=%s", uid)
         return jsonify(error=f"failed to parse statement: {exc}"), 500
     duplicates = sum(1 for t in transactions if _is_duplicate(uid, t))
+    validation = expense_import.validate_import_rows(transactions)
     return jsonify(
-        total=len(transactions), duplicates=duplicates, transactions=transactions
+        total=len(transactions),
+        duplicates=duplicates,
+        transactions=transactions,
+        warnings=validation["warnings"],
+        summary=validation["summary"],
     )
 
 

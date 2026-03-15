@@ -260,3 +260,94 @@ def test_recurring_expense_generate_respects_end_date(client, auth_header):
     assert r.status_code == 200
     generated = r.get_json()
     assert len(generated) == 3
+
+
+def test_expense_import_preview_includes_validation(client, auth_header):
+    _create_category(client, auth_header)
+
+    csv_data = (
+        "date,amount,description,category_id\n"
+        "2026-02-10,10.50,Coffee,\n"
+        "2026-03-20,999999.99,Test,\n"
+        "X,abc,Bad date,\n"
+    )
+    data = {"file": (BytesIO(csv_data.encode("utf-8")), "statement.csv")}
+    r = client.post(
+        "/expenses/import/preview",
+        data=data,
+        content_type="multipart/form-data",
+        headers=auth_header,
+    )
+    assert r.status_code == 200
+    preview = r.get_json()
+    assert preview["total"] == 3
+    assert "warnings" in preview
+    assert "summary" in preview
+    summary = preview["summary"]
+    assert summary["row_count"] == 3
+    assert summary["warning_count"] > 0
+    assert summary["date_range"] is not None
+    assert summary["date_range"]["earliest"] == "2026-02-10"
+    amount_warnings = [w for w in preview["warnings"] if w["field"] == "amount"]
+    assert len(amount_warnings) >= 1
+    date_warnings = [w for w in preview["warnings"] if w["field"] == "date"]
+    assert len(date_warnings) >= 1
+
+
+def test_validate_import_rows_empty():
+    from app.services.expense_import import validate_import_rows
+
+    result = validate_import_rows([])
+    assert result["summary"]["row_count"] == 0
+    assert result["warnings"] == []
+
+
+def test_validate_import_rows_valid_data():
+    from app.services.expense_import import validate_import_rows
+
+    rows = [
+        {
+            "date": "2026-01-15",
+            "amount": 25.00,
+            "description": "Groceries",
+            "expense_type": "EXPENSE",
+        },
+        {
+            "date": "2026-01-20",
+            "amount": 3000.00,
+            "description": "Salary",
+            "expense_type": "INCOME",
+        },
+    ]
+    result = validate_import_rows(rows)
+    assert result["summary"]["row_count"] == 2
+    assert result["summary"]["warning_count"] == 0
+    assert result["summary"]["income_total"] == 3000.0
+    assert result["summary"]["expense_total"] == 25.0
+
+
+def test_validate_import_rows_flags_issues():
+    from app.services.expense_import import validate_import_rows
+
+    rows = [
+        {
+            "date": "2026-12-31",
+            "amount": 500000.00,
+            "description": "",
+            "expense_type": "EXPENSE",
+        },
+        {
+            "date": "1999-01-01",
+            "amount": 10.00,
+            "description": "A" * 600,
+            "expense_type": "EXPENSE",
+        },
+    ]
+    result = validate_import_rows(rows)
+    warnings = result["warnings"]
+    row0_warnings = [w for w in warnings if w["row_index"] == 0]
+    assert any(w["field"] == "amount" for w in row0_warnings)
+    assert any(w["field"] == "description" for w in row0_warnings)
+    row1_warnings = [w for w in warnings if w["row_index"] == 1]
+    assert any(w["field"] == "date" for w in row1_warnings)
+    assert any(w["field"] == "description" for w in row1_warnings)
