@@ -1,0 +1,21 @@
+feat(events): Event-Driven Financial Activity System (#97)
+
+Implement append-only event log for all financial activity with
+event sourcing, replay, analytics, and subscription support.
+
+New components:
+- FinancialEvent & EventSubscription models with 15 event types
+- Event service: emit, query, replay, stats, subscribe/unsubscribe
+- 9 REST endpoints under /events/
+- Migration 007_event_system.sql (2 tables + 5 indexes)
+- 24 tests — all passing
+
+Key features:
+- Immutable append-only event log with rich JSON payloads
+- Filtered queries by event type, entity, time range with pagination
+- Chronological event replay for any entity
+- Activity analytics: by type, entity, daily breakdown
+- Subscription management with idempotent subscribe/reactivate
+- Convenience emitters for common financial events
+
+/claim #97
