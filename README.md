@@ -183,6 +183,19 @@ finmind/
 - Primary: schedule via APScheduler in-process with persistence in Postgres (job table) and a simple daily trigger. Alternatively, use Railway/Render cron to hit `/reminders/run`.
 - Twilio WhatsApp free trial supports sandbox; email via SMTP (e.g., SendGrid free tier).
 
+## Login Anomaly Detection & Suspicious Activity Alerts
+FinMind monitors login activity for suspicious behavior:
+- **New IP detection**: flags logins from previously unseen IP addresses.
+- **New device detection**: flags logins from previously unseen user agents.
+- **Rapid attempt detection**: uses Redis to track and flag excessive login attempts per minute.
+- **Unusual time detection**: flags logins during unusual hours (2–5 AM UTC).
+
+Each login attempt (success or failure) is recorded in the `login_attempts` table. Suspicious logins are marked with the detected anomaly types.
+
+API endpoints:
+- `GET /auth/login-history` — paginated list of the user's login attempts.
+- `GET /auth/suspicious-alerts` — paginated list of suspicious login attempts only.
+
 ## Security & Scalability
 - JWT access/refresh, secure cookies OR Authorization header.
 - RBAC-ready via roles on `users.role`.
