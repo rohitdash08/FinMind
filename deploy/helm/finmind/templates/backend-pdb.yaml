@@ -1,0 +1,20 @@
+# =============================================================================
+# FinMind — Backend Pod Disruption Budget
+# =============================================================================
+# Ensures at least one backend pod is always available during voluntary
+# disruptions (node drains, upgrades, etc.) for zero-downtime deployments.
+# =============================================================================
+{{- if .Values.backend.podDisruptionBudget.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "finmind.fullname" . }}-backend
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "finmind.labels" . | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.backend.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "finmind.selectorLabels" (dict "component" "backend" "context" .) | nindent 6 }}
+{{- end }}

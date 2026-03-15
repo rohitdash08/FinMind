@@ -1,0 +1,9 @@
+# =============================================================================
+# FinMind — Namespace
+# =============================================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.namespace }}
+  labels:
+    {{- include "finmind.labels" . | nindent 4 }}

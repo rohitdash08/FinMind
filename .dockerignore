@@ -1,0 +1,46 @@
+# =============================================================================
+# FinMind — Root .dockerignore
+# =============================================================================
+# Applied when building from the repository root (multi-stage Dockerfiles
+# in deploy/docker/ reference paths relative to repo root).
+# =============================================================================
+
+# Version control
+.git
+.gitignore
+
+# Dependencies (rebuilt inside container)
+**/node_modules
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# IDE
+.vscode
+.idea
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Documentation
+*.md
+!packages/backend/app/openapi.yaml
+docs/
+
+# Test artifacts
+**/coverage
+**/.coverage
+**/htmlcov
+
+# Monitoring (separate services)
+monitoring/
+
+# CI/CD
+.github/

@@ -1,0 +1,99 @@
+# =============================================================================
+# FinMind — Azure Container Apps Configuration
+# =============================================================================
+# Azure Container Apps provides a serverless container platform.
+#
+# Setup:
+#   1. Install Azure CLI and login:
+#      az login
+#   2. Create resource group:
+#      az group create --name finmind-rg --location eastus
+#   3. Create Container Apps environment:
+#      az containerapp env create --name finmind-env --resource-group finmind-rg --location eastus
+#   4. Create Azure Database for PostgreSQL:
+#      az postgres flexible-server create --name finmind-db --resource-group finmind-rg \
+#        --admin-user finmind --admin-password <password> --sku-name Standard_B1ms --version 16
+#   5. Create Azure Cache for Redis:
+#      az redis create --name finmind-redis --resource-group finmind-rg --sku Basic --vm-size C0
+#   6. Build and push to ACR:
+#      az acr create --name finmindacr --resource-group finmind-rg --sku Basic
+#      az acr build --registry finmindacr --image finmind-backend:latest -f deploy/docker/backend.Dockerfile .
+#   7. Deploy:
+#      az containerapp create --yaml deploy/platforms/azure/containerapp.yaml
+# =============================================================================
+
+name: finmind-backend
+resourceGroup: finmind-rg
+type: Microsoft.App/containerApps
+location: eastus
+properties:
+  managedEnvironmentId: /subscriptions/SUBSCRIPTION_ID/resourceGroups/finmind-rg/providers/Microsoft.App/managedEnvironments/finmind-env
+  configuration:
+    activeRevisionsMode: Multiple
+    ingress:
+      external: true
+      targetPort: 8000
+      transport: http
+      traffic:
+        - latestRevision: true
+          weight: 100
+    secrets:
+      - name: database-url
+        value: REPLACE_WITH_DATABASE_URL
+      - name: redis-url
+        value: REPLACE_WITH_REDIS_URL
+      - name: jwt-secret
+        value: REPLACE_WITH_JWT_SECRET
+    registries:
+      - server: finmindacr.azurecr.io
+        identity: system
+  template:
+    containers:
+      - name: finmind-backend
+        image: finmindacr.azurecr.io/finmind-backend:latest
+        resources:
+          cpu: 0.5
+          memory: 1Gi
+        env:
+          - name: DATABASE_URL
+            secretRef: database-url
+          - name: REDIS_URL
+            secretRef: redis-url
+          - name: JWT_SECRET
+            secretRef: jwt-secret
+          - name: LOG_LEVEL
+            value: INFO
+          - name: GEMINI_MODEL
+            value: gemini-1.5-flash
+          - name: GUNICORN_WORKERS
+            value: "2"
+          - name: GUNICORN_THREADS
+            value: "4"
+        probes:
+          - type: Startup
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 30
+          - type: Liveness
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 20
+            periodSeconds: 15
+          - type: Readiness
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+    scale:
+      minReplicas: 1
+      maxReplicas: 10
+      rules:
+        - name: http-scaling
+          http:
+            metadata:
+              concurrentRequests: "50"

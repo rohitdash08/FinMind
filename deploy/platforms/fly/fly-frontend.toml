@@ -1,0 +1,37 @@
+# =============================================================================
+# FinMind — Fly.io Frontend Deployment
+# =============================================================================
+# Deploy the frontend SPA as a separate Fly.io app.
+#
+# Usage:
+#   fly deploy --config deploy/platforms/fly/fly-frontend.toml
+# =============================================================================
+
+app = "finmind-frontend"
+primary_region = "iad"
+kill_signal = "SIGTERM"
+kill_timeout = "10s"
+
+[build]
+  dockerfile = "deploy/docker/frontend.Dockerfile"
+  [build.args]
+    VITE_API_URL = "https://finmind-backend.fly.dev"
+
+[http_service]
+  internal_port = 80
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "3s"
+    grace_period = "10s"
+    method = "GET"
+    path = "/nginx-health"
+
+[[vm]]
+  memory = "256mb"
+  cpu_kind = "shared"
+  cpus = 1

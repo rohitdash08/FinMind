@@ -1,0 +1,81 @@
+# =============================================================================
+# FinMind — Redis Deployment
+# =============================================================================
+{{- if .Values.redis.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "finmind.fullname" . }}-redis
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "finmind.labels" . | nindent 4 }}
+    {{- include "finmind.selectorLabels" (dict "component" "redis" "context" .) | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "finmind.selectorLabels" (dict "component" "redis" "context" .) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "finmind.labels" . | nindent 8 }}
+        {{- include "finmind.selectorLabels" (dict "component" "redis" "context" .) | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "finmind.serviceAccountName" . }}
+      containers:
+        - name: redis
+          image: "{{ .Values.redis.image.repository }}:{{ .Values.redis.image.tag }}"
+          command:
+            - redis-server
+            - --maxmemory
+            - {{ .Values.redis.config.maxmemory | quote }}
+            - --maxmemory-policy
+            - {{ .Values.redis.config.maxmemoryPolicy | quote }}
+            - --appendonly
+            - "yes"
+            - --save
+            - "60 1000"
+          ports:
+            - name: tcp-redis
+              containerPort: 6379
+              protocol: TCP
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          startupProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 5
+            periodSeconds: 3
+            failureThreshold: 10
+          livenessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 15
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+          resources:
+            {{- toYaml .Values.redis.resources | nindent 12 }}
+          securityContext:
+            readOnlyRootFilesystem: false
+            runAsNonRoot: true
+            runAsUser: 999
+            allowPrivilegeEscalation: false
+      volumes:
+        - name: data
+          {{- if .Values.redis.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "finmind.fullname" . }}-redis
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+{{- end }}

@@ -1,0 +1,22 @@
+# =============================================================================
+# FinMind — PostgreSQL Service
+# =============================================================================
+{{- if .Values.postgresql.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "finmind.fullname" . }}-postgresql
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "finmind.labels" . | nindent 4 }}
+    {{- include "finmind.selectorLabels" (dict "component" "postgresql" "context" .) | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5432
+      targetPort: tcp-pg
+      protocol: TCP
+      name: tcp-pg
+  selector:
+    {{- include "finmind.selectorLabels" (dict "component" "postgresql" "context" .) | nindent 4 }}
+{{- end }}
