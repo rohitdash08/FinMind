@@ -133,3 +133,25 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class TrustedDevice(db.Model):
+    __tablename__ = "trusted_devices"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    device_id = db.Column(db.String(64), nullable=False)
+    device_name = db.Column(db.String(128))
+    device_type = db.Column(db.String(20), default="unknown")
+    browser = db.Column(db.String(64))
+    os = db.Column(db.String(64))
+    ip_address = db.Column(db.String(45))
+    location = db.Column(db.String(128))
+    trust_level = db.Column(db.String(20), default="standard")
+    is_current = db.Column(db.Boolean, default=False)
+    last_active_at = db.Column(db.DateTime)
+    trusted_at = db.Column(db.DateTime, default=datetime.utcnow)
+    expires_at = db.Column(db.DateTime)
+    revoked = db.Column(db.Boolean, default=False)
+    revoked_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

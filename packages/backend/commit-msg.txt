@@ -1,0 +1,12 @@
+feat(devices): add device trust management & recognition
+
+Implements issue #125 — trusted device management system.
+
+Changes:
+- Add trusted_devices migration (031_device_trust.sql)
+- Add TrustedDevice model
+- Add device trust service with fingerprinting, UA parsing,
+  registration, recognition, trust levels, revocation
+- Add 8 REST endpoints under /devices/*
+- Add 51 passing tests
+- Add documentation
