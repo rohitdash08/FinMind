@@ -1,0 +1,25 @@
+feat(tracking): implement reminder delivery tracking & reliability metrics
+
+Resolves #123
+
+Add comprehensive reminder delivery tracking with full lifecycle
+observability — from initial send through delivery confirmation,
+bounce handling, and user engagement tracking.
+
+Changes:
+- Add reminder_deliveries table migration (033_reminder_tracking.sql)
+- Add ReminderDelivery model with 17 columns
+- Add reminder tracking service with delivery lifecycle management
+- Add 11 REST endpoints under /tracking blueprint
+- Add 36 tests covering service logic and route integration
+- Add documentation (docs/reminder-tracking.md)
+
+Features:
+- Record delivery attempts with auto-incrementing attempt numbers
+- Track full delivery lifecycle: pending → sent → delivered/failed/bounced
+- Engagement tracking: open and click events with timestamps
+- Per-user delivery history with channel/status filtering
+- Reliability metrics: delivery/failure/bounce/open/click rates
+- Channel performance comparison (email, push, SMS, in-app)
+- Latency tracking per delivery
+- Configurable time period for metrics (default 30 days)
