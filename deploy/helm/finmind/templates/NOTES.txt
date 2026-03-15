@@ -1,0 +1,72 @@
+
+=======================================================================
+  FinMind has been deployed successfully!
+=======================================================================
+
+Namespace: {{ include "finmind.namespace" . }}
+
+Components deployed:
+  - Backend  (Flask/Gunicorn) : {{ include "finmind.backend.serviceName" . }}:{{ .Values.backend.service.port }}
+  - Frontend (React/Nginx)    : {{ include "finmind.frontend.serviceName" . }}:{{ .Values.frontend.service.port }}
+  - PostgreSQL 16             : {{ include "finmind.postgresql.serviceName" . }}:{{ .Values.postgresql.service.port }}
+  - Redis 7                   : {{ include "finmind.redis.serviceName" . }}:{{ .Values.redis.service.port }}
+
+{{- if .Values.ingress.enabled }}
+
+Ingress:
+{{- range .Values.ingress.hosts }}
+  URL: https://{{ .host }}
+{{- end }}
+{{- if .Values.ingress.tls }}
+  TLS: Enabled (cert-manager will provision certificates)
+{{- end }}
+{{- end }}
+
+{{- if .Values.backend.autoscaling.enabled }}
+
+Autoscaling (Backend):
+  Min replicas: {{ .Values.backend.autoscaling.minReplicas }}
+  Max replicas: {{ .Values.backend.autoscaling.maxReplicas }}
+  CPU target:   {{ .Values.backend.autoscaling.targetCPUUtilizationPercentage }}%
+{{- end }}
+
+{{- if .Values.frontend.autoscaling.enabled }}
+
+Autoscaling (Frontend):
+  Min replicas: {{ .Values.frontend.autoscaling.minReplicas }}
+  Max replicas: {{ .Values.frontend.autoscaling.maxReplicas }}
+  CPU target:   {{ .Values.frontend.autoscaling.targetCPUUtilizationPercentage }}%
+{{- end }}
+
+-----------------------------------------------------------------------
+  IMPORTANT: Update secrets before production use!
+-----------------------------------------------------------------------
+
+  Override secrets at install time:
+
+    helm upgrade --install finmind ./deploy/helm/finmind \
+      --set secrets.postgresPassword=$(echo -n 'YOUR_PASSWORD' | base64) \
+      --set secrets.jwtSecret=$(echo -n 'YOUR_JWT_SECRET' | base64) \
+      --set secrets.geminiApiKey=$(echo -n 'YOUR_GEMINI_KEY' | base64) \
+      --set secrets.openaiApiKey=$(echo -n 'YOUR_OPENAI_KEY' | base64)
+
+  Or use a values override file:
+
+    helm upgrade --install finmind ./deploy/helm/finmind \
+      -f my-production-values.yaml
+
+-----------------------------------------------------------------------
+  Useful commands
+-----------------------------------------------------------------------
+
+  # Check pod status
+  kubectl get pods -n {{ include "finmind.namespace" . }}
+
+  # View backend logs
+  kubectl logs -n {{ include "finmind.namespace" . }} -l app.kubernetes.io/component=backend -f
+
+  # Port-forward frontend locally
+  kubectl port-forward -n {{ include "finmind.namespace" . }} svc/{{ include "finmind.frontend.serviceName" . }} 8080:{{ .Values.frontend.service.port }}
+
+  # Port-forward backend locally
+  kubectl port-forward -n {{ include "finmind.namespace" . }} svc/{{ include "finmind.backend.serviceName" . }} 8000:{{ .Values.backend.service.port }}

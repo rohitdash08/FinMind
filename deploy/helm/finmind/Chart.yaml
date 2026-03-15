@@ -1,0 +1,19 @@
+apiVersion: v2
+name: finmind
+description: FinMind — AI-powered personal finance platform with Flask backend, React frontend, PostgreSQL, and Redis
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords:
+  - finmind
+  - finance
+  - flask
+  - react
+  - postgresql
+  - redis
+maintainers:
+  - name: FinMind Team
+    url: https://github.com/rohitdash08/FinMind
+home: https://github.com/rohitdash08/FinMind
+sources:
+  - https://github.com/rohitdash08/FinMind

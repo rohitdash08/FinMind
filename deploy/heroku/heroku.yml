@@ -1,0 +1,35 @@
+setup:
+  addons:
+    - plan: heroku-postgresql:essential-0
+      as: DATABASE
+    - plan: heroku-redis:mini
+      as: REDIS
+  config:
+    LOG_LEVEL: INFO
+    GEMINI_MODEL: gemini-pro
+    PYTHONUNBUFFERED: "1"
+
+build:
+  docker:
+    web: packages/backend/Dockerfile
+    frontend: app/Dockerfile
+  config:
+    web: {}
+    frontend: {}
+
+run:
+  web:
+    command:
+      - gunicorn
+      - --bind=0.0.0.0:8000
+      - --workers=4
+      - --timeout=120
+      - --access-logfile=-
+      - --error-logfile=-
+      - "app:create_app()"
+    image: web
+
+release:
+  command:
+    - echo "Running release phase"
+  image: web

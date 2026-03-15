@@ -1,0 +1,66 @@
+# Fly.io configuration — FinMind Frontend
+# Deploy: flyctl launch --config fly.frontend.toml
+
+app = "finmind-frontend"
+primary_region = "sjc"
+kill_signal = "SIGINT"
+kill_timeout = "5s"
+
+[build]
+  dockerfile = "../../app/Dockerfile"
+  [build.args]
+
+[deploy]
+  strategy = "rolling"
+
+[env]
+  VITE_API_URL = "https://finmind-backend.fly.dev"
+
+# ── HTTP Service ───────────────────────────────────────────────
+[[services]]
+  protocol = "tcp"
+  internal_port = 80
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 80
+    handlers = ["http"]
+    force_https = true
+
+  [[services.ports]]
+    port = 443
+    handlers = ["tls", "http"]
+
+  [services.concurrency]
+    type = "requests"
+    hard_limit = 500
+    soft_limit = 400
+
+  # ── Health Checks ──────────────────────────────────────────
+  [[services.http_checks]]
+    interval = 15000
+    grace_period = "10s"
+    method = "GET"
+    path = "/"
+    protocol = "http"
+    timeout = 5000
+    tls_skip_verify = false
+
+  [[services.tcp_checks]]
+    interval = "10s"
+    timeout = "2s"
+    grace_period = "5s"
+
+# ── Machine Size ─────────────────────────────────────────────
+[machines]
+  [machines.guest]
+    cpu_kind = "shared"
+    cpus = 1
+    memory_mb = 256
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"
+  processes = ["app"]

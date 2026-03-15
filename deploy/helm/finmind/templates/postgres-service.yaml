@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "finmind.postgresql.serviceName" . }}
+  namespace: {{ include "finmind.namespace" . }}
+  labels:
+    {{- include "finmind.postgresql.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.postgresql.service.type }}
+  ports:
+    - port: {{ .Values.postgresql.service.port }}
+      targetPort: postgres
+      protocol: TCP
+      name: postgres
+  selector:
+    {{- include "finmind.postgresql.selectorLabels" . | nindent 4 }}

@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: finmind-config
+  namespace: finmind
+  labels:
+    app: finmind
+data:
+  LOG_LEVEL: DEBUG
+  GEMINI_MODEL: gemini-1.5-flash
+  REDIS_URL: redis://redis:6379/0
+  FLASK_ENV: development

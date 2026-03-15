@@ -1,0 +1,85 @@
+# Fly.io configuration — FinMind Backend
+# Deploy: flyctl launch --config fly.backend.toml
+
+app = "finmind-backend"
+primary_region = "sjc"
+kill_signal = "SIGINT"
+kill_timeout = "5s"
+
+[build]
+  dockerfile = "../../packages/backend/Dockerfile"
+  [build.args]
+
+[deploy]
+  strategy = "rolling"
+  release_command = "echo 'Release phase complete'"
+
+[env]
+  PORT = "8000"
+  LOG_LEVEL = "INFO"
+  GEMINI_MODEL = "gemini-pro"
+  PYTHONUNBUFFERED = "1"
+
+# ── HTTP Service ───────────────────────────────────────────────
+[[services]]
+  protocol = "tcp"
+  internal_port = 8000
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 80
+    handlers = ["http"]
+    force_https = true
+
+  [[services.ports]]
+    port = 443
+    handlers = ["tls", "http"]
+
+  [services.concurrency]
+    type = "requests"
+    hard_limit = 250
+    soft_limit = 200
+
+  # ── Health Checks ──────────────────────────────────────────
+  [[services.http_checks]]
+    interval = 15000          # 15s
+    grace_period = "10s"
+    method = "GET"
+    path = "/health"
+    protocol = "http"
+    timeout = 5000            # 5s
+    tls_skip_verify = false
+
+  [[services.tcp_checks]]
+    interval = "10s"
+    timeout = "2s"
+    grace_period = "5s"
+
+# ── Auto-Scaling ─────────────────────────────────────────────
+[machines]
+  [machines.guest]
+    cpu_kind = "shared"
+    cpus = 1
+    memory_mb = 512
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
+  processes = ["app"]
+
+# ── Postgres Cluster (attached) ──────────────────────────────
+# Attach with: flyctl postgres attach finmind-db --app finmind-backend
+# This auto-sets DATABASE_URL in the app's secrets.
+#
+# Create Postgres:
+#   flyctl postgres create --name finmind-db --region sjc --vm-size shared-cpu-1x --initial-cluster-size 1 --volume-size 10
+
+# ── Redis (Upstash via Fly) ──────────────────────────────────
+# Provision with: flyctl redis create --name finmind-redis --region sjc
+# This auto-sets REDIS_URL in the app's secrets.
+
+# ── Secrets (set via CLI) ────────────────────────────────────
+# flyctl secrets set JWT_SECRET="$(openssl rand -hex 64)" --app finmind-backend
+# flyctl secrets set GEMINI_API_KEY="your-api-key" --app finmind-backend

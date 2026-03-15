@@ -1,0 +1,88 @@
+{
+  "$schema": "https://railway.app/railway.schema.json",
+  "build": {
+    "builder": "DOCKERFILE"
+  },
+  "deploy": {
+    "numReplicas": 1,
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 3
+  },
+  "services": {
+    "backend": {
+      "build": {
+        "builder": "DOCKERFILE",
+        "dockerfilePath": "packages/backend/Dockerfile",
+        "buildContext": "."
+      },
+      "deploy": {
+        "numReplicas": 1,
+        "startCommand": "gunicorn --bind 0.0.0.0:8000 --workers 4 --timeout 120 app:create_app()",
+        "healthcheckPath": "/health",
+        "healthcheckTimeout": 30,
+        "restartPolicyType": "ON_FAILURE",
+        "restartPolicyMaxRetries": 5
+      },
+      "networking": {
+        "servicePort": 8000
+      },
+      "variables": {
+        "DATABASE_URL": "${{Postgres.DATABASE_URL}}",
+        "REDIS_URL": "${{Redis.REDIS_URL}}",
+        "JWT_SECRET": {
+          "description": "Secret key for JWT token signing",
+          "required": true
+        },
+        "GEMINI_API_KEY": {
+          "description": "Google Gemini API key",
+          "required": true
+        },
+        "GEMINI_MODEL": {
+          "default": "gemini-pro",
+          "description": "Gemini model to use"
+        },
+        "LOG_LEVEL": {
+          "default": "INFO",
+          "description": "Application log level"
+        },
+        "PORT": "8000",
+        "PYTHONUNBUFFERED": "1"
+      }
+    },
+    "frontend": {
+      "build": {
+        "builder": "DOCKERFILE",
+        "dockerfilePath": "app/Dockerfile",
+        "buildContext": "app"
+      },
+      "deploy": {
+        "numReplicas": 1,
+        "healthcheckPath": "/",
+        "healthcheckTimeout": 15,
+        "restartPolicyType": "ON_FAILURE",
+        "restartPolicyMaxRetries": 3
+      },
+      "networking": {
+        "servicePort": 80
+      },
+      "variables": {
+        "VITE_API_URL": {
+          "description": "Backend API URL (set to backend service URL)",
+          "required": true
+        }
+      }
+    },
+    "Postgres": {
+      "plugin": "postgresql",
+      "deploy": {
+        "numReplicas": 1
+      }
+    },
+    "Redis": {
+      "plugin": "redis",
+      "deploy": {
+        "numReplicas": 1
+      }
+    }
+  }
+}

@@ -1,0 +1,3 @@
+web: gunicorn --bind 0.0.0.0:$PORT --workers 4 --timeout 120 --access-logfile - --error-logfile - "app:create_app()"
+worker: celery -A app.celery worker --loglevel=info
+release: echo "Release phase complete"
