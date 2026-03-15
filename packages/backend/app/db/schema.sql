@@ -123,3 +123,28 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   action VARCHAR(100) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+-- GDPR PII Export & Delete (Issue #76)
+CREATE TABLE IF NOT EXISTS gdpr_audit_logs (
+  id         SERIAL PRIMARY KEY,
+  user_id    INT,
+  user_email VARCHAR(255) NOT NULL,
+  action     VARCHAR(50)  NOT NULL,
+  details    JSONB        NOT NULL DEFAULT '{}',
+  ip_address VARCHAR(45),
+  created_at TIMESTAMP    NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_gdpr_audit_user ON gdpr_audit_logs (user_id);
+
+CREATE TABLE IF NOT EXISTS deletion_requests (
+  id                   SERIAL PRIMARY KEY,
+  user_id              INT          NOT NULL REFERENCES users(id),
+  status               VARCHAR(20)  NOT NULL DEFAULT 'PENDING',
+  reason               VARCHAR(500),
+  confirmation_token   VARCHAR(100) UNIQUE,
+  confirmed_at         TIMESTAMP,
+  grace_period_ends_at TIMESTAMP    NOT NULL,
+  completed_at         TIMESTAMP,
+  created_at           TIMESTAMP    NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_deletion_requests_user ON deletion_requests (user_id);
