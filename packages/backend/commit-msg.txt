@@ -1,0 +1,22 @@
+feat(smart-reminder): add smart reminder timing optimization (#111)
+
+Add activity-based reminder timing system that learns from user
+engagement patterns to deliver reminders at optimal times.
+
+New features:
+- Activity logging with hourly/daily pattern analysis
+- User reminder preferences (quiet hours, intervals, limits)
+- Optimal time calculation using engagement scoring
+- Optimal day detection with activity-based ranking
+- Should-send check with ±1 hour tolerance window
+- Quiet hours support with midnight wraparound
+
+Implementation:
+- Migration 038: user_activity_logs + reminder_preferences tables
+- UserActivityLog and ReminderPreference models
+- Smart reminder service with 7 public functions
+- 7 REST endpoints under /smart-reminders
+- 36 tests (unit + integration), all passing
+- Full API documentation
+
+Closes #111

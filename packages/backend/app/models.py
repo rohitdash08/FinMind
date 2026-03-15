@@ -133,3 +133,28 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class UserActivityLog(db.Model):
+    __tablename__ = "user_activity_logs"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    action = db.Column(db.String(50), nullable=False)
+    hour_of_day = db.Column(db.Integer, nullable=False)
+    day_of_week = db.Column(db.Integer, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class ReminderPreference(db.Model):
+    __tablename__ = "reminder_preferences"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, unique=True)
+    preferred_hour = db.Column(db.Integer, default=9)
+    preferred_days = db.Column(db.String(50), default="1,2,3,4,5")
+    quiet_hours_start = db.Column(db.Integer, default=22)
+    quiet_hours_end = db.Column(db.Integer, default=7)
+    auto_optimize = db.Column(db.Boolean, default=True)
+    min_interval_hours = db.Column(db.Integer, default=4)
+    max_reminders_per_day = db.Column(db.Integer, default=5)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
