@@ -9,7 +9,8 @@ from flask_jwt_extended import (
     get_jwt_identity,
 )
 from ..extensions import db, redis_client
-from ..models import User
+from ..models import User, LoginAttempt
+from ..services.anomaly_detection import analyze_login
 import logging
 import time
 
@@ -55,10 +56,50 @@ def login():
     data = request.get_json() or {}
     email = data.get("email")
     password = data.get("password")
+    ip = request.remote_addr or "unknown"
+    ua = request.headers.get("User-Agent", "")
+
     user = db.session.query(User).filter_by(email=email).first()
     if not user or not check_password_hash(user.password_hash, password):
         logger.warning("Login failed for email=%s", email)
+        # Record failed attempt if user exists
+        if user:
+            attempt = LoginAttempt(
+                user_id=user.id,
+                ip_address=ip,
+                user_agent=ua,
+                success=False,
+                suspicious=False,
+            )
+            db.session.add(attempt)
+            db.session.commit()
         return jsonify(error="invalid credentials"), 401
+
+    # Analyze for anomalies before recording the attempt
+    anomalies = analyze_login(user.id, ip, ua)
+    is_suspicious = len(anomalies) > 0
+    anomaly_str = ",".join(anomalies) if anomalies else None
+
+    # Record successful attempt
+    attempt = LoginAttempt(
+        user_id=user.id,
+        ip_address=ip,
+        user_agent=ua,
+        success=True,
+        suspicious=is_suspicious,
+        anomaly_type=anomaly_str,
+    )
+    db.session.add(attempt)
+    db.session.commit()
+
+    if is_suspicious:
+        logger.warning(
+            "Suspicious login user_id=%s anomalies=%s ip=%s",
+            user.id,
+            anomaly_str,
+            ip,
+        )
+
     access = create_access_token(identity=str(user.id))
     refresh = create_refresh_token(identity=str(user.id))
     _store_refresh_session(refresh, str(user.id))
@@ -123,6 +164,87 @@ def logout():
     if jti:
         redis_client.delete(_refresh_key(jti))
     return jsonify(message="logged out"), 200
+
+
+@bp.get("/login-history")
+@jwt_required()
+def login_history():
+    uid = int(get_jwt_identity())
+    page = request.args.get("page", 1, type=int)
+    per_page = request.args.get("per_page", 20, type=int)
+    per_page = min(per_page, 100)
+    offset = (page - 1) * per_page
+
+    attempts = (
+        db.session.query(LoginAttempt)
+        .filter_by(user_id=uid)
+        .order_by(LoginAttempt.timestamp.desc())
+        .offset(offset)
+        .limit(per_page)
+        .all()
+    )
+    total = db.session.query(LoginAttempt).filter_by(user_id=uid).count()
+
+    return jsonify(
+        items=[
+            {
+                "id": a.id,
+                "ip_address": a.ip_address,
+                "user_agent": a.user_agent,
+                "timestamp": a.timestamp.isoformat(),
+                "success": a.success,
+                "suspicious": a.suspicious,
+                "anomaly_type": a.anomaly_type,
+                "location": a.location,
+            }
+            for a in attempts
+        ],
+        total=total,
+        page=page,
+        per_page=per_page,
+    )
+
+
+@bp.get("/suspicious-alerts")
+@jwt_required()
+def suspicious_alerts():
+    uid = int(get_jwt_identity())
+    page = request.args.get("page", 1, type=int)
+    per_page = request.args.get("per_page", 20, type=int)
+    per_page = min(per_page, 100)
+    offset = (page - 1) * per_page
+
+    attempts = (
+        db.session.query(LoginAttempt)
+        .filter_by(user_id=uid, suspicious=True)
+        .order_by(LoginAttempt.timestamp.desc())
+        .offset(offset)
+        .limit(per_page)
+        .all()
+    )
+    total = (
+        db.session.query(LoginAttempt)
+        .filter_by(user_id=uid, suspicious=True)
+        .count()
+    )
+
+    return jsonify(
+        items=[
+            {
+                "id": a.id,
+                "ip_address": a.ip_address,
+                "user_agent": a.user_agent,
+                "timestamp": a.timestamp.isoformat(),
+                "success": a.success,
+                "anomaly_type": a.anomaly_type,
+                "location": a.location,
+            }
+            for a in attempts
+        ],
+        total=total,
+        page=page,
+        per_page=per_page,
+    )
 
 
 def _refresh_key(jti: str) -> str:
