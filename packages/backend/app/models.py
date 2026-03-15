@@ -133,3 +133,19 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class BackupRecord(db.Model):
+    __tablename__ = "backup_records"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    backup_type = db.Column(db.String(20), default="full", nullable=False)
+    format = db.Column(db.String(10), default="json", nullable=False)
+    encrypted = db.Column(db.Boolean, default=True, nullable=False)
+    file_hash = db.Column(db.String(128), nullable=True)
+    file_size = db.Column(db.Integer, nullable=True)
+    record_count = db.Column(db.Integer, default=0)
+    status = db.Column(db.String(20), default="pending", nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    completed_at = db.Column(db.DateTime, nullable=True)
+    expires_at = db.Column(db.DateTime, nullable=True)
