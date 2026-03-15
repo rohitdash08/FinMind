@@ -1,0 +1,31 @@
+feat: database indexing optimization for financial queries (#128)
+
+Adds comprehensive indexing strategy across all tables with 20+ targeted
+indexes to improve performance of high-frequency financial queries.
+
+Key improvements:
+- Expense queries: composite indexes for user+date, user+category+date,
+  user+type, and trigram index for text search
+- Bill queries: partial index for active upcoming bills
+- Reminder queries: partial index for pending unsent reminders
+- Category/user indexes for common lookup patterns
+- Performance monitoring API with index coverage analysis,
+  benchmarks, and table statistics
+
+New files:
+- app/db/026_indexing_optimization.sql - 20+ index definitions
+- app/models.py - SQLAlchemy index declarations on all models
+- app/services/indexing.py - coverage analysis, benchmarks, statistics
+- app/routes/indexing.py - admin API endpoints
+- docs/db-indexing-optimization.md - comprehensive documentation
+- tests/test_indexing.py - 27 tests
+
+API endpoints:
+- GET /admin/db/indexes - list all indexes
+- GET /admin/db/coverage - query pattern coverage report
+- GET /admin/db/statistics - table row counts
+- POST /admin/db/benchmark - run query benchmarks
+
+27 tests covering index verification, coverage analysis, and API
+
+Closes #128
