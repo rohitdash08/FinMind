@@ -133,3 +133,45 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+# ── Rule-based Auto Tagging ──────────────────────────────
+
+class MatchType(str, Enum):
+    CONTAINS = "contains"
+    EXACT = "exact"
+    STARTS_WITH = "starts_with"
+    ENDS_WITH = "ends_with"
+    REGEX = "regex"
+
+
+class MatchField(str, Enum):
+    NOTES = "notes"
+    AMOUNT = "amount"
+    CURRENCY = "currency"
+
+
+class TaggingRule(db.Model):
+    __tablename__ = "tagging_rules"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    name = db.Column(db.String(200), nullable=False)
+    # Match conditions
+    match_field = db.Column(db.String(20), default="notes", nullable=False)
+    match_pattern = db.Column(db.String(500), nullable=False)
+    match_type = db.Column(db.String(20), default="contains", nullable=False)
+    min_amount = db.Column(db.Numeric(12, 2), nullable=True)
+    max_amount = db.Column(db.Numeric(12, 2), nullable=True)
+    currency = db.Column(db.String(10), nullable=True)
+    # Actions
+    assign_category_id = db.Column(
+        db.Integer, db.ForeignKey("categories.id", ondelete="SET NULL"), nullable=True
+    )
+    assign_tags = db.Column(db.String(500), nullable=True)
+    # Metadata
+    priority = db.Column(db.Integer, default=0, nullable=False)
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+    auto_apply = db.Column(db.Boolean, default=True, nullable=False)
+    applied_count = db.Column(db.Integer, default=0, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)

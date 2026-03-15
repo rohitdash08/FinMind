@@ -1,0 +1,22 @@
+feat(tagging): Rule-based Auto Tagging & Categorization (#107)
+
+Users can define flexible rules to automatically tag and categorize
+expenses based on notes, amounts, and currency filters.
+
+New components:
+- TaggingRule model with 5 match types (contains/exact/starts_with/ends_with/regex)
+- Tagging service: rule CRUD, pattern matching engine, dry-run testing, bulk apply
+- 7 REST endpoints under /tagging/
+- Migration 008_auto_tagging.sql (1 table + 2 indexes)
+- 20 tests — all passing
+
+Key features:
+- Multi-condition matching: text patterns + amount range + currency filter
+- 5 match types including regex for advanced patterns
+- Priority-based rule ordering (highest priority wins for categories)
+- Dry-run testing: test rules against expense data without saving
+- Bulk apply: auto-categorize all uncategorized expenses in one call
+- Tag accumulation across matching rules
+- Applied-count tracking per rule
+
+/claim #107
