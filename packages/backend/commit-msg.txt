@@ -1,0 +1,17 @@
+feat(spending): add essential vs discretionary spending classification
+
+Implements spending classification system that categorizes expenses as
+essential or discretionary, with auto-classification, manual overrides,
+breakdown analysis, trend tracking, and smart insights.
+
+Resolves #120
+
+Changes:
+- app/models.py: Add SpendingClass enum and spending_class column to Category
+- app/db/027_spending_classification.sql: Migration for new column
+- app/services/spending_class.py: Classification engine with 60+ patterns
+- app/routes/spending_class.py: 5 endpoints for classification and analysis
+- app/routes/__init__.py: Register spending blueprint
+- tests/test_spending_class.py: 39 comprehensive tests
+- docs/essential-discretionary-spending.md: Full documentation
+- tests/conftest.py: Add fakeredis for test isolation
