@@ -481,6 +481,111 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
 
+  /insights/weekly-digest:
+    get:
+      summary: Smart weekly financial digest
+      description: >
+        Returns a weekly summary with trend analysis, category breakdown, top
+        transactions, upcoming bills, and AI-generated actionable insights.
+        Any date within the target week may be passed; it is normalized to that
+        week's Monday. Defaults to the current ISO week.
+      tags: [Insights]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: week
+          required: false
+          schema: { type: string, format: date, example: '2025-03-10' }
+          description: Any date within the target week (ISO 8601, YYYY-MM-DD).
+      responses:
+        '200':
+          description: Weekly digest payload
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  week_start: { type: string, format: date }
+                  week_end: { type: string, format: date }
+                  summary:
+                    type: object
+                    properties:
+                      total_income: { type: number }
+                      total_expenses: { type: number }
+                      net_flow: { type: number }
+                      week_over_week_change_pct: { type: number }
+                  category_breakdown:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        category: { type: string }
+                        amount: { type: number }
+                  top_categories:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        category: { type: string }
+                        amount: { type: number }
+                  top_transactions:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: integer }
+                        amount: { type: number }
+                        notes: { type: string }
+                        category_id: { type: integer, nullable: true }
+                        date: { type: string, format: date }
+                  upcoming_bills:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name: { type: string }
+                        amount: { type: number }
+                        due: { type: string, format: date }
+                  insights:
+                    type: array
+                    items: { type: string }
+                  method:
+                    type: string
+                    enum: [heuristic, gemini]
+              example:
+                week_start: '2025-03-10'
+                week_end: '2025-03-16'
+                summary:
+                  total_income: 2400.00
+                  total_expenses: 1170.00
+                  net_flow: 1230.00
+                  week_over_week_change_pct: -8.5
+                category_breakdown:
+                  - { category: Rent, amount: 850.00 }
+                  - { category: Groceries, amount: 320.00 }
+                top_categories:
+                  - { category: Rent, amount: 850.00 }
+                  - { category: Groceries, amount: 320.00 }
+                top_transactions:
+                  - { id: 1, amount: 850.00, notes: Rent, category_id: null, date: '2025-03-10' }
+                upcoming_bills:
+                  - { name: Internet, amount: 60.00, due: '2025-03-17' }
+                insights:
+                  - 'Spending is down 8.5% vs last week — great discipline!'
+                  - 'Saved 51.2% of income this week — excellent!'
+                  - 'Top category: Rent at 850.00.'
+                method: heuristic
+        '400':
+          description: Invalid week format
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
 components:
   securitySchemes:
     bearerAuth:
