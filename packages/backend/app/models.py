@@ -133,3 +133,73 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+# ── Event-Driven Financial Activity System ───────────────
+
+class EventType(str, Enum):
+    # Expense events
+    EXPENSE_CREATED = "expense.created"
+    EXPENSE_UPDATED = "expense.updated"
+    EXPENSE_DELETED = "expense.deleted"
+    # Bill events
+    BILL_CREATED = "bill.created"
+    BILL_PAID = "bill.paid"
+    BILL_OVERDUE = "bill.overdue"
+    BILL_UPDATED = "bill.updated"
+    BILL_DELETED = "bill.deleted"
+    # Budget events
+    BUDGET_EXCEEDED = "budget.exceeded"
+    BUDGET_WARNING = "budget.warning"
+    # Category events
+    CATEGORY_CREATED = "category.created"
+    CATEGORY_DELETED = "category.deleted"
+    # Anomaly events
+    ANOMALY_DETECTED = "anomaly.detected"
+    # Account events
+    ACCOUNT_LOGIN = "account.login"
+    ACCOUNT_SETTINGS_CHANGED = "account.settings_changed"
+
+
+class EntityType(str, Enum):
+    EXPENSE = "expense"
+    BILL = "bill"
+    CATEGORY = "category"
+    REMINDER = "reminder"
+    USER = "user"
+    SYSTEM = "system"
+
+
+class FinancialEvent(db.Model):
+    __tablename__ = "financial_events"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    event_type = db.Column(db.String(50), nullable=False)
+    entity_type = db.Column(db.String(50), nullable=False)
+    entity_id = db.Column(db.Integer, nullable=True)
+    payload = db.Column(db.JSON, default=dict, nullable=False)
+    metadata_ = db.Column("metadata", db.JSON, default=dict, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class CallbackType(str, Enum):
+    INTERNAL = "internal"
+    WEBHOOK = "webhook"
+
+
+class EventSubscription(db.Model):
+    __tablename__ = "event_subscriptions"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    event_type = db.Column(db.String(50), nullable=False)
+    callback_type = db.Column(db.String(20), default="internal", nullable=False)
+    callback_url = db.Column(db.String(500), nullable=True)
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        db.UniqueConstraint(
+            "user_id", "event_type", "callback_type",
+            name="uq_subscription_user_event_callback",
+        ),
+    )
