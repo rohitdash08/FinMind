@@ -127,6 +127,42 @@ class UserSubscription(db.Model):
     started_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
 
+class CategoryBudget(db.Model):
+    """Monthly budget limit per category with configurable alert thresholds."""
+    __tablename__ = "category_budgets"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    category_id = db.Column(db.Integer, db.ForeignKey("categories.id"), nullable=False)
+    monthly_limit = db.Column(db.Numeric(12, 2), nullable=False)
+    currency = db.Column(db.String(10), default="INR", nullable=False)
+    warning_threshold = db.Column(db.Numeric(5, 2), default=80.00, nullable=False)
+    critical_threshold = db.Column(db.Numeric(5, 2), default=95.00, nullable=False)
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        db.UniqueConstraint("user_id", "category_id", name="uq_user_category_budget"),
+    )
+
+
+class OverspendAlert(db.Model):
+    """Alert generated when spending approaches or exceeds a category budget."""
+    __tablename__ = "overspend_alerts"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    category_id = db.Column(db.Integer, db.ForeignKey("categories.id"), nullable=False)
+    budget_id = db.Column(db.Integer, db.ForeignKey("category_budgets.id"), nullable=False)
+    alert_type = db.Column(db.String(20), default="warning", nullable=False)
+    spent_amount = db.Column(db.Numeric(12, 2), nullable=False)
+    budget_limit = db.Column(db.Numeric(12, 2), nullable=False)
+    percentage_used = db.Column(db.Numeric(6, 2), nullable=False)
+    period_start = db.Column(db.Date, nullable=False)
+    period_end = db.Column(db.Date, nullable=False)
+    is_read = db.Column(db.Boolean, default=False, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
 class AuditLog(db.Model):
     __tablename__ = "audit_logs"
     id = db.Column(db.Integer, primary_key=True)

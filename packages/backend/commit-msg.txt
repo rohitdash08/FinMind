@@ -1,0 +1,25 @@
+feat: category overspend early warning system (#117)
+
+Implements comprehensive budget monitoring with configurable thresholds,
+proactive alerts, and end-of-month spending forecasts.
+
+Key features:
+- Budget CRUD with per-category monthly limits
+- Configurable warning (80%) and critical (95%) thresholds
+- Real-time spending status with daily safe-to-spend calculation
+- De-duplicated alert generation per period per alert type
+- End-of-month spending forecast based on current daily rate
+- Alert management with read/unread tracking
+
+API endpoints:
+- POST/GET/PATCH/DELETE /budgets - budget CRUD
+- GET /budgets/status - check spending vs budgets
+- GET /budgets/forecast - end-of-month forecast
+- POST /budgets/alerts/generate - generate alerts
+- GET /budgets/alerts - list alerts
+- PATCH /budgets/alerts/<id>/read - mark read
+- POST /budgets/alerts/read-all - mark all read
+
+45 tests (unit + integration + API)
+
+Closes #117
