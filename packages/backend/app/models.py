@@ -40,6 +40,7 @@ class Expense(db.Model):
     source_recurring_id = db.Column(
         db.Integer, db.ForeignKey("recurring_expenses.id"), nullable=True
     )
+    fingerprint = db.Column(db.String(64), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
 
 
@@ -133,3 +134,17 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class DuplicateGroup(db.Model):
+    __tablename__ = "duplicate_groups"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    fingerprint = db.Column(db.String(64), nullable=False)
+    expense_ids = db.Column(db.Text, nullable=True)  # JSON array of expense IDs
+    status = db.Column(db.String(20), default="PENDING", nullable=False)
+    master_expense_id = db.Column(
+        db.Integer, db.ForeignKey("expenses.id"), nullable=True
+    )
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    resolved_at = db.Column(db.DateTime, nullable=True)
