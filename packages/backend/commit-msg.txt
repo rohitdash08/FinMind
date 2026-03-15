@@ -1,0 +1,23 @@
+feat(dashboard): add customizable dashboard widgets (#103)
+
+Add widget customization system allowing users to show/hide,
+reorder, and configure dashboard sections.
+
+New features:
+- 8 default dashboard widgets (spending, transactions, budget, etc.)
+- Per-user widget layout persistence
+- Individual and bulk visibility toggling
+- Drag-and-drop style reordering via position API
+- Per-widget configuration storage (JSON)
+- Layout initialization and reset to defaults
+- Idempotent initialization
+
+Implementation:
+- Migration 041: dashboard_widgets table with unique constraint
+- DashboardWidget model with position ordering
+- Dashboard widgets service with 9 public functions
+- 9 REST endpoints under /widgets
+- 25 tests (unit + integration), all passing
+- Full API documentation
+
+Closes #103
