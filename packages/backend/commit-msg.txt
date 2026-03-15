@@ -1,0 +1,24 @@
+feat(recurring): add recurring transaction anomaly alerts (#108)
+
+Add anomaly detection system that monitors recurring expenses for
+unexpected amount changes and alerts users when deviations exceed
+configurable thresholds.
+
+New features:
+- Price snapshot tracking for recurring expenses
+- Anomaly detection with configurable threshold (default 10%)
+- Single-transaction and bulk scan modes
+- Alert generation with type classification (increase/decrease)
+- Alert acknowledgement (individual + bulk)
+- Anomaly summary with deviation statistics
+- Expected amount resolution (snapshot → recurring fallback)
+
+Implementation:
+- Migration 040: recurring_expense_snapshots + recurring_anomaly_alerts
+- RecurringExpenseSnapshot and RecurringAnomalyAlert models
+- Recurring anomaly service with 9 public functions
+- 7 REST endpoints under /recurring-anomalies
+- 33 tests (unit + integration), all passing
+- Full API documentation
+
+Closes #108

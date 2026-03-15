@@ -133,3 +133,24 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class RecurringExpenseSnapshot(db.Model):
+    __tablename__ = "recurring_expense_snapshots"
+    id = db.Column(db.Integer, primary_key=True)
+    recurring_id = db.Column(db.Integer, db.ForeignKey("recurring_expenses.id"), nullable=False)
+    amount = db.Column(db.Numeric(12, 2), nullable=False)
+    recorded_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class RecurringAnomalyAlert(db.Model):
+    __tablename__ = "recurring_anomaly_alerts"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    recurring_id = db.Column(db.Integer, db.ForeignKey("recurring_expenses.id"), nullable=False)
+    expected_amount = db.Column(db.Numeric(12, 2), nullable=False)
+    actual_amount = db.Column(db.Numeric(12, 2), nullable=False)
+    deviation_pct = db.Column(db.Numeric(8, 2), nullable=False)
+    alert_type = db.Column(db.String(30), default="amount_change", nullable=False)
+    acknowledged = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
