@@ -1,0 +1,15 @@
+feat(search): add advanced search across transactions & bills
+
+Implements unified search engine with full-text search, category filtering,
+amount range, date range, expense type, and entity type selection. Includes
+autocomplete suggestions and search statistics.
+
+Resolves #105
+
+Changes:
+- app/services/search.py: Core search logic with multi-entity support
+- app/routes/search.py: 3 endpoints (search, suggestions, stats)
+- app/routes/__init__.py: Register search blueprint
+- tests/test_search.py: 39 comprehensive tests
+- docs/advanced-search.md: Full API documentation
+- tests/conftest.py: Add fakeredis for test isolation
