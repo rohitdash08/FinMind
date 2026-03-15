@@ -1,0 +1,24 @@
+# =============================================================================
+# FinMind — Helm Chart Metadata
+# =============================================================================
+apiVersion: v2
+name: finmind
+description: >-
+  Production Helm chart for FinMind — a personal finance management platform
+  with Flask backend, React frontend, PostgreSQL, and Redis.
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - finmind
+  - finance
+  - flask
+  - react
+  - postgresql
+  - redis
+home: https://github.com/rohitdash08/FinMind
+sources:
+  - https://github.com/rohitdash08/FinMind
+maintainers:
+  - name: FinMind Contributors
+    url: https://github.com/rohitdash08/FinMind

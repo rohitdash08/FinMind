@@ -1,0 +1,89 @@
+# =============================================================================
+# FinMind — PostgreSQL StatefulSet-style Deployment
+# =============================================================================
+# For production, consider using a managed database (RDS, Cloud SQL, etc.)
+# and set postgresql.enabled=false in values.yaml.
+# =============================================================================
+{{- if .Values.postgresql.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "finmind.fullname" . }}-postgresql
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "finmind.labels" . | nindent 4 }}
+    {{- include "finmind.selectorLabels" (dict "component" "postgresql" "context" .) | nindent 4 }}
+spec:
+  replicas: 1
+  # Recreate strategy prevents data corruption from concurrent PG instances
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "finmind.selectorLabels" (dict "component" "postgresql" "context" .) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "finmind.labels" . | nindent 8 }}
+        {{- include "finmind.selectorLabels" (dict "component" "postgresql" "context" .) | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "finmind.serviceAccountName" . }}
+      containers:
+        - name: postgresql
+          image: "{{ .Values.postgresql.image.repository }}:{{ .Values.postgresql.image.tag }}"
+          ports:
+            - name: tcp-pg
+              containerPort: 5432
+              protocol: TCP
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "finmind.fullname" . }}-secrets
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "finmind.fullname" . }}-secrets
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "finmind.fullname" . }}-secrets
+                  key: POSTGRES_DB
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          # Health probes using pg_isready
+          startupProbe:
+            exec:
+              command: ["pg_isready", "-U", "$(POSTGRES_USER)", "-d", "$(POSTGRES_DB)"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 30
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "$(POSTGRES_USER)", "-d", "$(POSTGRES_DB)"]
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "$(POSTGRES_USER)", "-d", "$(POSTGRES_DB)"]
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+          resources:
+            {{- toYaml .Values.postgresql.resources | nindent 12 }}
+      volumes:
+        - name: data
+          {{- if .Values.postgresql.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "finmind.fullname" . }}-postgresql
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+{{- end }}

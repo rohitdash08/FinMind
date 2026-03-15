@@ -1,0 +1,51 @@
+# =============================================================================
+# FinMind — AWS App Runner Configuration
+# =============================================================================
+# App Runner provides a simpler alternative to ECS Fargate.
+#
+# Setup:
+#   1. Push image to ECR:
+#      aws ecr create-repository --repository-name finmind-backend
+#      docker build -f deploy/docker/backend.Dockerfile -t finmind-backend .
+#      docker tag finmind-backend:latest ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/finmind-backend:latest
+#      docker push ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/finmind-backend:latest
+#   2. Create RDS PostgreSQL and ElastiCache Redis via AWS Console or CLI
+#   3. Store secrets in AWS Secrets Manager
+#   4. Deploy:
+#      aws apprunner create-service --cli-input-yaml file://deploy/platforms/aws/apprunner.yaml
+# =============================================================================
+
+ServiceName: finmind-backend
+SourceConfiguration:
+  AuthenticationConfiguration:
+    AccessRoleArn: "arn:aws:iam::ACCOUNT_ID:role/AppRunnerECRAccessRole"
+  ImageRepository:
+    ImageIdentifier: "ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/finmind-backend:latest"
+    ImageRepositoryType: ECR
+    ImageConfiguration:
+      Port: "8000"
+      RuntimeEnvironmentVariables:
+        LOG_LEVEL: "INFO"
+        GEMINI_MODEL: "gemini-1.5-flash"
+        GUNICORN_WORKERS: "2"
+        GUNICORN_THREADS: "4"
+      RuntimeEnvironmentSecrets:
+        DATABASE_URL: "arn:aws:secretsmanager:us-east-1:ACCOUNT_ID:secret:finmind/database-url"
+        REDIS_URL: "arn:aws:secretsmanager:us-east-1:ACCOUNT_ID:secret:finmind/redis-url"
+        JWT_SECRET: "arn:aws:secretsmanager:us-east-1:ACCOUNT_ID:secret:finmind/jwt-secret"
+  AutoDeploymentsEnabled: true
+InstanceConfiguration:
+  Cpu: "1 vCPU"
+  Memory: "2 GB"
+HealthCheckConfiguration:
+  Protocol: HTTP
+  Path: "/health"
+  Interval: 15
+  Timeout: 5
+  HealthyThreshold: 1
+  UnhealthyThreshold: 3
+AutoScalingConfigurationArn: "arn:aws:apprunner:us-east-1:ACCOUNT_ID:autoscalingconfiguration/finmind-autoscale/1/latest"
+NetworkConfiguration:
+  EgressConfiguration:
+    EgressType: VPC
+    VpcConnectorArn: "arn:aws:apprunner:us-east-1:ACCOUNT_ID:vpcconnector/finmind-vpc-connector/1/latest"

@@ -1,0 +1,58 @@
+{
+  "_comment": "FinMind — AWS ECS Fargate Task Definition. See deploy/DEPLOYMENT.md for full setup instructions.",
+  "family": "finmind-backend",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "arn:aws:iam::ACCOUNT_ID:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::ACCOUNT_ID:role/finmindTaskRole",
+  "containerDefinitions": [
+    {
+      "name": "finmind-backend",
+      "image": "ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/finmind-backend:latest",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 8000,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        { "name": "GUNICORN_WORKERS", "value": "2" },
+        { "name": "GUNICORN_THREADS", "value": "4" },
+        { "name": "LOG_LEVEL", "value": "INFO" },
+        { "name": "GEMINI_MODEL", "value": "gemini-1.5-flash" }
+      ],
+      "secrets": [
+        {
+          "name": "DATABASE_URL",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:ACCOUNT_ID:secret:finmind/database-url"
+        },
+        {
+          "name": "REDIS_URL",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:ACCOUNT_ID:secret:finmind/redis-url"
+        },
+        {
+          "name": "JWT_SECRET",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:ACCOUNT_ID:secret:finmind/jwt-secret"
+        }
+      ],
+      "healthCheck": {
+        "command": ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 30
+      },
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/finmind-backend",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+# =============================================================================
+# FinMind — Railway Deployment Configuration
+# =============================================================================
+# Railway auto-detects services from this file.
+#
+# Setup:
+#   1. Install Railway CLI: npm i -g @railway/cli
+#   2. railway login
+#   3. railway init
+#   4. Add PostgreSQL and Redis plugins in the Railway dashboard
+#   5. Set environment variables (see .env.example)
+#   6. railway up
+#
+# Railway automatically provisions DATABASE_URL and REDIS_URL when you add
+# the PostgreSQL and Redis plugins — no manual config needed for those.
+# =============================================================================
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "deploy/docker/backend.Dockerfile"
+watchPatterns = ["packages/backend/**"]
+
+[deploy]
+startCommand = "sh -c 'python -m flask --app wsgi:app init-db && gunicorn --workers=2 --threads=4 --bind=0.0.0.0:${PORT:-8000} --timeout=120 wsgi:app'"
+healthcheckPath = "/health"
+healthcheckTimeout = 30
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 5
+numReplicas = 1

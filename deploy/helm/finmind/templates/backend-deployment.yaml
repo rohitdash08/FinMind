@@ -1,0 +1,135 @@
+# =============================================================================
+# FinMind — Backend Deployment
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "finmind.fullname" . }}-backend
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "finmind.labels" . | nindent 4 }}
+    {{- include "finmind.selectorLabels" (dict "component" "backend" "context" .) | nindent 4 }}
+spec:
+  {{- if not .Values.backend.autoscaling.enabled }}
+  replicas: {{ .Values.backend.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "finmind.selectorLabels" (dict "component" "backend" "context" .) | nindent 6 }}
+  strategy:
+    {{- toYaml .Values.backend.strategy | nindent 4 }}
+  template:
+    metadata:
+      labels:
+        {{- include "finmind.labels" . | nindent 8 }}
+        {{- include "finmind.selectorLabels" (dict "component" "backend" "context" .) | nindent 8 }}
+      annotations:
+        # Force rollout on config/secret changes
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secrets.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: {{ include "finmind.serviceAccountName" . }}
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      # Graceful shutdown period matching gunicorn graceful timeout
+      terminationGracePeriodSeconds: 45
+      containers:
+        - name: backend
+          image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}"
+          imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          env:
+            # --- Secrets (injected from Secret resource) ---
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "finmind.fullname" . }}-secrets
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "finmind.fullname" . }}-secrets
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "finmind.fullname" . }}-secrets
+                  key: POSTGRES_DB
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "finmind.fullname" . }}-secrets
+                  key: JWT_SECRET
+            - name: DATABASE_URL
+              value: {{ include "finmind.databaseUrl" . | quote }}
+            # --- ConfigMap values ---
+            - name: REDIS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "finmind.fullname" . }}-config
+                  key: REDIS_URL
+            - name: LOG_LEVEL
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "finmind.fullname" . }}-config
+                  key: LOG_LEVEL
+            - name: GEMINI_MODEL
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "finmind.fullname" . }}-config
+                  key: GEMINI_MODEL
+            # --- Optional secrets (only if provided) ---
+            {{- if .Values.secrets.GEMINI_API_KEY }}
+            - name: GEMINI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "finmind.fullname" . }}-secrets
+                  key: GEMINI_API_KEY
+            {{- end }}
+            {{- if .Values.secrets.OPENAI_API_KEY }}
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "finmind.fullname" . }}-secrets
+                  key: OPENAI_API_KEY
+            {{- end }}
+          command:
+            - sh
+            - -c
+            - |
+              python -m flask --app wsgi:app init-db && \
+              export PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus_multiproc && \
+              rm -rf $PROMETHEUS_MULTIPROC_DIR && \
+              mkdir -p $PROMETHEUS_MULTIPROC_DIR && \
+              exec gunicorn \
+                --workers=${GUNICORN_WORKERS:-2} \
+                --threads=${GUNICORN_THREADS:-4} \
+                --bind=0.0.0.0:8000 \
+                --timeout=120 \
+                --graceful-timeout=30 \
+                --access-logfile=- \
+                --error-logfile=- \
+                --forwarded-allow-ips='*' \
+                wsgi:app
+          # --- Health probes ---
+          startupProbe:
+            {{- toYaml .Values.backend.startupProbe | nindent 12 }}
+          livenessProbe:
+            {{- toYaml .Values.backend.livenessProbe | nindent 12 }}
+          readinessProbe:
+            {{- toYaml .Values.backend.readinessProbe | nindent 12 }}
+          resources:
+            {{- toYaml .Values.backend.resources | nindent 12 }}
+          securityContext:
+            readOnlyRootFilesystem: false
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL

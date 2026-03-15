@@ -1,0 +1,51 @@
+# =============================================================================
+# FinMind — Docker build context exclusions
+# =============================================================================
+# Keep the build context small and avoid leaking secrets into images.
+
+# Version control
+.git
+.gitignore
+
+# Dependencies (rebuilt inside the container)
+node_modules
+app/node_modules
+__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# IDE and editor files
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Documentation (not needed in runtime image)
+*.md
+docs/
+LICENSE
+
+# Testing artifacts
+coverage/
+.coverage
+htmlcov/
+
+# Monitoring configs (separate compose service)
+monitoring/
+
+# Deploy configs (not part of the app image)
+deploy/
+
+# CI/CD
+.github/

@@ -1,0 +1,22 @@
+# =============================================================================
+# FinMind — Redis Service
+# =============================================================================
+{{- if .Values.redis.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "finmind.fullname" . }}-redis
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "finmind.labels" . | nindent 4 }}
+    {{- include "finmind.selectorLabels" (dict "component" "redis" "context" .) | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: 6379
+      targetPort: tcp-redis
+      protocol: TCP
+      name: tcp-redis
+  selector:
+    {{- include "finmind.selectorLabels" (dict "component" "redis" "context" .) | nindent 4 }}
+{{- end }}

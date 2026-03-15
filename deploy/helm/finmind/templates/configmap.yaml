@@ -1,0 +1,15 @@
+# =============================================================================
+# FinMind — ConfigMap (non-sensitive configuration)
+# =============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "finmind.fullname" . }}-config
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "finmind.labels" . | nindent 4 }}
+data:
+  {{- range $key, $value := .Values.backend.config }}
+  {{ $key }}: {{ $value | quote }}
+  {{- end }}
+  REDIS_URL: {{ include "finmind.redisUrl" . | quote }}

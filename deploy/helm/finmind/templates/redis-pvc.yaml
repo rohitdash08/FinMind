@@ -1,0 +1,22 @@
+# =============================================================================
+# FinMind — Redis Persistent Volume Claim
+# =============================================================================
+{{- if and .Values.redis.enabled .Values.redis.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "finmind.fullname" . }}-redis
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "finmind.labels" . | nindent 4 }}
+    {{- include "finmind.selectorLabels" (dict "component" "redis" "context" .) | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  {{- if .Values.redis.persistence.storageClass }}
+  storageClassName: {{ .Values.redis.persistence.storageClass | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.redis.persistence.size }}
+{{- end }}

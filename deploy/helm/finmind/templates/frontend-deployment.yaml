@@ -1,0 +1,54 @@
+# =============================================================================
+# FinMind — Frontend Deployment
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "finmind.fullname" . }}-frontend
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "finmind.labels" . | nindent 4 }}
+    {{- include "finmind.selectorLabels" (dict "component" "frontend" "context" .) | nindent 4 }}
+spec:
+  {{- if not .Values.frontend.autoscaling.enabled }}
+  replicas: {{ .Values.frontend.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "finmind.selectorLabels" (dict "component" "frontend" "context" .) | nindent 6 }}
+  strategy:
+    {{- toYaml .Values.frontend.strategy | nindent 4 }}
+  template:
+    metadata:
+      labels:
+        {{- include "finmind.labels" . | nindent 8 }}
+        {{- include "finmind.selectorLabels" (dict "component" "frontend" "context" .) | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "finmind.serviceAccountName" . }}
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: frontend
+          image: "{{ .Values.frontend.image.repository }}:{{ .Values.frontend.image.tag }}"
+          imagePullPolicy: {{ .Values.frontend.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+          livenessProbe:
+            {{- toYaml .Values.frontend.livenessProbe | nindent 12 }}
+          readinessProbe:
+            {{- toYaml .Values.frontend.readinessProbe | nindent 12 }}
+          resources:
+            {{- toYaml .Values.frontend.resources | nindent 12 }}
+          securityContext:
+            readOnlyRootFilesystem: false
+            runAsNonRoot: false
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+              add:
+                - NET_BIND_SERVICE

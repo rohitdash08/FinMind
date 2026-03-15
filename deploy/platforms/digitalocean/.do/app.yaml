@@ -1,0 +1,108 @@
+# =============================================================================
+# FinMind — DigitalOcean App Platform Specification
+# =============================================================================
+# DigitalOcean App Platform uses this file for Infrastructure as Code.
+#
+# Setup:
+#   1. Install doctl: https://docs.digitalocean.com/reference/doctl/how-to/install/
+#   2. doctl auth init
+#   3. Deploy:
+#      doctl apps create --spec deploy/platforms/digitalocean/.do/app.yaml
+#   4. Set secrets in the DigitalOcean dashboard (JWT_SECRET, API keys)
+#
+# For Droplet deployment, see deploy/scripts/deploy.sh --platform digitalocean-droplet
+# =============================================================================
+
+name: finmind
+region: nyc
+
+services:
+  # ---------------------------------------------------------------------------
+  # Backend API
+  # ---------------------------------------------------------------------------
+  - name: finmind-backend
+    dockerfile_path: deploy/docker/backend.Dockerfile
+    github:
+      repo: rohitdash08/FinMind
+      branch: main
+      deploy_on_push: true
+    http_port: 8000
+    instance_count: 1
+    instance_size_slug: basic-xs
+    health_check:
+      http_path: /health
+      initial_delay_seconds: 15
+      period_seconds: 15
+      timeout_seconds: 5
+      success_threshold: 1
+      failure_threshold: 3
+    envs:
+      - key: DATABASE_URL
+        scope: RUN_TIME
+        value: ${finmind-db.DATABASE_URL}
+      - key: REDIS_URL
+        scope: RUN_TIME
+        value: ${finmind-redis.REDIS_URL}
+      - key: JWT_SECRET
+        scope: RUN_TIME
+        type: SECRET
+        value: REPLACE_WITH_SECRET
+      - key: LOG_LEVEL
+        scope: RUN_TIME
+        value: INFO
+      - key: GEMINI_MODEL
+        scope: RUN_TIME
+        value: gemini-1.5-flash
+      - key: GUNICORN_WORKERS
+        scope: RUN_TIME
+        value: "2"
+      - key: GUNICORN_THREADS
+        scope: RUN_TIME
+        value: "4"
+    routes:
+      - path: /api
+      - path: /health
+      - path: /metrics
+
+  # ---------------------------------------------------------------------------
+  # Frontend SPA
+  # ---------------------------------------------------------------------------
+  - name: finmind-frontend
+    environment_slug: node-js
+    github:
+      repo: rohitdash08/FinMind
+      branch: main
+      deploy_on_push: true
+    source_dir: app
+    build_command: npm ci && npm run build
+    http_port: 80
+    instance_count: 1
+    instance_size_slug: basic-xxs
+    dockerfile_path: deploy/docker/frontend.Dockerfile
+    envs:
+      - key: VITE_API_URL
+        scope: BUILD_TIME
+        value: ${APP_URL}/api
+    routes:
+      - path: /
+
+databases:
+  # ---------------------------------------------------------------------------
+  # PostgreSQL
+  # ---------------------------------------------------------------------------
+  - name: finmind-db
+    engine: PG
+    version: "16"
+    size: db-s-1vcpu-1gb
+    num_nodes: 1
+    production: false
+
+  # ---------------------------------------------------------------------------
+  # Redis
+  # ---------------------------------------------------------------------------
+  - name: finmind-redis
+    engine: REDIS
+    version: "7"
+    size: db-s-1vcpu-1gb
+    num_nodes: 1
+    production: false
