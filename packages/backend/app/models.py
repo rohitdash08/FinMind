@@ -127,6 +127,36 @@ class UserSubscription(db.Model):
     started_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
 
+class DetectedSubscription(db.Model):
+    """Auto-detected subscription from recurring transaction patterns."""
+    __tablename__ = "detected_subscriptions"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    merchant_name = db.Column(db.String(255), nullable=False)
+    normalized_name = db.Column(db.String(255), nullable=False)
+    amount = db.Column(db.Numeric(12, 2), nullable=False)
+    currency = db.Column(db.String(10), default="INR", nullable=False)
+    cadence = db.Column(db.String(20), default="MONTHLY", nullable=False)
+    confidence = db.Column(db.Numeric(5, 4), default=0.0, nullable=False)
+    first_seen = db.Column(db.Date, nullable=False)
+    last_seen = db.Column(db.Date, nullable=False)
+    next_expected = db.Column(db.Date, nullable=True)
+    occurrence_count = db.Column(db.Integer, default=0, nullable=False)
+    status = db.Column(db.String(20), default="detected", nullable=False)
+    linked_recurring_id = db.Column(
+        db.Integer, db.ForeignKey("recurring_expenses.id"), nullable=True
+    )
+    category_id = db.Column(db.Integer, db.ForeignKey("categories.id"), nullable=True)
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        db.UniqueConstraint("user_id", "normalized_name", "cadence",
+                            name="uq_user_merchant_cadence"),
+    )
+
+
 class AuditLog(db.Model):
     __tablename__ = "audit_logs"
     id = db.Column(db.Integer, primary_key=True)

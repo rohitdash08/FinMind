@@ -1,0 +1,23 @@
+feat: auto-detect subscriptions from recurring charges (#109)
+
+Implements intelligent subscription detection by analyzing recurring
+transaction patterns in user expense history.
+
+Key features:
+- Smart merchant name normalization (strips prefixes, suffixes, refs)
+- Multi-cadence detection (weekly, biweekly, monthly, quarterly, yearly)
+- Confidence scoring with 4 weighted factors
+- 40+ pre-loaded known subscription service patterns
+- Monthly cost normalization across all cadences
+- User controls: confirm, dismiss, or re-detect subscriptions
+
+API endpoints:
+- POST /subscriptions/scan - trigger detection scan
+- GET /subscriptions - list detected subscriptions
+- GET /subscriptions/summary - monthly/yearly cost summary
+- GET /subscriptions/<id> - subscription details
+- PATCH /subscriptions/<id>/status - confirm/dismiss
+
+53 tests (unit + integration + API)
+
+Closes #109
