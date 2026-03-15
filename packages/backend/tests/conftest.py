@@ -1,9 +1,12 @@
 import os
+import fakeredis
 import pytest
+import app.extensions as _ext
+import app.routes.auth as _auth_route
+import app.services.cache as _cache_svc
 from app import create_app
 from app.config import Settings
 from app.extensions import db
-from app.extensions import redis_client
 from app import models  # noqa: F401 - ensure models are registered
 
 
@@ -21,28 +24,34 @@ def _setup_db(app):
 
 @pytest.fixture()
 def app_fixture():
-    # Ensure a clean env for tests
     os.environ.setdefault("FLASK_ENV", "testing")
     settings = TestSettings(
         database_url="sqlite+pysqlite:///:memory:",
         redis_url="redis://localhost:6379/15",
         jwt_secret="test-secret-with-32-plus-chars-1234567890",
     )
+    # Replace the real Redis client with fakeredis in every location where it
+    # was imported by name.  The source singleton plus the two modules that did
+    # `from ..extensions import redis_client` each hold their own reference.
+    _real = _ext.redis_client
+    fake = fakeredis.FakeRedis(decode_responses=True)
+    _ext.redis_client = fake
+    _auth_route.redis_client = fake
+    _cache_svc.redis_client = fake
+
     app = create_app(settings)
     app.config.update(TESTING=True)
     _setup_db(app)
-    try:
-        redis_client.flushdb()
-    except Exception:
-        pass
     yield app
+
     with app.app_context():
         db.session.remove()
         db.drop_all()
-    try:
-        redis_client.flushdb()
-    except Exception:
-        pass
+    fake.flushall()
+    # Restore originals so other test sessions aren't affected
+    _ext.redis_client = _real
+    _auth_route.redis_client = _real
+    _cache_svc.redis_client = _real
 
 
 @pytest.fixture()
