@@ -1,0 +1,17 @@
+feat(locale): locale-aware date, currency & number formatting
+
+Closes #131
+
+Add comprehensive locale-aware formatting system with:
+- 10 locale support (en_US, en_GB, de_DE, fr_FR, es_ES, pt_BR, ja_JP, zh_CN, hi_IN, ar_SA)
+- 25+ currency symbols with correct decimal places
+- Locale-specific number formatting (decimal/thousands separators)
+- Date formatting with 4 styles (short/medium/long/ISO)
+- Relative date display with localized words
+- Compact number notation (1.2K, 3.4M)
+- User preference management (locale, timezone, date/currency formats)
+- Live formatting preview
+- Expense and bill formatting helpers
+- 9 REST endpoints
+- 75 tests, all passing
+- Migration, service, routes, documentation

@@ -1,10 +1,23 @@
 import os
 import pytest
+from unittest.mock import MagicMock
+import fakeredis
 from app import create_app
 from app.config import Settings
 from app.extensions import db
 from app.extensions import redis_client
 from app import models  # noqa: F401 - ensure models are registered
+
+
+@pytest.fixture(autouse=True)
+def _patch_redis(monkeypatch):
+    """Replace the global redis_client with a fakeredis instance for ALL tests."""
+    fake = fakeredis.FakeRedis()
+    monkeypatch.setattr("app.extensions.redis_client", fake)
+    monkeypatch.setattr("app.routes.auth.redis_client", fake)
+    monkeypatch.setattr("app.services.cache.redis_client", fake)
+    yield
+    fake.flushall()
 
 
 class TestSettings(Settings):

@@ -16,6 +16,11 @@ class User(db.Model):
     password_hash = db.Column(db.String(255), nullable=False)
     preferred_currency = db.Column(db.String(10), default="INR", nullable=False)
     role = db.Column(db.String(20), default=Role.USER.value, nullable=False)
+    locale = db.Column(db.String(10), default="en_US", nullable=False)
+    timezone = db.Column(db.String(50), default="UTC", nullable=False)
+    date_format = db.Column(db.String(20), default="YYYY-MM-DD", nullable=False)
+    number_format = db.Column(db.String(20), default="standard", nullable=False)
+    currency_display = db.Column(db.String(20), default="symbol", nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
 
