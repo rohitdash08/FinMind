@@ -133,3 +133,26 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class SubscriptionPriceHistory(db.Model):
+    __tablename__ = "subscription_price_history"
+    id = db.Column(db.Integer, primary_key=True)
+    plan_id = db.Column(db.Integer, db.ForeignKey("subscription_plans.id"), nullable=False)
+    old_price_cents = db.Column(db.Integer, nullable=False)
+    new_price_cents = db.Column(db.Integer, nullable=False)
+    change_pct = db.Column(db.Numeric(8, 2), nullable=False)
+    detected_at = db.Column(db.DateTime, default=datetime.utcnow)
+    notified = db.Column(db.Boolean, default=False)
+
+
+class SubscriptionCostAlert(db.Model):
+    __tablename__ = "subscription_cost_alerts"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    plan_id = db.Column(db.Integer, db.ForeignKey("subscription_plans.id"), nullable=False)
+    old_price_cents = db.Column(db.Integer, nullable=False)
+    new_price_cents = db.Column(db.Integer, nullable=False)
+    change_pct = db.Column(db.Numeric(8, 2), nullable=False)
+    acknowledged = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
