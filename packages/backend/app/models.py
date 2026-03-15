@@ -99,6 +99,15 @@ class Reminder(db.Model):
     sent = db.Column(db.Boolean, default=False, nullable=False)
     channel = db.Column(db.String(20), default="email", nullable=False)
 
+    # Resilient retry fields (bounty #130)
+    status = db.Column(db.String(20), default="pending", nullable=False)
+    retry_count = db.Column(db.Integer, default=0, nullable=False)
+    max_retries = db.Column(db.Integer, default=3, nullable=False)
+    last_error = db.Column(db.String(500), nullable=True)
+    next_retry_at = db.Column(db.DateTime, nullable=True)
+    started_at = db.Column(db.DateTime, nullable=True)
+    completed_at = db.Column(db.DateTime, nullable=True)
+
 
 class AdImpression(db.Model):
     __tablename__ = "ad_impressions"

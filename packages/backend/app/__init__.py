@@ -52,6 +52,10 @@ def create_app(settings: Settings | None = None) -> Flask:
     # Blueprint routes
     register_routes(app)
 
+    # Background scheduler for resilient job processing
+    from .scheduler import init_scheduler
+    init_scheduler(app)
+
     # Backward-compatible schema patch for existing databases.
     with app.app_context():
         _ensure_schema_compatibility(app)
@@ -110,10 +114,21 @@ def _ensure_schema_compatibility(app: Flask) -> None:
             NOT NULL DEFAULT 'INR'
             """
         )
+        # Resilient job retry columns on reminders (#130)
+        for stmt in [
+            "ALTER TABLE reminders ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'pending'",
+            "ALTER TABLE reminders ADD COLUMN IF NOT EXISTS retry_count INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE reminders ADD COLUMN IF NOT EXISTS max_retries INTEGER NOT NULL DEFAULT 3",
+            "ALTER TABLE reminders ADD COLUMN IF NOT EXISTS last_error VARCHAR(500)",
+            "ALTER TABLE reminders ADD COLUMN IF NOT EXISTS next_retry_at TIMESTAMP",
+            "ALTER TABLE reminders ADD COLUMN IF NOT EXISTS started_at TIMESTAMP",
+            "ALTER TABLE reminders ADD COLUMN IF NOT EXISTS completed_at TIMESTAMP",
+        ]:
+            cur.execute(stmt)
         conn.commit()
     except Exception:
         app.logger.exception(
-            "Schema compatibility patch failed for users.preferred_currency"
+            "Schema compatibility patch failed"
         )
         conn.rollback()
     finally:

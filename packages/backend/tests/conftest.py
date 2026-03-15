@@ -1,9 +1,10 @@
 import os
+from unittest.mock import patch
 import pytest
+import fakeredis
 from app import create_app
 from app.config import Settings
 from app.extensions import db
-from app.extensions import redis_client
 from app import models  # noqa: F401 - ensure models are registered
 
 
@@ -19,6 +20,16 @@ def _setup_db(app):
         db.create_all()
 
 
+@pytest.fixture(autouse=True)
+def _mock_redis():
+    """Replace the real redis_client with fakeredis for all tests."""
+    fake = fakeredis.FakeRedis(decode_responses=True)
+    with patch("app.extensions.redis_client", fake), \
+         patch("app.routes.auth.redis_client", fake), \
+         patch("app.services.cache.redis_client", fake):
+        yield fake
+
+
 @pytest.fixture()
 def app_fixture():
     # Ensure a clean env for tests
@@ -31,18 +42,10 @@ def app_fixture():
     app = create_app(settings)
     app.config.update(TESTING=True)
     _setup_db(app)
-    try:
-        redis_client.flushdb()
-    except Exception:
-        pass
     yield app
     with app.app_context():
         db.session.remove()
         db.drop_all()
-    try:
-        redis_client.flushdb()
-    except Exception:
-        pass
 
 
 @pytest.fixture()
