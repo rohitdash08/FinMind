@@ -1,0 +1,143 @@
+# ============================================================================
+# FinMind — Google Cloud Build Configuration
+# ============================================================================
+# Builds backend + frontend Docker images and deploys to Cloud Run.
+#
+# Trigger this build:
+#   gcloud builds submit --config deploy/gcp/cloudbuild.yaml .
+#
+# Required substitutions (set in trigger or CLI):
+#   _REGION          — GCP region (default: us-central1)
+#   _PROJECT_ID      — GCP project ID
+#   _CLOUD_SQL_CONN  — Cloud SQL connection name (project:region:instance)
+#   _REDIS_HOST      — Memorystore Redis IP
+# ============================================================================
+
+substitutions:
+  _REGION: us-central1
+  _BACKEND_SERVICE: finmind-backend
+  _FRONTEND_SERVICE: finmind-frontend
+  _BACKEND_IMAGE: gcr.io/${PROJECT_ID}/finmind-backend
+  _FRONTEND_IMAGE: gcr.io/${PROJECT_ID}/finmind-frontend
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: E2_HIGHCPU_8
+  dynamic_substitutions: true
+
+steps:
+  # --------------------------------------------------------------------------
+  # Step 1: Build backend Docker image
+  # --------------------------------------------------------------------------
+  - id: build-backend
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - ${_BACKEND_IMAGE}:${SHORT_SHA}
+      - -t
+      - ${_BACKEND_IMAGE}:latest
+      - -f
+      - packages/backend/Dockerfile
+      - packages/backend
+    waitFor: ["-"]
+
+  # --------------------------------------------------------------------------
+  # Step 2: Build frontend Docker image
+  # --------------------------------------------------------------------------
+  - id: build-frontend
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - ${_FRONTEND_IMAGE}:${SHORT_SHA}
+      - -t
+      - ${_FRONTEND_IMAGE}:latest
+      - -f
+      - app/Dockerfile
+      - app
+    waitFor: ["-"]
+
+  # --------------------------------------------------------------------------
+  # Step 3: Push backend image to Container Registry
+  # --------------------------------------------------------------------------
+  - id: push-backend
+    name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - --all-tags
+      - ${_BACKEND_IMAGE}
+    waitFor: ["build-backend"]
+
+  # --------------------------------------------------------------------------
+  # Step 4: Push frontend image to Container Registry
+  # --------------------------------------------------------------------------
+  - id: push-frontend
+    name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - --all-tags
+      - ${_FRONTEND_IMAGE}
+    waitFor: ["build-frontend"]
+
+  # --------------------------------------------------------------------------
+  # Step 5: Deploy backend to Cloud Run
+  # --------------------------------------------------------------------------
+  - id: deploy-backend
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - ${_BACKEND_SERVICE}
+      - --image=${_BACKEND_IMAGE}:${SHORT_SHA}
+      - --region=${_REGION}
+      - --platform=managed
+      - --port=8000
+      - --cpu=1
+      - --memory=512Mi
+      - --min-instances=1
+      - --max-instances=10
+      - --concurrency=80
+      - --timeout=300s
+      - --set-env-vars=LOG_LEVEL=info,GEMINI_MODEL=gemini-pro
+      - --set-secrets=DATABASE_URL=finmind-database-url:latest,REDIS_URL=finmind-redis-url:latest,JWT_SECRET=finmind-jwt-secret:latest,GEMINI_API_KEY=finmind-gemini-api-key:latest
+      - --add-cloudsql-instances=${_CLOUD_SQL_CONN}
+      - --vpc-connector=finmind-vpc-connector
+      - --ingress=all
+      - --allow-unauthenticated
+      - --labels=app=finmind,component=backend
+    waitFor: ["push-backend"]
+
+  # --------------------------------------------------------------------------
+  # Step 6: Deploy frontend to Cloud Run
+  # --------------------------------------------------------------------------
+  - id: deploy-frontend
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - ${_FRONTEND_SERVICE}
+      - --image=${_FRONTEND_IMAGE}:${SHORT_SHA}
+      - --region=${_REGION}
+      - --platform=managed
+      - --port=80
+      - --cpu=1
+      - --memory=256Mi
+      - --min-instances=0
+      - --max-instances=5
+      - --concurrency=200
+      - --timeout=60s
+      - --ingress=all
+      - --allow-unauthenticated
+      - --labels=app=finmind,component=frontend
+    waitFor: ["push-frontend"]
+
+images:
+  - ${_BACKEND_IMAGE}:${SHORT_SHA}
+  - ${_BACKEND_IMAGE}:latest
+  - ${_FRONTEND_IMAGE}:${SHORT_SHA}
+  - ${_FRONTEND_IMAGE}:latest
+
+timeout: 1800s

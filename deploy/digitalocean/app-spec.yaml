@@ -1,0 +1,109 @@
+# DigitalOcean App Platform Specification — FinMind
+# Deploy: doctl apps create --spec app-spec.yaml
+# Update: doctl apps update <app-id> --spec app-spec.yaml
+
+name: finmind
+region: sfo
+
+alerts:
+  - rule: DEPLOYMENT_FAILED
+  - rule: DOMAIN_FAILED
+
+services:
+  # ── Backend API ────────────────────────────────────────────
+  - name: backend
+    dockerfile_path: packages/backend/Dockerfile
+    build_command: ""
+    source_dir: /
+    github:
+      repo: your-org/FinMind
+      branch: main
+      deploy_on_push: true
+    instance_count: 1
+    instance_size_slug: basic-xxs
+    http_port: 8000
+    health_check:
+      http_path: /health
+      initial_delay_seconds: 15
+      period_seconds: 30
+      timeout_seconds: 5
+      success_threshold: 1
+      failure_threshold: 3
+    routes:
+      - path: /api
+        preserve_path_prefix: true
+      - path: /health
+    envs:
+      - key: DATABASE_URL
+        scope: RUN_TIME
+        value: "${db.DATABASE_URL}"
+      - key: REDIS_URL
+        scope: RUN_TIME
+        value: "${redis.REDIS_URL}"
+      - key: JWT_SECRET
+        scope: RUN_AND_BUILD_TIME
+        type: SECRET
+        value: "CHANGE_ME_GENERATE_WITH_OPENSSL"
+      - key: GEMINI_API_KEY
+        scope: RUN_TIME
+        type: SECRET
+        value: "CHANGE_ME"
+      - key: GEMINI_MODEL
+        scope: RUN_TIME
+        value: "gemini-pro"
+      - key: LOG_LEVEL
+        scope: RUN_TIME
+        value: "INFO"
+      - key: PORT
+        scope: RUN_TIME
+        value: "8000"
+      - key: PYTHONUNBUFFERED
+        scope: RUN_TIME
+        value: "1"
+    autoscaling:
+      min_instance_count: 1
+      max_instance_count: 3
+      metrics:
+        cpu:
+          percent: 75
+
+  # ── Frontend ───────────────────────────────────────────────
+  - name: frontend
+    dockerfile_path: app/Dockerfile
+    source_dir: /app
+    github:
+      repo: your-org/FinMind
+      branch: main
+      deploy_on_push: true
+    instance_count: 1
+    instance_size_slug: basic-xxs
+    http_port: 80
+    health_check:
+      http_path: /
+      initial_delay_seconds: 10
+      period_seconds: 30
+      timeout_seconds: 5
+      success_threshold: 1
+      failure_threshold: 3
+    routes:
+      - path: /
+    envs:
+      - key: VITE_API_URL
+        scope: BUILD_TIME
+        value: "${backend.PUBLIC_URL}"
+
+# ── Managed Databases ─────────────────────────────────────────
+databases:
+  - name: db
+    engine: PG
+    version: "16"
+    size: db-s-dev-database
+    num_nodes: 1
+    production: false
+
+  - name: redis
+    engine: REDIS
+    version: "7"
+    size: db-s-dev-database
+    num_nodes: 1
+    production: false

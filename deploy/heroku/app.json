@@ -1,0 +1,78 @@
+{
+  "name": "FinMind",
+  "description": "AI-powered personal finance management platform with intelligent budgeting, investment tracking, and financial insights.",
+  "keywords": [
+    "finance",
+    "ai",
+    "budgeting",
+    "investment",
+    "flask",
+    "react"
+  ],
+  "repository": "https://github.com/your-org/FinMind",
+  "logo": "",
+  "stack": "container",
+  "formation": {
+    "web": {
+      "quantity": 1,
+      "size": "standard-1x"
+    }
+  },
+  "addons": [
+    {
+      "plan": "heroku-postgresql:essential-0",
+      "as": "DATABASE"
+    },
+    {
+      "plan": "heroku-redis:mini",
+      "as": "REDIS"
+    }
+  ],
+  "env": {
+    "JWT_SECRET": {
+      "description": "Secret key used for signing JWT tokens. Generate with: openssl rand -hex 64",
+      "generator": "secret",
+      "required": true
+    },
+    "GEMINI_API_KEY": {
+      "description": "Google Gemini API key for AI features",
+      "required": true
+    },
+    "GEMINI_MODEL": {
+      "description": "Gemini model identifier",
+      "value": "gemini-pro",
+      "required": false
+    },
+    "LOG_LEVEL": {
+      "description": "Application log level (DEBUG, INFO, WARNING, ERROR)",
+      "value": "INFO",
+      "required": false
+    },
+    "PYTHONUNBUFFERED": {
+      "description": "Ensure Python output is sent straight to terminal",
+      "value": "1",
+      "required": false
+    }
+  },
+  "buildpacks": [],
+  "environments": {
+    "review": {
+      "addons": [
+        "heroku-postgresql:essential-0",
+        "heroku-redis:mini"
+      ],
+      "env": {
+        "LOG_LEVEL": "DEBUG"
+      }
+    },
+    "staging": {
+      "addons": [
+        "heroku-postgresql:essential-0",
+        "heroku-redis:mini"
+      ]
+    }
+  },
+  "scripts": {
+    "postdeploy": "echo 'FinMind deployed successfully'"
+  }
+}

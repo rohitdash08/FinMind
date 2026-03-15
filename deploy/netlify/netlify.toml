@@ -1,0 +1,86 @@
+# ============================================================================
+# FinMind — Netlify Configuration
+# ============================================================================
+# Deploys the React/Vite frontend as a static site on Netlify.
+#
+# Setup:
+#   1. Connect repo to Netlify
+#   2. Set VITE_API_URL environment variable in Netlify dashboard
+#   3. Deploy
+# ============================================================================
+
+[build]
+  # Base directory relative to repo root
+  base = "app"
+
+  # Build command
+  command = "npm run build"
+
+  # Output directory (relative to base)
+  publish = "dist"
+
+  # Node.js version
+  environment = { NODE_VERSION = "20" }
+
+[build.environment]
+  # Placeholder — set actual value in Netlify dashboard or via CLI
+  VITE_API_URL = "https://api.finmind.example.com"
+
+# ---------------------------------------------------------------------------
+# SPA Routing — redirect all paths to index.html for client-side routing
+# ---------------------------------------------------------------------------
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# ---------------------------------------------------------------------------
+# Security Headers
+# ---------------------------------------------------------------------------
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    X-XSS-Protection = "1; mode=block"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+
+# ---------------------------------------------------------------------------
+# Cache static assets aggressively
+# ---------------------------------------------------------------------------
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "*.js"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "*.css"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# ---------------------------------------------------------------------------
+# Preview / Branch Deploys
+# ---------------------------------------------------------------------------
+[context.deploy-preview]
+  command = "npm run build"
+
+[context.deploy-preview.environment]
+  VITE_API_URL = "https://api-staging.finmind.example.com"
+
+[context.branch-deploy]
+  command = "npm run build"
+
+# ---------------------------------------------------------------------------
+# Dev settings
+# ---------------------------------------------------------------------------
+[dev]
+  command = "npm run dev"
+  port = 5173
+  targetPort = 5173
+  autoLaunch = false

@@ -1,0 +1,86 @@
+# Render Blueprint — FinMind
+# Deploy: https://render.com/deploy?repo=https://github.com/your-org/FinMind
+
+services:
+  # ── Backend API ──────────────────────────────────────────────
+  - type: web
+    name: finmind-backend
+    runtime: docker
+    dockerfilePath: packages/backend/Dockerfile
+    dockerContext: .
+    region: oregon
+    plan: starter
+    branch: main
+    numInstances: 1
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: finmind-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: finmind-redis
+          type: redis
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-pro
+      - key: LOG_LEVEL
+        value: INFO
+      - key: PORT
+        value: "8000"
+      - key: PYTHONUNBUFFERED
+        value: "1"
+    scaling:
+      minInstances: 1
+      maxInstances: 3
+      targetMemoryPercent: 75
+      targetCPUPercent: 70
+    autoDeploy: true
+    buildFilter:
+      paths:
+        - packages/backend/**
+
+  # ── Frontend Static Site ─────────────────────────────────────
+  - type: web
+    name: finmind-frontend
+    runtime: docker
+    dockerfilePath: app/Dockerfile
+    dockerContext: app
+    region: oregon
+    plan: starter
+    branch: main
+    numInstances: 1
+    healthCheckPath: /
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          name: finmind-backend
+          type: web
+          property: hostport
+    autoDeploy: true
+    buildFilter:
+      paths:
+        - app/**
+
+  # ── Redis ────────────────────────────────────────────────────
+  - type: redis
+    name: finmind-redis
+    region: oregon
+    plan: starter
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList: []  # only accessible from internal network
+
+# ── Managed PostgreSQL ───────────────────────────────────────
+databases:
+  - name: finmind-db
+    region: oregon
+    plan: starter
+    databaseName: finmind
+    user: finmind
+    ipAllowList: []  # only accessible from internal network
+    postgresMajorVersion: "16"

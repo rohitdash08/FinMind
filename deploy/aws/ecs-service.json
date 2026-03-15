@@ -1,0 +1,70 @@
+{
+  "serviceName": "finmind-service",
+  "cluster": "finmind-cluster",
+  "taskDefinition": "finmind",
+  "desiredCount": 2,
+  "launchType": "FARGATE",
+  "platformVersion": "LATEST",
+  "deploymentConfiguration": {
+    "maximumPercent": 200,
+    "minimumHealthyPercent": 100,
+    "deploymentCircuitBreaker": {
+      "enable": true,
+      "rollback": true
+    }
+  },
+  "networkConfiguration": {
+    "awsvpcConfiguration": {
+      "subnets": [
+        "subnet-XXXXXXXX",
+        "subnet-YYYYYYYY"
+      ],
+      "securityGroups": [
+        "sg-XXXXXXXX"
+      ],
+      "assignPublicIp": "ENABLED"
+    }
+  },
+  "loadBalancers": [
+    {
+      "targetGroupArn": "arn:aws:elasticloadbalancing:REGION:ACCOUNT_ID:targetgroup/finmind-backend-tg/XXXXXXXX",
+      "containerName": "finmind-backend",
+      "containerPort": 8000
+    },
+    {
+      "targetGroupArn": "arn:aws:elasticloadbalancing:REGION:ACCOUNT_ID:targetgroup/finmind-frontend-tg/YYYYYYYY",
+      "containerName": "finmind-frontend",
+      "containerPort": 80
+    }
+  ],
+  "healthCheckGracePeriodSeconds": 120,
+  "schedulingStrategy": "REPLICA",
+  "enableECSManagedTags": true,
+  "propagateTags": "SERVICE",
+  "tags": [
+    { "key": "Project", "value": "FinMind" },
+    { "key": "Environment", "value": "production" }
+  ],
+  "serviceRegistries": [],
+  "capacityProviderStrategy": [],
+  "autoScaling": {
+    "minCapacity": 2,
+    "maxCapacity": 10,
+    "targetTrackingPolicies": [
+      {
+        "policyName": "cpu-target-tracking",
+        "targetValue": 70.0,
+        "predefinedMetricType": "ECSServiceAverageCPUUtilization",
+        "scaleInCooldown": 300,
+        "scaleOutCooldown": 60
+      },
+      {
+        "policyName": "memory-target-tracking",
+        "targetValue": 80.0,
+        "predefinedMetricType": "ECSServiceAverageMemoryUtilization",
+        "scaleInCooldown": 300,
+        "scaleOutCooldown": 60
+      }
+    ]
+  }
+}
