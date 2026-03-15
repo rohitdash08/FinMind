@@ -1,0 +1,12 @@
+feat(backup): add secure backup & encrypted export system
+
+Implements issue #126 — secure data backup with encryption support.
+
+Changes:
+- Add backup_records migration (030_secure_backup.sql)
+- Add BackupRecord model
+- Add backup service with AES-256 encryption, JSON/CSV export,
+  integrity verification, restore preview, history management
+- Add 5 REST endpoints under /backup/*
+- Add 53 passing tests
+- Add documentation
