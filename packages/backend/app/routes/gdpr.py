@@ -1,0 +1,222 @@
+"""GDPR PII Export & Delete Workflow (Issue #76).
+
+Provides three endpoints:
+- POST /gdpr/export      — generate a full data export package (JSON)
+- POST /gdpr/delete      — initiate irreversible account deletion (soft-delete first step)
+- DELETE /gdpr/delete/confirm — confirm and execute hard delete
+
+Audit trail: every action is logged to the AuditLog table.
+"""
+
+from datetime import datetime
+from flask import Blueprint, jsonify, request
+from flask_jwt_extended import jwt_required, get_jwt_identity
+from ..extensions import db
+from ..models import (
+    AuditLog,
+    Bill,
+    Category,
+    Expense,
+    RecurringExpense,
+    Reminder,
+    User,
+    UserSubscription,
+)
+import logging
+
+bp = Blueprint("gdpr", __name__)
+logger = logging.getLogger("finmind.gdpr")
+
+# In-memory store for pending deletions (maps user_id -> requested_at timestamp).
+# In production this would live in Redis or a DB column; for SQLite-compatible tests
+# a module-level dict is sufficient.
+_pending_deletions: dict = {}
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _audit(user_id: int | None, action: str) -> None:
+    """Append an immutable audit log entry."""
+    entry = AuditLog(user_id=user_id, action=action)
+    db.session.add(entry)
+    # Flush without committing so the caller controls the transaction.
+    db.session.flush()
+
+
+def _serialize_date(val) -> str | None:
+    if val is None:
+        return None
+    if hasattr(val, "isoformat"):
+        return val.isoformat()
+    return str(val)
+
+
+def _user_to_dict(user: User) -> dict:
+    return {
+        "id": user.id,
+        "email": user.email,
+        "preferred_currency": user.preferred_currency,
+        "role": user.role,
+        "created_at": _serialize_date(user.created_at),
+    }
+
+
+def _expense_to_dict(e: Expense) -> dict:
+    return {
+        "id": e.id,
+        "category_id": e.category_id,
+        "amount": float(e.amount),
+        "currency": e.currency,
+        "expense_type": e.expense_type,
+        "notes": e.notes,
+        "spent_at": _serialize_date(e.spent_at),
+        "created_at": _serialize_date(e.created_at),
+    }
+
+
+def _bill_to_dict(b: Bill) -> dict:
+    return {
+        "id": b.id,
+        "name": b.name,
+        "amount": float(b.amount),
+        "currency": b.currency,
+        "cadence": b.cadence.value if hasattr(b.cadence, "value") else str(b.cadence),
+        "next_due_date": _serialize_date(b.next_due_date),
+        "active": b.active,
+        "created_at": _serialize_date(b.created_at),
+    }
+
+
+def _category_to_dict(c: Category) -> dict:
+    return {
+        "id": c.id,
+        "name": c.name,
+        "created_at": _serialize_date(c.created_at),
+    }
+
+
+def _reminder_to_dict(r: Reminder) -> dict:
+    return {
+        "id": r.id,
+        "bill_id": r.bill_id,
+        "message": r.message,
+        "send_at": _serialize_date(r.send_at),
+        "sent": r.sent,
+        "channel": r.channel,
+    }
+
+
+def _recurring_to_dict(r: RecurringExpense) -> dict:
+    return {
+        "id": r.id,
+        "category_id": r.category_id,
+        "amount": float(r.amount),
+        "currency": r.currency,
+        "cadence": r.cadence.value if hasattr(r.cadence, "value") else str(r.cadence),
+        "start_date": _serialize_date(r.start_date),
+        "end_date": _serialize_date(r.end_date),
+        "active": r.active,
+        "created_at": _serialize_date(r.created_at),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Endpoints
+# ---------------------------------------------------------------------------
+
+
+@bp.post("/export")
+@jwt_required()
+def export_pii():
+    """Generate and return a structured JSON export of all user PII data."""
+    uid = int(get_jwt_identity())
+    user = db.session.get(User, uid)
+    if not user:
+        return jsonify(error="user not found"), 404
+
+    expenses = db.session.query(Expense).filter_by(user_id=uid).all()
+    bills = db.session.query(Bill).filter_by(user_id=uid).all()
+    categories = db.session.query(Category).filter_by(user_id=uid).all()
+    reminders = db.session.query(Reminder).filter_by(user_id=uid).all()
+    recurring = db.session.query(RecurringExpense).filter_by(user_id=uid).all()
+
+    package = {
+        "exported_at": datetime.utcnow().isoformat() + "Z",
+        "user": _user_to_dict(user),
+        "expenses": [_expense_to_dict(e) for e in expenses],
+        "bills": [_bill_to_dict(b) for b in bills],
+        "categories": [_category_to_dict(c) for c in categories],
+        "reminders": [_reminder_to_dict(r) for r in reminders],
+        "recurring_expenses": [_recurring_to_dict(r) for r in recurring],
+    }
+
+    _audit(uid, "GDPR_EXPORT_REQUESTED")
+    db.session.commit()
+    logger.info("GDPR export generated for user_id=%s", uid)
+    return jsonify(package), 200
+
+
+@bp.post("/delete")
+@jwt_required()
+def request_delete():
+    """Initiate the irreversible deletion workflow (soft-delete / grace period)."""
+    uid = int(get_jwt_identity())
+    user = db.session.get(User, uid)
+    if not user:
+        return jsonify(error="user not found"), 404
+
+    if uid in _pending_deletions:
+        return jsonify(
+            message="deletion already pending; call DELETE /gdpr/delete/confirm to proceed",
+            requested_at=_pending_deletions[uid],
+        ), 200
+
+    _pending_deletions[uid] = datetime.utcnow().isoformat() + "Z"
+    _audit(uid, "GDPR_DELETE_REQUESTED")
+    db.session.commit()
+    logger.info("GDPR delete initiated for user_id=%s", uid)
+    return jsonify(
+        message=(
+            "Deletion request received. "
+            "Call DELETE /gdpr/delete/confirm to permanently delete your account. "
+            "This action is irreversible."
+        ),
+        requested_at=_pending_deletions[uid],
+    ), 202
+
+
+@bp.delete("/delete/confirm")
+@jwt_required()
+def confirm_delete():
+    """Confirm and execute the irreversible hard-delete of all user data."""
+    uid = int(get_jwt_identity())
+    user = db.session.get(User, uid)
+    if not user:
+        return jsonify(error="user not found"), 404
+
+    if uid not in _pending_deletions:
+        return jsonify(
+            error="no pending deletion request; call POST /gdpr/delete first"
+        ), 409
+
+    # Audit before deleting (retain per GDPR compliance — logs survive deletion).
+    _audit(uid, "GDPR_DELETE_CONFIRMED")
+    db.session.flush()
+
+    # Cascade delete: reminders -> bills -> expenses -> recurring -> categories
+    # -> subscriptions -> user.  AuditLog rows are kept for compliance.
+    db.session.query(Reminder).filter_by(user_id=uid).delete()
+    db.session.query(Bill).filter_by(user_id=uid).delete()
+    db.session.query(Expense).filter_by(user_id=uid).delete()
+    db.session.query(RecurringExpense).filter_by(user_id=uid).delete()
+    db.session.query(Category).filter_by(user_id=uid).delete()
+    db.session.query(UserSubscription).filter_by(user_id=uid).delete()
+    db.session.delete(user)
+    db.session.commit()
+
+    _pending_deletions.pop(uid, None)
+    logger.info("GDPR hard-delete executed for user_id=%s", uid)
+    return jsonify(message="Account and all associated data permanently deleted."), 200
