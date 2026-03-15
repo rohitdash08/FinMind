@@ -1,7 +1,8 @@
+from datetime import date, timedelta
 import json
 from urllib import request
 
-from sqlalchemy import extract, func
+from sqlalchemy import extract, func, and_
 
 from ..config import Settings
 from ..extensions import db
@@ -185,3 +186,212 @@ def monthly_budget_suggestion(
                 uid, ym, persona_text, warnings=["gemini_unavailable"]
             )
     return _heuristic_budget(uid, ym, persona_text)
+
+
+def _get_week_range(base_date: date, offset: int = 0) -> tuple[date, date]:
+    """Returns (start_date, end_date) for a week given a base date and offset."""
+    # Standardizing on Monday as the start of the week
+    start = base_date - timedelta(days=base_date.weekday()) + timedelta(weeks=offset)
+    end = start + timedelta(days=6)
+    return start, end
+
+
+def _get_weekly_stats(uid: int, start: date, end: date):
+    """Aggregates spending and income for a given date range."""
+    rows = (
+        db.session.query(
+            Expense.expense_type, func.coalesce(func.sum(Expense.amount), 0)
+        )
+        .filter(
+            Expense.user_id == uid,
+            Expense.spent_at >= start,
+            Expense.spent_at <= end,
+        )
+        .group_by(Expense.expense_type)
+        .all()
+    )
+    stats = {"EXPENSE": 0.0, "INCOME": 0.0}
+    for row in rows:
+        stats[row[0]] = float(row[1])
+    return stats
+
+
+def _get_weekly_category_breakdown(uid: int, start: date, end: date):
+    rows = (
+        db.session.query(
+            Expense.category_id, func.coalesce(func.sum(Expense.amount), 0)
+        )
+        .filter(
+            Expense.user_id == uid,
+            Expense.spent_at >= start,
+            Expense.spent_at <= end,
+            Expense.expense_type != "INCOME",
+        )
+        .group_by(Expense.category_id)
+        .order_by(func.sum(Expense.amount).desc())
+        .all()
+    )
+    return {str(k or "uncat"): float(v) for k, v in rows}
+
+
+def _get_daily_breakdown(uid: int, start: date, end: date):
+    rows = (
+        db.session.query(
+            Expense.spent_at, func.coalesce(func.sum(Expense.amount), 0)
+        )
+        .filter(
+            Expense.user_id == uid,
+            Expense.spent_at >= start,
+            Expense.spent_at <= end,
+            Expense.expense_type != "INCOME",
+        )
+        .group_by(Expense.spent_at)
+        .order_by(Expense.spent_at)
+        .all()
+    )
+    # Fill in zeros for days with no expenses
+    daily = {}
+    curr = start
+    while curr <= end:
+        daily[curr.strftime("%Y-%m-%d")] = 0.0
+        curr += timedelta(days=1)
+
+    for row in rows:
+        daily[row[0].strftime("%Y-%m-%d")] = float(row[1])
+
+    return daily
+
+
+def _heuristic_weekly_insights(uid: int, current_stats: dict, prev_stats: dict, categories: dict):
+    insights = []
+    curr_exp = current_stats["EXPENSE"]
+    prev_exp = prev_stats["EXPENSE"]
+
+    if prev_exp > 0:
+        change = ((curr_exp - prev_exp) / prev_exp) * 100
+        if change > 10:
+            insights.append(f"Spending increased by {round(change, 1)}% compared to last week. Watch out for lifestyle creep!")
+        elif change < -10:
+            insights.append(f"Great job! You spent {round(abs(change), 1)}% less than last week.")
+
+    top_cat = next(iter(categories.items()), None)
+    if top_cat and top_cat[1] > 0:
+        insights.append(f"Your top spending category this week was Category {top_cat[0]}, accounting for {round(top_cat[1], 2)}.")
+
+    if current_stats["INCOME"] > curr_exp:
+        insights.append("You maintained a positive net flow this week. Consider moving the surplus to savings.")
+    elif curr_exp > current_stats["INCOME"] and current_stats["INCOME"] > 0:
+        insights.append("Your expenses exceeded your income this week. Review your discretionary spending.")
+
+    if not insights:
+        insights = ["Maintain your current momentum.", "Keep tracking every expense.", "Review your upcoming bills."]
+
+    return insights[:3]
+
+
+def _gemini_weekly_digest(uid: int, start: date, end: date, api_key: str, model: str, persona: str):
+    current_stats = _get_weekly_stats(uid, start, end)
+    prev_start, prev_end = _get_week_range(start, offset=-1)
+    prev_stats = _get_weekly_stats(uid, prev_start, prev_end)
+    categories = _get_weekly_category_breakdown(uid, start, end)
+    daily = _get_daily_breakdown(uid, start, end)
+
+    wow_change = 0.0
+    if prev_stats["EXPENSE"] > 0:
+        wow_change = round(((current_stats["EXPENSE"] - prev_stats["EXPENSE"]) / prev_stats["EXPENSE"]) * 100, 2)
+
+    prompt = (
+        f"{persona}\n"
+        "Generate 3 concise, actionable financial insights based on this week's data. "
+        "Return strict JSON with key 'insights' (list of strings).\n"
+        f"week_range={start} to {end}\n"
+        f"current_week_stats={current_stats}\n"
+        f"previous_week_stats={prev_stats}\n"
+        f"wow_change={wow_change}%\n"
+        f"category_breakdown={categories}\n"
+        f"daily_breakdown={daily}"
+    )
+
+    url = (
+        "https://generativelanguage.googleapis.com/v1beta/models/"
+        f"{model}:generateContent?key={api_key}"
+    )
+    body = json.dumps(
+        {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {"temperature": 0.2},
+        }
+    ).encode("utf-8")
+    req = request.Request(
+        url=url,
+        data=body,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+
+    with request.urlopen(req, timeout=10) as resp:
+        payload = json.loads(resp.read().decode("utf-8"))
+
+    text = (
+        payload.get("candidates", [{}])[0]
+        .get("content", {})
+        .get("parts", [{}])[0]
+        .get("text", "")
+    )
+    parsed = _extract_json_object(text)
+
+    return {
+        "week_start": start.strftime("%Y-%m-%d"),
+        "week_end": end.strftime("%Y-%m-%d"),
+        "total_spent": round(current_stats["EXPENSE"], 2),
+        "total_income": round(current_stats["INCOME"], 2),
+        "net_flow": round(current_stats["INCOME"] - current_stats["EXPENSE"], 2),
+        "wow_change_pct": wow_change,
+        "category_breakdown": categories,
+        "daily_breakdown": daily,
+        "insights": parsed.get("insights", []),
+        "method": "gemini"
+    }
+
+
+def weekly_financial_digest(
+    uid: int,
+    week_offset: int = 0,
+    gemini_api_key: str | None = None,
+    gemini_model: str | None = None,
+    persona: str | None = None,
+):
+    start, end = _get_week_range(date.today(), offset=week_offset)
+    key = (gemini_api_key or "").strip() or (_settings.gemini_api_key or "")
+    model = gemini_model or _settings.gemini_model
+    persona_text = (persona or DEFAULT_PERSONA).strip()
+
+    if key:
+        try:
+            return _gemini_weekly_digest(uid, start, end, key, model, persona_text)
+        except Exception:
+            pass
+
+    # Heuristic Fallback
+    current_stats = _get_weekly_stats(uid, start, end)
+    prev_start, prev_end = _get_week_range(start, offset=-1)
+    prev_stats = _get_weekly_stats(uid, prev_start, prev_end)
+    categories = _get_weekly_category_breakdown(uid, start, end)
+    daily = _get_daily_breakdown(uid, start, end)
+
+    wow_change = 0.0
+    if prev_stats["EXPENSE"] > 0:
+        wow_change = round(((current_stats["EXPENSE"] - prev_stats["EXPENSE"]) / prev_stats["EXPENSE"]) * 100, 2)
+
+    return {
+        "week_start": start.strftime("%Y-%m-%d"),
+        "week_end": end.strftime("%Y-%m-%d"),
+        "total_spent": round(current_stats["EXPENSE"], 2),
+        "total_income": round(current_stats["INCOME"], 2),
+        "net_flow": round(current_stats["INCOME"] - current_stats["EXPENSE"], 2),
+        "wow_change_pct": wow_change,
+        "category_breakdown": categories,
+        "daily_breakdown": daily,
+        "insights": _heuristic_weekly_insights(uid, current_stats, prev_stats, categories),
+        "method": "heuristic"
+    }

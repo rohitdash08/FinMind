@@ -21,6 +21,19 @@ export type BudgetSuggestion = {
   net_flow?: number;
 };
 
+export type WeeklyDigest = {
+  week_start: string;
+  week_end: string;
+  total_spent: number;
+  total_income: number;
+  net_flow: number;
+  wow_change_pct: number;
+  category_breakdown: Record<string, number>;
+  daily_breakdown: Record<string, number>;
+  insights: string[];
+  method: 'gemini' | 'heuristic' | string;
+};
+
 export async function getBudgetSuggestion(params?: {
   month?: string;
   geminiApiKey?: string;
@@ -31,4 +44,16 @@ export async function getBudgetSuggestion(params?: {
   if (params?.geminiApiKey) headers['X-Gemini-Api-Key'] = params.geminiApiKey;
   if (params?.persona) headers['X-Insight-Persona'] = params.persona;
   return api<BudgetSuggestion>(`/insights/budget-suggestion${monthQuery}`, { headers });
+}
+
+export async function getWeeklyDigest(params?: {
+  offset?: number;
+  geminiApiKey?: string;
+  persona?: string;
+}): Promise<WeeklyDigest> {
+  const offsetQuery = params?.offset !== undefined ? `?offset=${params.offset}` : '';
+  const headers: Record<string, string> = {};
+  if (params?.geminiApiKey) headers['X-Gemini-Api-Key'] = params.geminiApiKey;
+  if (params?.persona) headers['X-Insight-Persona'] = params.persona;
+  return api<WeeklyDigest>(`/insights/weekly-digest${offsetQuery}`, { headers });
 }
