@@ -4,7 +4,7 @@ kill_signal = "SIGINT"
 kill_timeout = "5s"
 
 [build]
-  dockerfile = "packages/backend/Dockerfile"
+  dockerfile = "Dockerfile"
 
 [deploy]
   release_command = "python -m flask --app wsgi:app init-db"
@@ -12,7 +12,6 @@ kill_timeout = "5s"
 [env]
   LOG_LEVEL = "INFO"
   GEMINI_MODEL = "gemini-1.5-flash"
-  PORT = "8000"
 
 [http_service]
   internal_port = 8000

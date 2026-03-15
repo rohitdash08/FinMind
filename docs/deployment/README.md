@@ -22,10 +22,10 @@ bash scripts/deploy.sh
 
 | Variable | Description |
 |----------|-------------|
-| `DATABASE_URL` | PostgreSQL connection string |
+| `DATABASE_URL` | PostgreSQL connection string (`postgresql+psycopg2://...` or `postgres://...` — auto-converted) |
 | `REDIS_URL` | Redis connection string |
 | `JWT_SECRET` | Secret for JWT token signing |
-| `VITE_API_URL` | Backend URL (frontend build-time) |
+| `VITE_API_URL` | Backend URL (frontend build-time only) |
 
 See `.env.example` for all variables.
 
@@ -33,7 +33,7 @@ See `.env.example` for all variables.
 
 ## Platform Guides
 
-### 🐳 Docker Compose (Local/VPS)
+### Docker Compose (Local/VPS)
 
 ```bash
 cp .env.example .env
@@ -45,7 +45,7 @@ docker compose up -d
 - Backend: http://localhost:8000/health
 - Grafana: http://localhost:3000
 
-### ☸️ Kubernetes
+### Kubernetes
 
 **Raw manifests:**
 ```bash
@@ -64,7 +64,9 @@ Features: HPA, Ingress with TLS (cert-manager), ServiceMonitor, health probes.
 
 See: [Kubernetes Guide](./kubernetes.md)
 
-### 🚂 Railway
+### Railway
+
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/new?template=https://github.com/rohitdash08/FinMind)
 
 1. Install [Railway CLI](https://docs.railway.app/develop/cli)
 2. `railway login && railway init`
@@ -73,7 +75,7 @@ See: [Kubernetes Guide](./kubernetes.md)
 
 See: [Railway Guide](./railway.md)
 
-### 🟣 Heroku
+### Heroku
 
 [![Deploy to Heroku](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy?template=https://github.com/rohitdash08/FinMind)
 
@@ -88,7 +90,7 @@ git push heroku main
 
 See: [Heroku Guide](./heroku.md)
 
-### 🌊 DigitalOcean
+### DigitalOcean
 
 **App Platform:**
 ```bash
@@ -102,7 +104,9 @@ curl -sSL https://raw.githubusercontent.com/rohitdash08/FinMind/main/deploy/drop
 
 See: [DigitalOcean Guide](./digitalocean.md)
 
-### 🔷 Render
+### Render
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/rohitdash08/FinMind)
 
 1. Push to GitHub
 2. Go to [Render Blueprints](https://dashboard.render.com/blueprints)
@@ -110,7 +114,7 @@ See: [DigitalOcean Guide](./digitalocean.md)
 
 See: [Render Guide](./render.md)
 
-### 🪁 Fly.io
+### Fly.io
 
 ```bash
 bash deploy/fly/deploy.sh
@@ -118,7 +122,7 @@ bash deploy/fly/deploy.sh
 
 See: [Fly.io Guide](./flyio.md)
 
-### ☁️ AWS
+### AWS
 
 **ECS Fargate (CloudFormation):**
 ```bash
@@ -131,7 +135,7 @@ aws cloudformation deploy --template-file deploy/aws/cloudformation.yaml \
 
 See: [AWS Guide](./aws.md)
 
-### 🔵 GCP Cloud Run
+### GCP Cloud Run
 
 ```bash
 gcloud builds submit --config deploy/gcp/cloudbuild.yaml
@@ -139,7 +143,7 @@ gcloud builds submit --config deploy/gcp/cloudbuild.yaml
 
 See: [GCP Guide](./gcp.md)
 
-### 🔶 Azure Container Apps
+### Azure Container Apps
 
 ```bash
 az deployment group create --resource-group finmind-rg \
@@ -149,12 +153,12 @@ az deployment group create --resource-group finmind-rg \
 
 See: [Azure Guide](./azure.md)
 
-### 🌐 Netlify (Frontend Only)
+### Netlify (Frontend Only)
 
 Connect GitHub repo at [Netlify](https://app.netlify.com). Auto-detects `netlify.toml`.
-Set `VITE_API_URL` to your backend URL.
+Set `VITE_API_URL` to your backend URL in site environment variables.
 
-### ▲ Vercel (Frontend Only)
+### Vercel (Frontend Only)
 
 ```bash
 cd app && vercel --prod

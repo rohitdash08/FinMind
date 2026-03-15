@@ -57,14 +57,14 @@ case "$choice" in
     ;;
   5)
     echo "Deploy to Heroku:"
-    echo "  Option A — One-click: Add Deploy to Heroku button in README"
+    echo "  Option A — One-click deploy button: see docs/deployment/heroku.md"
     echo "  Option B — CLI:"
     echo "    heroku create finmind-app"
     echo "    heroku stack:set container"
     echo "    heroku addons:create heroku-postgresql:essential-0"
     echo "    heroku addons:create heroku-redis:mini"
-    echo "    cp deploy/heroku/heroku.yml ."
     echo "    git push heroku main"
+    echo "  Note: heroku.yml and app.json at repo root are auto-detected."
     ;;
   6)
     echo "Deploy to DigitalOcean App Platform:"

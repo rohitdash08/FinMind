@@ -30,12 +30,12 @@ git push heroku main
 - `heroku.yml` and `app.json` must be at the repo root for Heroku to detect them.
 - The backend runs via the container stack using `packages/backend/Dockerfile`.
 - Frontend should be deployed separately to Netlify/Vercel (Heroku is backend-only in this setup).
-- Heroku auto-sets `DATABASE_URL` and `REDIS_URL` from add-ons.
+- Heroku auto-sets `DATABASE_URL` (as `postgres://...`) and `REDIS_URL` from add-ons.
+  The backend automatically converts `postgres://` to `postgresql+psycopg2://` for SQLAlchemy.
 - The `$PORT` variable is set by Heroku — gunicorn binds to it automatically.
 
 ## Verification
-1. `heroku open -a finmind-app` — should show the app
-2. `curl https://finmind-app.herokuapp.com/health` — returns 200
-3. Register a user (DB connected)
-4. Check Redis connectivity (sessions work)
-5. Test core modules: expenses, bills, reminders, dashboard, insights
+1. `curl https://finmind-app.herokuapp.com/health` — returns 200
+2. Register a user (DB connected)
+3. Check Redis connectivity (sessions work)
+4. Test core modules: expenses, bills, reminders, dashboard, insights

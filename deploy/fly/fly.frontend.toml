@@ -4,7 +4,10 @@ kill_signal = "SIGINT"
 kill_timeout = "5s"
 
 [build]
-  dockerfile = "app/Dockerfile"
+  dockerfile = "Dockerfile"
+
+[env]
+  BACKEND_URL = "https://finmind-backend.fly.dev"
 
 [http_service]
   internal_port = 80

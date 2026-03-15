@@ -12,11 +12,10 @@ services:
           name: finmind-db
           property: connectionString
       - key: REDIS_URL
-        value: "redis://localhost:6379/0"
-        # TODO: Replace with your actual Redis URL.
-        # Create a Redis instance via the Render dashboard (Add-ons → Redis)
-        # or use an external provider like Upstash (free tier available),
-        # then paste the connection string here.
+        fromService:
+          name: finmind-redis
+          type: keyvalue
+          property: connectionString
       - key: JWT_SECRET
         generateValue: true
       - key: LOG_LEVEL
@@ -27,23 +26,29 @@ services:
 
   - type: web
     name: finmind-frontend
-    runtime: static
-    buildCommand: cd app && npm ci && npm run build
-    staticPublishPath: app/dist
-    headers:
-      - path: /*
-        name: Cache-Control
-        value: public, max-age=3600
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html
+    runtime: docker
+    dockerfilePath: app/Dockerfile
+    dockerContext: app
+    plan: starter
+    envVars:
+      - key: BACKEND_URL
+        value: https://finmind-backend.onrender.com
+        # Public URL of the backend service.
+        # The frontend Docker entrypoint injects this as
+        # window.__FINMIND_API_URL__ so the browser can reach the API.
+        # If Render renames the backend (e.g., adds a suffix),
+        # update this value to match.
+
+  - type: keyvalue
+    name: finmind-redis
+    plan: starter
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList:
+      - source: 0.0.0.0/0
+        description: everywhere
 
 databases:
   - name: finmind-db
     plan: starter
     databaseName: finmind
     user: finmind
-
-  # Redis: Use Render's Redis add-on from the dashboard,
-  # or an external provider like Upstash. Set REDIS_URL on the backend service.

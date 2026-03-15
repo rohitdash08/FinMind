@@ -16,7 +16,7 @@ spec:
         - path: /health
       health_check:
         http_path: /health
-        initial_delay_seconds: 10
+        initial_delay_seconds: 15
         period_seconds: 10
       run_command: |
         sh -c "python -m flask --app wsgi:app init-db && gunicorn --workers=2 --threads=4 --bind 0.0.0.0:8000 wsgi:app"
@@ -26,11 +26,15 @@ spec:
           value: ${db.DATABASE_URL}
         - key: REDIS_URL
           scope: RUN_TIME
+          type: SECRET
           value: CHANGE_ME_SET_EXTERNAL_REDIS_URL
+          # DigitalOcean App Platform does not include managed Redis.
+          # Create a DO Managed Redis database or use Upstash (free tier),
+          # then replace this value in the App dashboard.
         - key: JWT_SECRET
           scope: RUN_TIME
           type: SECRET
-          value: change-me
+          value: CHANGE_ME
         - key: LOG_LEVEL
           scope: RUN_TIME
           value: INFO
@@ -49,6 +53,12 @@ spec:
       instance_size_slug: basic-xxs
       routes:
         - path: /
+      envs:
+        - key: BACKEND_URL
+          scope: RUN_TIME
+          value: CHANGE_ME_SET_BACKEND_PUBLIC_URL
+          # Set this to the backend service's public URL after first deploy.
+          # Example: https://finmind-backend-xxxxx.ondigitalocean.app
 
   databases:
     - name: db
@@ -57,5 +67,6 @@ spec:
       size: db-s-dev-database
       num_nodes: 1
 
-  # Note: DigitalOcean App Platform doesn't have managed Redis.
-  # Use DigitalOcean Managed Redis or Upstash, then set REDIS_URL on the backend service.
+  # Note: DigitalOcean App Platform does not offer managed Redis.
+  # Create a DigitalOcean Managed Redis database separately, or use
+  # Upstash (free tier available), then set REDIS_URL on the backend.

@@ -1,4 +1,4 @@
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -7,6 +7,17 @@ class Settings(BaseSettings):
         default="postgresql+psycopg2://finmind:finmind@postgres:5432/finmind"
     )
     redis_url: str = Field(default="redis://redis:6379/0")
+
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def fix_database_scheme(cls, v: str) -> str:
+        # Many platforms (Heroku, Railway, DO) provide postgres:// URLs.
+        # SQLAlchemy 1.4+ requires postgresql://.
+        if v.startswith("postgres://"):
+            v = v.replace("postgres://", "postgresql+psycopg2://", 1)
+        elif v.startswith("postgresql://"):
+            v = v.replace("postgresql://", "postgresql+psycopg2://", 1)
+        return v
 
     jwt_secret: str = Field(default="dev-secret-change")
     jwt_access_minutes: int = 15

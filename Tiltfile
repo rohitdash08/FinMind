@@ -1,6 +1,6 @@
 # FinMind Tiltfile — local Kubernetes development
 
-# Build images
+# Build backend image (matches K8s manifest image reference)
 docker_build('ghcr.io/rohitdash08/finmind-backend', './packages/backend',
   live_update=[
     sync('./packages/backend/app', '/app/app'),
@@ -9,10 +9,10 @@ docker_build('ghcr.io/rohitdash08/finmind-backend', './packages/backend',
   ]
 )
 
-docker_build('nginx', './app',
-  # Multi-stage build: React build → nginx static serve.
-  # Full rebuild on source changes (live_update not viable for multi-stage).
-)
+# Build frontend image for local development.
+# The K8s manifests use a separate nginx reverse proxy; this image can be
+# deployed manually or used when a frontend K8s Deployment is added.
+docker_build('ghcr.io/rohitdash08/finmind-frontend', './app')
 
 # Apply K8s manifests
 k8s_yaml([
@@ -20,9 +20,6 @@ k8s_yaml([
   'deploy/k8s/secrets.example.yaml',
   'deploy/k8s/app-stack.yaml',
 ])
-
-# Tilt automatically matches docker_build image names to K8s manifests.
-# If images don't match, use k8s_image_json_path or set_image.
 
 # Resource grouping and dependencies
 k8s_resource('postgres', labels=['database'],

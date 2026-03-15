@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Runtime config (generated at container start in dist/)
+/dist/runtime-config.js

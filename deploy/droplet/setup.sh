@@ -37,13 +37,18 @@ if [ ! -f .env ]; then
   echo "Created .env with random JWT_SECRET. Edit /opt/finmind/.env for other settings."
 fi
 
-# Start services
+# Start services (production profile: backend, frontend via nginx, postgres, redis)
+# The docker-compose.yml includes a dev frontend on :5173 and nginx on :8080.
+# For production, both are started. Access the app via nginx on port 8080.
 docker compose up -d
 
+PUBLIC_IP=$(curl -s --max-time 5 ifconfig.me || echo "<your-droplet-ip>")
+
 echo ""
-echo "=== FinMind is starting! ==="
-echo "Frontend:  http://$(curl -s ifconfig.me):5173"
-echo "Backend:   http://$(curl -s ifconfig.me):8000/health"
-echo "Grafana:   http://$(curl -s ifconfig.me):3000"
+echo "=== ✅ FinMind is starting! ==="
+echo ""
+echo "Frontend:  http://${PUBLIC_IP}:8080"
+echo "Backend:   http://${PUBLIC_IP}:8000/health"
+echo "Grafana:   http://${PUBLIC_IP}:3000"
 echo ""
 echo "Edit /opt/finmind/.env and run 'docker compose restart' to update config."

@@ -22,8 +22,8 @@ backend:
 
 frontend:
   image:
-    repository: nginx
-    tag: alpine
+    repository: ghcr.io/rohitdash08/finmind-frontend
+    tag: latest
     pullPolicy: IfNotPresent
   replicas: 1
   resources:

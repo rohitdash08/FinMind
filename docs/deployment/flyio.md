@@ -13,10 +13,10 @@ bash deploy/fly/deploy.sh
 
 This will:
 1. Create a Fly Postgres cluster (`finmind-db`)
-2. Create a Fly Redis instance (`finmind-redis`)
-3. Deploy the backend from `deploy/fly/fly.backend.toml`
+2. Create a Fly Redis instance via Upstash (`finmind-redis`)
+3. Deploy the backend from `packages/backend/` using `deploy/fly/fly.backend.toml`
 4. Attach Postgres and set secrets
-5. Deploy the frontend from `deploy/fly/fly.frontend.toml`
+5. Deploy the frontend from `app/` using `deploy/fly/fly.frontend.toml`
 
 ## Manual Deploy
 
@@ -24,16 +24,17 @@ This will:
 # Create Postgres
 fly postgres create --name finmind-db --region iad
 
-# Create Redis
-fly redis create --name finmind-redis --region iad
+# Create Redis (via Upstash integration)
+fly ext redis create --name finmind-redis --region iad
 
-# Deploy backend
-fly deploy --config deploy/fly/fly.backend.toml --remote-only
+# Deploy backend (build context = packages/backend/)
+fly deploy packages/backend --config deploy/fly/fly.backend.toml --remote-only
 fly postgres attach finmind-db --app finmind-backend
 fly secrets set --app finmind-backend JWT_SECRET=$(openssl rand -hex 32)
+# Set REDIS_URL from the Upstash Redis dashboard or fly ext redis status
 
-# Deploy frontend
-fly deploy --config deploy/fly/fly.frontend.toml --dockerfile app/Dockerfile --remote-only
+# Deploy frontend (build context = app/)
+fly deploy app --config deploy/fly/fly.frontend.toml --remote-only
 ```
 
 ## Endpoints

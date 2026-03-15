@@ -17,11 +17,15 @@
 2. **Set environment variables** in the dashboard:
    - `JWT_SECRET` — generate with `openssl rand -hex 32`
    - `GEMINI_API_KEY` — optional, for AI features
-   - `DATABASE_URL` and `REDIS_URL` are auto-populated from managed add-ons
+   - `VITE_API_URL` — set on the frontend static site to the backend service URL
 
-3. **Note on Redis:** DO App Platform doesn't have managed Redis. Options:
-   - Use a [DigitalOcean Managed Redis](https://cloud.digitalocean.com/databases) cluster and set `REDIS_URL` manually
-   - Use Upstash Redis (free tier available)
+3. **Note on Redis:** DO App Platform doesn't have managed Redis in app specs. Options:
+   - Use a [DigitalOcean Managed Redis](https://cloud.digitalocean.com/databases) cluster and set `REDIS_URL` on the backend service
+   - Use [Upstash Redis](https://upstash.com) (free tier available)
+
+4. **Note on DATABASE_URL:** DigitalOcean provides `postgres://` connection strings.
+   The backend automatically converts these to the `postgresql+psycopg2://` format
+   required by SQLAlchemy.
 
 ## Option B: Droplet
 
@@ -43,7 +47,7 @@
    ```
 
 3. **Endpoints:**
-   - Frontend: `http://<droplet-ip>:5173`
+   - Frontend: `http://<droplet-ip>:8080` (via nginx)
    - Backend: `http://<droplet-ip>:8000/health`
    - Grafana: `http://<droplet-ip>:3000`
 
