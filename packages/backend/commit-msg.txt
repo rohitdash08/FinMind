@@ -1,0 +1,15 @@
+feat(compression): API response compression & payload optimization
+
+Closes #129
+
+Add comprehensive API compression and payload optimization:
+- Gzip response compression with configurable threshold (default 500 bytes)
+- ETag support for conditional requests (304 Not Modified)
+- JSON payload field selection
+- Null/empty value stripping
+- Pagination with metadata
+- Compression statistics tracking
+- Content-type aware exclusions (images, audio, video)
+- 5 REST endpoints + middleware
+- 39 tests, all passing
+- Documentation
