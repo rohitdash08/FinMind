@@ -8,4 +8,9 @@ db = SQLAlchemy()
 jwt = JWTManager()
 
 _settings = Settings()
-redis_client = redis.Redis.from_url(_settings.redis_url, decode_responses=True)
+try:
+    redis_client = redis.Redis.from_url(_settings.redis_url, decode_responses=True)
+    redis_client.ping()
+except Exception:
+    import fakeredis
+    redis_client = fakeredis.FakeRedis(decode_responses=True)

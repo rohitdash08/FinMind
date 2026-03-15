@@ -10,7 +10,7 @@ from app import models  # noqa: F401 - ensure models are registered
 class TestSettings(Settings):
     # Override defaults for tests
     database_url: str = "sqlite+pysqlite:///:memory:"
-    redis_url: str = "redis://localhost:6379/15"  # not used in tests
+    redis_url: str = "redis://127.0.0.1:6379/15"  # not used in tests
     jwt_secret: str = "test-secret"
 
 
