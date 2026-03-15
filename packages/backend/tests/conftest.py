@@ -1,5 +1,7 @@
 import os
 import pytest
+from unittest.mock import patch
+import fakeredis
 from app import create_app
 from app.config import Settings
 from app.extensions import db
@@ -17,6 +19,18 @@ class TestSettings(Settings):
 def _setup_db(app):
     with app.app_context():
         db.create_all()
+
+
+@pytest.fixture(autouse=True)
+def _fake_redis():
+    """Replace every redis_client reference with an in-memory fake."""
+    fake = fakeredis.FakeRedis(decode_responses=True)
+    with (
+        patch("app.extensions.redis_client", fake),
+        patch("app.routes.auth.redis_client", fake),
+        patch("app.services.cache.redis_client", fake),
+    ):
+        yield fake
 
 
 @pytest.fixture()
