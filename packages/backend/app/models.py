@@ -127,6 +127,36 @@ class UserSubscription(db.Model):
     started_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
 
+class LifestyleSnapshot(db.Model):
+    __tablename__ = "lifestyle_snapshots"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    period_start = db.Column(db.Date, nullable=False)
+    period_end = db.Column(db.Date, nullable=False)
+    total_spending = db.Column(db.Numeric(12, 2), default=0)
+    category_spending = db.Column(db.JSON, default=dict)
+    transaction_count = db.Column(db.Integer, default=0)
+    avg_transaction = db.Column(db.Numeric(12, 2), default=0)
+    top_categories = db.Column(db.JSON, default=list)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class InflationAlert(db.Model):
+    __tablename__ = "inflation_alerts"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    category_id = db.Column(db.Integer, db.ForeignKey("categories.id"))
+    category_name = db.Column(db.String(100))
+    alert_type = db.Column(db.String(50), nullable=False)
+    severity = db.Column(db.String(20), default="moderate")
+    current_amount = db.Column(db.Numeric(12, 2), default=0)
+    previous_amount = db.Column(db.Numeric(12, 2), default=0)
+    change_pct = db.Column(db.Numeric(8, 2), default=0)
+    message = db.Column(db.Text, nullable=False)
+    is_acknowledged = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
 class AuditLog(db.Model):
     __tablename__ = "audit_logs"
     id = db.Column(db.Integer, primary_key=True)

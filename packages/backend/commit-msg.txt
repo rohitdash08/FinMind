@@ -1,0 +1,25 @@
+feat(inflation): implement lifestyle inflation detection insights
+
+Resolves #118
+
+Add trend analysis engine that detects rising lifestyle expenses over
+time by comparing monthly and per-category spending patterns, generating
+severity-scored alerts for significant increases.
+
+Changes:
+- Add lifestyle_snapshots and inflation_alerts tables (036_lifestyle_inflation.sql)
+- Add LifestyleSnapshot and InflationAlert models
+- Add lifestyle inflation service with detection algorithms
+- Add 6 REST endpoints under /inflation blueprint
+- Add 27 tests covering detection, trends, alerts, and routes
+- Add documentation (docs/lifestyle-inflation.md)
+
+Features:
+- Monthly spending trend analysis with configurable time periods
+- Overall spending inflation detection (≥10% month-over-month increase)
+- Per-category inflation detection (≥20% increase)
+- Severity levels: moderate (10-25%) and high (25%+)
+- Spending snapshots with category breakdowns and top categories
+- Snapshot upsert for same period (avoids duplicates)
+- Alert management with acknowledge workflow
+- Inflation summary dashboard with trend direction indicator
