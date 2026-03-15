@@ -1,0 +1,28 @@
+feat: add guided monthly financial review (#102)
+
+Implements a step-by-step monthly financial review experience with 7
+review steps covering spending analysis, category breakdown, top
+expenses, bill summary, recurring expense summary, month-over-month
+comparison, and actionable insights.
+
+Service layer (app/services/monthly_review.py):
+- get_review() returns all 7 steps for a given month
+- get_review_step() returns a single step (1-indexed)
+- get_available_months() returns months with expense data
+- Step 1: Spending summary (total/income/net/count/avg/high/low)
+- Step 2: Category breakdown with percentages, sorted desc
+- Step 3: Top 10 expenses by amount
+- Step 4: Bills due in month (autopay/manual split)
+- Step 5: Recurring expenses with monthly normalization
+- Step 6: Month-over-month comparison with trend direction
+- Step 7: Insights (peak day, category concentration, frequency, weekend)
+
+REST API (app/routes/monthly_review.py):
+- GET /review/<year>/<month> — full review
+- GET /review/<year>/<month>/step/<step> — single step
+- GET /review/months — available months
+
+Tests: 31 passing (tests/test_monthly_review.py)
+- All 7 steps tested with seeded data
+- Route tests including auth, validation, and error cases
+- Edge cases: empty months, January wrap-around, different users
