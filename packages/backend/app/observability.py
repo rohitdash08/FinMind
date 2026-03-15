@@ -9,6 +9,7 @@ from flask import Response, current_app, g, has_request_context, request
 from prometheus_client import (
     CollectorRegistry,
     Counter,
+    Gauge,
     Histogram,
     generate_latest,
     multiprocess,
@@ -58,6 +59,31 @@ class Observability:
             "finmind_reminder_events_total",
             "Reminder lifecycle events for engagement tracking.",
             ["event", "channel", "status"],
+            registry=self.registry,
+        )
+        # Job runner metrics (#130)
+        self.job_runs_total = Counter(
+            "finmind_job_runs_total",
+            "Total background job runs by outcome.",
+            ["status"],
+            registry=self.registry,
+        )
+        self.job_duration_seconds = Histogram(
+            "finmind_job_duration_seconds",
+            "Background job run duration in seconds.",
+            buckets=(0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30),
+            registry=self.registry,
+        )
+        self.reminders_retried_total = Counter(
+            "finmind_reminders_retried_total",
+            "Total reminder retry attempts.",
+            ["channel"],
+            registry=self.registry,
+        )
+        self.reminders_dead_total = Counter(
+            "finmind_reminders_dead_total",
+            "Total reminders moved to dead-letter queue.",
+            ["channel"],
             registry=self.registry,
         )
 
