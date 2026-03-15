@@ -55,6 +55,7 @@ See `backend/app/db/schema.sql`. Key tables:
   - `user:{id}:categories` — 24h TTL
   - `user:{id}:upcoming_bills` — 15 min TTL
   - `insights:{id}` — 24h TTL (invalidate on new expense/bill)
+  - `user:{id}:weekly_digest:{week}` — 10 min TTL (invalidate on expense create/update/delete)
 - Invalidation
   - On expense/bill create/update/delete -> delete affected monthly_summary, upcoming_bills, insights
 - Rate limiting (optional): `rl:{userId}:{endpoint}:{minute}` with short TTL
@@ -66,6 +67,7 @@ OpenAPI: `backend/app/openapi.yaml`
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
 - Insights: `/insights/monthly`, `/insights/budget-suggestion`
+- Digest: GET `/digest/weekly?week=YYYY-WNN` — weekly spending summary with category breakdown, WoW change, trends, and insights
 
 ## MVP UI/UX Plan
 - Auth screens: register/login.
@@ -73,6 +75,7 @@ OpenAPI: `backend/app/openapi.yaml`
   - Monthly spend chart, category breakdown donut.
   - Upcoming bills list with due dates and pay status.
   - AI budget suggestion card.
+- Digest page: weekly spending summary, category progress bars, WoW change badge, trends and insights, week navigation (← →).
 - Expenses page: add expense (amount, category, notes, date), list & filter.
 - Bills page: create bill (name, amount, cadence, due date, channel), toggle WhatsApp/email.
 - Settings: profile, categories, reminders default channel, export (premium).
