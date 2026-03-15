@@ -1,0 +1,29 @@
+feat(heatmap): add spending trend heatmap visualization
+
+Closes #116
+
+Add comprehensive spending heatmap analytics with multiple visualization
+modes for rich frontend rendering.
+
+Heatmap views:
+- Daily heatmap (GitHub contribution-style, 365 days)
+- Weekly aggregated heatmap (52 weeks)
+- Hourly activity grid (7×24 day-of-week × hour matrix)
+- Per-category spending breakdown with intensity
+- Summary statistics (activity rate, busiest day, etc.)
+
+All endpoints return normalized intensity values (0.0-1.0) that map
+directly to color scales for frontend heatmap rendering.
+
+Implementation:
+- Pure analytics over existing Expense table (no new migrations)
+- 5 GET endpoints under /heatmap prefix
+- Category filtering support on all time-based views
+- Configurable time ranges via query parameters
+
+Files added/modified:
+- app/services/spending_heatmap.py — Service with 5 analytics functions
+- app/routes/spending_heatmap.py — REST endpoints with JWT auth
+- app/routes/__init__.py — Blueprint registration
+- tests/test_spending_heatmap.py — 23 tests (all passing)
+- docs/spending-heatmap.md — API documentation
