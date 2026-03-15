@@ -127,6 +127,27 @@ class UserSubscription(db.Model):
     started_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
 
+class SavingsOpportunity(db.Model):
+    __tablename__ = "savings_opportunities"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    type = db.Column(db.String(50), nullable=False)
+    title = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text, nullable=False)
+    category_id = db.Column(db.Integer, db.ForeignKey("categories.id"))
+    current_amount = db.Column(db.Numeric(12, 2), default=0)
+    target_amount = db.Column(db.Numeric(12, 2), default=0)
+    potential_savings = db.Column(db.Numeric(12, 2), default=0)
+    confidence = db.Column(db.Numeric(3, 2), default=0.5)
+    status = db.Column(db.String(20), default="active")
+    is_dismissed = db.Column(db.Boolean, default=False)
+    action_taken = db.Column(db.Boolean, default=False)
+    extra_data = db.Column(db.JSON, default=dict)
+    detected_at = db.Column(db.DateTime, default=datetime.utcnow)
+    expires_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
 class AuditLog(db.Model):
     __tablename__ = "audit_logs"
     id = db.Column(db.Integer, primary_key=True)
