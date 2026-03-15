@@ -1,0 +1,30 @@
+feat(import): add bulk import validation & preview
+
+Closes #115
+
+Add comprehensive bulk import system for expenses with CSV and JSON
+support, validation preview, and data corrections.
+
+Features:
+- CSV and JSON format detection (by extension, content, or manual)
+- Field name alias mapping (amount/total/price/cost, date/spent_at, etc.)
+- Currency symbol cleanup ($, €, £, ₹, commas)
+- Multi-format date parsing (10+ formats)
+- Category fuzzy matching against existing user categories
+- Auto-creation of missing categories on import
+- Preview mode with per-row validation, corrections, and warnings
+- Skip-invalid or fail-fast import modes
+- Batch insert with rollback on database failure
+- Import template generation (CSV/JSON)
+
+Endpoints:
+- POST /import/preview — Validate and preview before committing
+- POST /import/execute — Execute import with options
+- GET /import/template — Download sample template
+
+Files added/modified:
+- app/services/bulk_import.py — Service with parsing, validation, import
+- app/routes/bulk_import.py — 3 endpoints with JWT auth
+- app/routes/__init__.py — Blueprint registration
+- tests/test_bulk_import.py — 35 tests (all passing)
+- docs/bulk-import.md — API documentation
