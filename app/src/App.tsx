@@ -17,6 +17,7 @@ import { Landing } from "./pages/Landing";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
 import Account from "./pages/Account";
 import { Digest } from "./pages/Digest";
+import { ThemeProvider } from "./components/theme-provider";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -29,85 +30,87 @@ const queryClient = new QueryClient({
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Layout />}>
-            <Route index element={<Landing />} />
-            <Route
-              path="dashboard"
-              element={
-                <ProtectedRoute>
-                  <Dashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="budgets"
-              element={
-                <ProtectedRoute>
-                  <Budgets />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="bills"
-              element={
-                <ProtectedRoute>
-                  <Bills />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="expenses"
-              element={
-                <ProtectedRoute>
-                  <Expenses />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="analytics"
-              element={
-                <ProtectedRoute>
-                  <Analytics />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="reminders"
-              element={
-                <ProtectedRoute>
-                  <Reminders />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="digest"
-              element={
-                <ProtectedRoute>
-                  <Digest />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="account"
-              element={
-                <ProtectedRoute>
-                  <Account />
-                </ProtectedRoute>
-              }
-            />
-          </Route>
-          <Route path="/signin" element={<SignIn />} />
-          <Route path="/register" element={<Register />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
+    <ThemeProvider defaultTheme="system" storageKey="finmind-ui-theme">
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<Layout />}>
+              <Route index element={<Landing />} />
+              <Route
+                path="dashboard"
+                element={
+                  <ProtectedRoute>
+                    <Dashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="budgets"
+                element={
+                  <ProtectedRoute>
+                    <Budgets />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="bills"
+                element={
+                  <ProtectedRoute>
+                    <Bills />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="expenses"
+                element={
+                  <ProtectedRoute>
+                    <Expenses />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="analytics"
+                element={
+                  <ProtectedRoute>
+                    <Analytics />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="reminders"
+                element={
+                  <ProtectedRoute>
+                    <Reminders />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="digest"
+                element={
+                  <ProtectedRoute>
+                    <Digest />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="account"
+                element={
+                  <ProtectedRoute>
+                    <Account />
+                  </ProtectedRoute>
+                }
+              />
+            </Route>
+            <Route path="/signin" element={<SignIn />} />
+            <Route path="/register" element={<Register />} />
+            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </TooltipProvider>
+    </ThemeProvider>
   </QueryClientProvider>
 );
 
