@@ -166,6 +166,157 @@ def _gemini_budget_suggestion(
     return parsed
 
 
+def _weekly_totals(uid: int, end_date: date) -> tuple[float, float]:
+    start_date = end_date - timedelta(days=7)
+    income = (
+        db.session.query(func.coalesce(func.sum(Expense.amount), 0))
+        .filter(
+            Expense.user_id == uid,
+            Expense.spent_at >= start_date,
+            Expense.spent_at < end_date,
+            Expense.expense_type == "INCOME",
+        )
+        .scalar()
+    )
+    expenses = (
+        db.session.query(func.coalesce(func.sum(Expense.amount), 0))
+        .filter(
+            Expense.user_id == uid,
+            Expense.spent_at >= start_date,
+            Expense.spent_at < end_date,
+            Expense.expense_type != "INCOME",
+        )
+        .scalar()
+    )
+    return float(income or 0), float(expenses or 0)
+
+
+def _weekly_category_spend(uid: int, end_date: date) -> dict[str, float]:
+    start_date = end_date - timedelta(days=7)
+    rows = (
+        db.session.query(
+            Expense.category_id, func.coalesce(func.sum(Expense.amount), 0)
+        )
+        .filter(
+            Expense.user_id == uid,
+            Expense.spent_at >= start_date,
+            Expense.spent_at < end_date,
+            Expense.expense_type != "INCOME",
+        )
+        .group_by(Expense.category_id)
+        .all()
+    )
+    return {str(k or "uncat"): float(v) for k, v in rows}
+
+
+def _build_weekly_analytics(uid: int, end_date: date) -> dict:
+    _, current_expenses = _weekly_totals(uid, end_date)
+    _, prev_expenses = _weekly_totals(uid, end_date - timedelta(days=7))
+    if prev_expenses > 0:
+        wow = round(((current_expenses - prev_expenses) / prev_expenses) * 100, 2)
+    else:
+        wow = 0.0
+    cats = _weekly_category_spend(uid, end_date)
+    top = sorted(cats.items(), key=lambda x: x[1], reverse=True)[:3]
+    return {
+        "week_over_week_change_pct": wow,
+        "current_week_expenses": round(current_expenses, 2),
+        "previous_week_expenses": round(prev_expenses, 2),
+        "top_categories": [{"category_id": k, "amount": round(v, 2)} for k, v in top],
+    }
+
+
+def _heuristic_weekly_digest(
+    uid: int, end_date: date, persona: str, warnings: list[str] | None = None
+):
+    income, expenses = _weekly_totals(uid, end_date)
+    payload = {
+        "end_date": end_date.isoformat(),
+        "summary": "You had a balanced week." if expenses < 500 else "Watch your spending closely.",
+        "insights": [
+            "Review your top spending category this week.",
+            "Consider setting a hard limit for weekend expenses.",
+        ],
+        "analytics": _build_weekly_analytics(uid, end_date),
+        "persona": persona,
+        "method": "heuristic",
+    }
+    if warnings:
+        payload["warnings"] = warnings
+    payload["net_flow"] = round(income - expenses, 2)
+    return payload
+
+
+def _gemini_weekly_digest(
+    uid: int, end_date: date, api_key: str, model: str, persona: str
+) -> dict:
+    categories = _weekly_category_spend(uid, end_date)
+    analytics = _build_weekly_analytics(uid, end_date)
+    prompt = (
+        f"{persona}\n"
+        "Generate a weekly financial digest. Return strict JSON only with keys: "
+        "summary (string, brief overview), insights (list of strings <=3).\n"
+        f"end_date={end_date.isoformat()}\n"
+        f"category_spend={categories}\n"
+        f"analytics={analytics}"
+    )
+    url = (
+        "https://generativelanguage.googleapis.com/v1beta/models/"
+        f"{model}:generateContent?key={api_key}"
+    )
+    body = json.dumps(
+        {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {"temperature": 0.2},
+        }
+    ).encode("utf-8")
+    req = request.Request(
+        url=url,
+        data=body,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with request.urlopen(req, timeout=10) as resp:  # nosec B310
+        payload = json.loads(resp.read().decode("utf-8"))
+    text = (
+        payload.get("candidates", [{}])[0]
+        .get("content", {})
+        .get("parts", [{}])[0]
+        .get("text", "")
+    )
+    parsed = _extract_json_object(text)
+    parsed["end_date"] = end_date.isoformat()
+    parsed["analytics"] = analytics
+    parsed["persona"] = persona
+    parsed["method"] = "gemini"
+    
+    # Add net_flow manually since LLM prompt didn't ask for it
+    income, expenses = _weekly_totals(uid, end_date)
+    parsed["net_flow"] = round(income - expenses, 2)
+    
+    return parsed
+
+
+def weekly_digest(
+    uid: int,
+    end_date: date,
+    gemini_api_key: str | None = None,
+    gemini_model: str | None = None,
+    persona: str | None = None,
+):
+    key = (gemini_api_key or "").strip() or (_settings.gemini_api_key or "")
+    model = gemini_model or _settings.gemini_model
+    persona_text = (persona or DEFAULT_PERSONA).strip()
+
+    if key:
+        try:
+            return _gemini_weekly_digest(uid, end_date, key, model, persona_text)
+        except Exception:
+            return _heuristic_weekly_digest(
+                uid, end_date, persona_text, warnings=["gemini_unavailable"]
+            )
+    return _heuristic_weekly_digest(uid, end_date, persona_text)
+
 def monthly_budget_suggestion(
     uid: int,
     ym: str,
