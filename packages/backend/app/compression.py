@@ -17,7 +17,7 @@ from __future__ import annotations
 import gzip
 import logging
 
-from flask import Flask, Request, Response
+from flask import Flask, Request, Response, current_app
 
 logger = logging.getLogger("finmind.compression")
 
@@ -52,6 +52,14 @@ def _maybe_compress(response: Response) -> Response:
     if response.headers.get("Content-Encoding"):
         return response
 
+    # Skip streaming responses: calling get_data() on a direct_passthrough /
+    # stream_with_context response would buffer the entire stream in memory,
+    # defeating the purpose of streaming and potentially exhausting RAM on large
+    # payloads.  Streaming responses must be compressed at the WSGI/proxy layer
+    # (e.g. nginx gzip_proxied) instead.
+    if response.direct_passthrough:
+        return response
+
     # Client must accept gzip
     from flask import request as current_request
     accept_encoding = current_request.headers.get("Accept-Encoding", "")
@@ -81,7 +89,11 @@ def _maybe_compress(response: Response) -> Response:
     response.headers["Content-Encoding"] = "gzip"
     response.headers["Content-Length"] = len(compressed)
     response.headers["Vary"] = "Accept-Encoding"
-    # Debug header (remove in prod if desired)
-    response.headers["X-Compression-Ratio"] = str(ratio)
+
+    # X-Compression-Ratio is a debug-only header: it reveals payload size
+    # information that could aid an attacker (e.g. BREACH-style attacks).
+    # Only emit it when the application is running in debug mode.
+    if current_app.debug:
+        response.headers["X-Compression-Ratio"] = str(ratio)
 
     return response
