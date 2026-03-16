@@ -243,3 +243,56 @@ class TestMilestones:
         client.post(f"/savings/goals/{gid}/milestones", json={"name": "M1", "target_amount": 1000}, headers=h)
         r = client.get(f"/savings/goals/{gid}", headers=h)
         assert len(r.get_json()["milestones"]) == 1
+
+    def test_withdrawal_below_milestone_resets_achieved(self, client, app_fixture):
+        """A withdrawal that drops current_amount below a milestone threshold
+        must reset milestone.achieved back to False."""
+        h, gid = self._setup(client, "ms_rev@test.com")
+        # Add milestone at 3000
+        mid = client.post(
+            f"/savings/goals/{gid}/milestones",
+            json={"name": "3k mark", "target_amount": 3000},
+            headers=h,
+        ).get_json()["id"]
+
+        # Deposit 5000 → milestone achieved
+        client.post(f"/savings/goals/{gid}/deposit", json={"amount": 5000}, headers=h)
+        ms = client.get(f"/savings/goals/{gid}/milestones", headers=h).get_json()
+        assert next(m for m in ms if m["id"] == mid)["achieved"] is True
+
+        # Withdraw 3000 → current_amount = 2000 < milestone threshold
+        client.post(f"/savings/goals/{gid}/deposit", json={"amount": -3000}, headers=h)
+        ms_after = client.get(f"/savings/goals/{gid}/milestones", headers=h).get_json()
+        assert next(m for m in ms_after if m["id"] == mid)["achieved"] is False
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Regression / edge-case tests
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestDepositEdgeCases:
+    def test_withdrawal_below_target_resets_goal_achieved(self, client, app_fixture):
+        """After a goal is marked achieved, a withdrawal that drops current_amount
+        below target_amount must set goal.achieved back to False."""
+        h = _auth(client, "rev_goal@test.com")
+        goal_id = _create_goal(client, h, target_amount=1000).get_json()["id"]
+
+        # Reach target → achieved=True
+        r = client.post(f"/savings/goals/{goal_id}/deposit", json={"amount": 1000}, headers=h)
+        assert r.get_json()["achieved"] is True
+
+        # Withdraw 500 → current=500 < target=1000 → achieved must flip to False
+        r = client.post(f"/savings/goals/{goal_id}/deposit", json={"amount": -500}, headers=h)
+        d = r.get_json()
+        assert r.status_code == 200
+        assert d["current_amount"] == 500.0
+        assert d["achieved"] is False
+
+    def test_deposit_zero_returns_400(self, client, app_fixture):
+        """A deposit with amount=0 must be rejected with 400 Bad Request."""
+        h = _auth(client, "zero_dep@test.com")
+        goal_id = _create_goal(client, h, target_amount=1000).get_json()["id"]
+
+        r = client.post(f"/savings/goals/{goal_id}/deposit", json={"amount": 0}, headers=h)
+        assert r.status_code == 400
+        assert "non-zero" in r.get_json()["error"]

@@ -162,21 +162,35 @@ def deposit(goal_id: int):
     amount = _parse_amount(data.get("amount"))
     if amount is None:
         return jsonify(error="amount is required and must be a number"), 400
+    if amount == Decimal("0"):
+        return jsonify(error="amount must be non-zero (use a positive value to deposit, negative to withdraw)"), 400
 
     goal.current_amount = max(Decimal("0"), goal.current_amount + amount)
 
-    # Check achievement
+    # Check goal achievement — forward and reverse.
     newly_achieved = not goal.achieved and goal.current_amount >= goal.target_amount
     if newly_achieved:
         goal.achieved = True
+    elif goal.achieved and goal.current_amount < goal.target_amount:
+        # Withdrawal brought the balance back below the target: un-mark as achieved
+        # so the flag accurately reflects current state.
+        goal.achieved = False
 
-    # Check milestones
+    # Check milestones — forward and reverse.
+    # Milestones are treated as live state (not immutable historical events): a
+    # withdrawal that drops current_amount below a milestone's threshold resets
+    # it so it can be re-earned.  If you prefer milestones to be permanent
+    # records (e.g. "you once hit ₹5,000") simply remove the reverse block below.
     newly_achieved_milestones = []
     for m in goal.milestones:
         if not m.achieved and goal.current_amount >= m.target_amount:
             m.achieved = True
             m.achieved_at = datetime.utcnow()
             newly_achieved_milestones.append(m.name)
+        elif m.achieved and goal.current_amount < m.target_amount:
+            # Reversal: balance fell below this milestone's threshold.
+            m.achieved = False
+            m.achieved_at = None
 
     db.session.commit()
 
