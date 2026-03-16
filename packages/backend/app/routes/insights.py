@@ -40,13 +40,26 @@ def budget_suggestion():
 @bp.get("/cache-stats")
 @jwt_required()
 def cache_stats():
-    """Return cache hit/miss stats and Redis memory usage (admin/monitoring)."""
+    """Return cache hit/miss stats and Redis memory usage.
+
+    Access policy (deliberate): open to all authenticated users, no admin
+    guard.  The data exposed (hit/miss counters, Redis memory usage) is
+    operational telemetry with no PII; any logged-in user can consult it for
+    debugging their own session behaviour.  If the deployment requires
+    restricting this to admin roles, add a role check here (e.g.
+    ``if get_jwt_identity_claims().get('role') != 'ADMIN': abort(403)``).
+    """
     return jsonify(get_cache_stats())
 
 
 @bp.delete("/cache-stats")
 @jwt_required()
 def clear_cache_stats():
-    """Reset cache hit/miss counters."""
+    """Reset cache hit/miss counters.
+
+    Same access policy as GET /cache-stats: open to all authenticated users.
+    Counters are global (not per-user), so any user can reset them — acceptable
+    for a lightweight monitoring tool.  Restrict to admin if needed (see above).
+    """
     reset_cache_stats()
     return jsonify(message="cache stats reset")

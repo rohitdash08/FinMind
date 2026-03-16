@@ -151,6 +151,13 @@ def cached(key_fn: Callable[..., str], ttl: int = TTL.ANALYTICS):
             try:
                 if key and result.status_code == 200:
                     data = result.get_json(force=True)
+                    # get_json returns None when the response body is not valid
+                    # JSON (e.g. empty body, non-JSON content type).  Caching
+                    # None would poison the key, causing every subsequent cache
+                    # hit to return a null JSON response instead of calling the
+                    # real handler.  Skip caching and serve the original result.
+                    if data is None:
+                        return result
                     cache_set(key, data, ttl_seconds=ttl)
                     logger.debug("cache SET key=%s ttl=%s", key, ttl)
             except Exception as exc:
@@ -169,23 +176,26 @@ _STATS_KEY = "cache:stats"
 def _increment_hit():
     try:
         redis_client.hincrby(_STATS_KEY, "hits", 1)
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("_increment_hit Redis failure (non-critical): %s", exc)
 
 
 def _increment_miss():
     try:
         redis_client.hincrby(_STATS_KEY, "misses", 1)
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("_increment_miss Redis failure (non-critical): %s", exc)
 
 
 def get_cache_stats() -> dict:
     """Return cache hit/miss counters and Redis info."""
     try:
         raw = redis_client.hgetall(_STATS_KEY)
-        hits = int(raw.get(b"hits", 0))
-        misses = int(raw.get(b"misses", 0))
+        # Redis is initialised with decode_responses=True so hgetall returns
+        # str keys, not bytes.  Using b"hits" / b"misses" would always return
+        # the default 0, making the counters appear permanently zero.
+        hits = int(raw.get("hits", 0))
+        misses = int(raw.get("misses", 0))
         total = hits + misses
         hit_rate = round(hits / total * 100, 1) if total > 0 else 0.0
         info = redis_client.info("memory")
