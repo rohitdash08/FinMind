@@ -30,10 +30,12 @@ from app.services.job_runner import run_due_reminders
 
 
 def _make_user(app_ctx) -> int:
+    import uuid
     from app.extensions import db as _db
     from werkzeug.security import generate_password_hash
 
-    u = User(email="runner@test.com", password_hash=generate_password_hash("x"))
+    email = f"runner_{uuid.uuid4().hex[:8]}@test.com"
+    u = User(email=email, password_hash=generate_password_hash("x"))
     _db.session.add(u)
     _db.session.flush()
     return u.id

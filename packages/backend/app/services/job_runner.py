@@ -74,7 +74,6 @@ def run_due_reminders(user_id: Optional[int] = None) -> dict:
 
         for reminder in reminders:
             stats["processed"] += 1
-            is_retry = reminder.retry_count > 0
 
             try:
                 ok = send_reminder(reminder)
@@ -82,8 +81,6 @@ def run_due_reminders(user_id: Optional[int] = None) -> dict:
                     reminder.sent = True
                     reminder.last_error = None
                     stats["succeeded"] += 1
-                    if is_retry:
-                        stats["retried"] += 1
                     track_reminder_event(event="sent", channel=reminder.channel)
                     logger.info(
                         "Reminder sent id=%s user=%s channel=%s retries=%s",
@@ -141,6 +138,7 @@ def _handle_failure(reminder: Reminder, error_msg: str, stats: dict) -> None:
             _MAX_BACKOFF_MINUTES,
         )
         reminder.next_retry_at = datetime.utcnow() + timedelta(minutes=backoff_minutes)
+        stats['retried'] = stats.get('retried', 0) + 1
         track_reminder_event(
             event="retry_scheduled",
             channel=reminder.channel,
@@ -152,7 +150,9 @@ def _handle_failure(reminder: Reminder, error_msg: str, stats: dict) -> None:
 
 
 def _derive_status(stats: dict) -> str:
-    if stats["processed"] == 0 or stats["errors"] == 0:
+    if stats["processed"] == 0:
+        return "no_work"
+    if stats["errors"] == 0 and stats["succeeded"] > 0:
         return "success"
     if stats["succeeded"] > 0:
         return "partial"
