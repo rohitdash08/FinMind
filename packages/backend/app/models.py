@@ -133,3 +133,25 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class Merchant(db.Model):
+    __tablename__ = "merchants"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    canonical_name = db.Column(db.String(200), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    aliases = db.relationship(
+        "MerchantAlias", backref="merchant", cascade="all, delete-orphan"
+    )
+
+
+class MerchantAlias(db.Model):
+    __tablename__ = "merchant_aliases"
+    id = db.Column(db.Integer, primary_key=True)
+    merchant_id = db.Column(
+        db.Integer, db.ForeignKey("merchants.id"), nullable=False
+    )
+    alias = db.Column(db.String(200), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+

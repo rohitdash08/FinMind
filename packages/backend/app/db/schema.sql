@@ -123,3 +123,26 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   action VARCHAR(100) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS merchants (
+  id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  canonical_name VARCHAR(200) NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_merchant_user_name
+  ON merchants (user_id, lower(canonical_name));
+
+CREATE TABLE IF NOT EXISTS merchant_aliases (
+  id SERIAL PRIMARY KEY,
+  merchant_id INT NOT NULL REFERENCES merchants(id) ON DELETE CASCADE,
+  alias VARCHAR(200) NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_alias_merchant
+  ON merchant_aliases (merchant_id, alias);
+
+CREATE INDEX IF NOT EXISTS idx_merchant_aliases_merchant_id
+  ON merchant_aliases (merchant_id);
