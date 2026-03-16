@@ -133,3 +133,21 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class BackgroundJob(db.Model):
+    """Persistent job queue entry with retry state."""
+
+    __tablename__ = "background_jobs"
+    id = db.Column(db.Integer, primary_key=True)
+    job_type = db.Column(db.String(100), nullable=False)
+    payload = db.Column(db.Text, nullable=True)
+    status = db.Column(db.String(20), nullable=False, default="PENDING")
+    # PENDING | RUNNING | SUCCEEDED | FAILED | DEAD
+    attempts = db.Column(db.Integer, nullable=False, default=0)
+    max_attempts = db.Column(db.Integer, nullable=False, default=5)
+    last_error = db.Column(db.Text, nullable=True)
+    next_run_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    last_run_at = db.Column(db.DateTime, nullable=True)
+    finished_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
