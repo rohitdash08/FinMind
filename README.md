@@ -19,7 +19,7 @@ flowchart LR
     API[Flask + Gunicorn]
     JWT[PyJWT]
     AI[Insights Service]
-    SCH[Scheduler/APScheduler]
+    SCH[Scheduler/APScheduler]eduler]
   end
 
   subgraph Data
