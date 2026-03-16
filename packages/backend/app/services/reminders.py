@@ -1,7 +1,7 @@
 import smtplib
 from email.message import EmailMessage
 from ..config import Settings
-from ..models import Reminder
+from ..models import Reminder, User
 
 try:
     from twilio.rest import Client as TwilioClient
@@ -56,21 +56,22 @@ def send_whatsapp(to_number: str, body: str):
         return False
 
 
-def send_reminder(r: Reminder) -> bool:
+def send_reminder(r: Reminder) -> None:
     # Channel holds 'email' or 'whatsapp:<number>'
     if r.channel == "whatsapp":
         raise RuntimeError("whatsapp channel requires 'whatsapp:<number>' format")
     if r.channel.startswith("whatsapp:"):
         to = r.channel.split(":", 1)[1]
-        result = send_whatsapp(to, r.message)
-        if not result:
+        if not send_whatsapp(to, r.message):
             raise RuntimeError(f"WhatsApp delivery failed for {to}")
-        return True
+        return
+    # Email: use r.channel if it's an email address, otherwise look up User.email
+    if "@" in r.channel:
+        to = r.channel
     else:
-        to = r.channel if "@" in r.channel else (_settings.email_from or "")
-        if not to:
-            raise RuntimeError("No email address configured for reminder delivery")
-        result = send_email(to, "Bill Reminder", r.message)
-        if not result:
-            raise RuntimeError(f"Email delivery failed for {to}")
-        return True
+        user = User.query.get(r.user_id)
+        to = user.email if user else None
+    if not to:
+        raise RuntimeError(f"No email address available for reminder id={r.id}")
+    if not send_email(to, "Bill Reminder", r.message):
+        raise RuntimeError(f"Email delivery failed for {to}")

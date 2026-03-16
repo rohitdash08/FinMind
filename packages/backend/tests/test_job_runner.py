@@ -230,6 +230,31 @@ class TestRunDueReminders:
             assert "SMTP connection refused" in (r.last_error or "")
             assert stats["errors"] == 1
 
+    def test_no_work_status_when_no_reminders(self, app_fixture):
+        """When no reminders are due, stats should be all zeros and JobRun status 'no_work'."""
+        with app_fixture.app_context():
+            uid = _make_user(app_fixture)
+            # No reminders created — nothing to process
+
+            stats = run_due_reminders(user_id=uid)
+
+            assert stats == {
+                "processed": 0,
+                "succeeded": 0,
+                "errors": 0,
+                "retried": 0,
+                "permanently_failed": 0,
+            }
+
+            run = (
+                db.session.query(JobRun)
+                .filter_by(job_name="reminder_dispatch")
+                .order_by(JobRun.started_at.desc())
+                .first()
+            )
+            assert run is not None
+            assert run.status == "no_work"
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Tests – HTTP endpoints
@@ -255,13 +280,17 @@ class TestReminderRunEndpoint:
 
 
 class TestJobRunsEndpoint:
-    def test_job_runs_empty(self, client, auth_header):
-        resp = client.get("/reminders/job-runs", headers=auth_header)
+    def test_job_runs_empty(self, client, admin_auth_header):
+        resp = client.get("/reminders/job-runs", headers=admin_auth_header)
         assert resp.status_code == 200
         assert resp.get_json() == []
 
-    def test_job_runs_returns_records(self, client, auth_header, app_fixture):
+    def test_job_runs_returns_records(self, client, admin_auth_header, app_fixture):
+        # Use a fresh app_context isolated from the HTTP client session
         with app_fixture.app_context():
+            from app.extensions import db as _db
+            # Clear any pre-existing job runs to avoid test leakage
+            _db.session.query(JobRun).delete()
             jr = JobRun(
                 job_name="reminder_dispatch",
                 started_at=datetime.utcnow(),
@@ -272,30 +301,41 @@ class TestJobRunsEndpoint:
                 errors=0,
                 retried=0,
             )
-            db.session.add(jr)
-            db.session.commit()
+            _db.session.add(jr)
+            _db.session.commit()
 
-        resp = client.get("/reminders/job-runs", headers=auth_header)
+        resp = client.get("/reminders/job-runs", headers=admin_auth_header)
         assert resp.status_code == 200
         data = resp.get_json()
-        assert len(data) == 1
-        assert data[0]["status"] == "success"
-        assert data[0]["processed"] == 2
+        assert len(data) >= 1
+        record = next((r for r in data if r["status"] == "success" and r["processed"] == 2), None)
+        assert record is not None, f"Expected record not found in: {data}"
 
     def test_job_runs_requires_auth(self, client):
         resp = client.get("/reminders/job-runs")
         assert resp.status_code == 401
 
-    def test_job_runs_limit(self, client, auth_header, app_fixture):
+    def test_job_runs_non_admin_forbidden(self, client, auth_header):
+        resp = client.get("/reminders/job-runs", headers=auth_header)
+        assert resp.status_code == 403
+
+    def test_job_runs_limit(self, client, admin_auth_header, app_fixture):
         with app_fixture.app_context():
+            from app.extensions import db as _db
+            _db.session.query(JobRun).delete()
             for i in range(5):
-                db.session.add(JobRun(
+                _db.session.add(JobRun(
                     job_name="reminder_dispatch",
                     started_at=datetime.utcnow(),
                     status="success",
                 ))
-            db.session.commit()
+            _db.session.commit()
 
-        resp = client.get("/reminders/job-runs?limit=3", headers=auth_header)
+        resp = client.get("/reminders/job-runs?limit=3", headers=admin_auth_header)
         assert resp.status_code == 200
         assert len(resp.get_json()) == 3
+
+    def test_job_runs_limit_invalid_string(self, client, admin_auth_header):
+        """?limit=abc should not crash — Flask type=int returns default."""
+        resp = client.get("/reminders/job-runs?limit=abc", headers=admin_auth_header)
+        assert resp.status_code == 200

@@ -2,7 +2,7 @@ from datetime import datetime, time, timedelta
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..extensions import db
-from ..models import Bill, JobRun, Reminder
+from ..models import Bill, JobRun, Reminder, User, Role
 from ..observability import track_reminder_event
 from ..services.reminders import send_reminder
 from ..services.job_runner import run_due_reminders
@@ -172,8 +172,16 @@ def run_due():
 @bp.get("/job-runs")
 @jwt_required()
 def list_job_runs():
-    """Return recent job-run audit records (admin/monitoring endpoint)."""
-    limit = min(int(request.args.get("limit", 20)), 100)
+    """Return recent job-run audit records (admin/monitoring endpoint).
+
+    TODO: once JobRun.user_id column is added, filter by get_jwt_identity() so
+    regular users only see their own job runs. For now, require admin role.
+    """
+    uid = int(get_jwt_identity())
+    current_user = db.session.get(User, uid)
+    if current_user is None or current_user.role != Role.ADMIN.value:
+        return jsonify({"error": "Admin access required"}), 403
+    limit = min(request.args.get("limit", 20, type=int), 100)
     runs = (
         db.session.query(JobRun)
         .filter_by(job_name="reminder_dispatch")

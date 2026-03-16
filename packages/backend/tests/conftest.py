@@ -66,3 +66,28 @@ def auth_header(client):
     assert r.status_code == 200
     access = r.get_json()["access_token"]
     return {"Authorization": f"Bearer {access}"}
+
+
+@pytest.fixture()
+def admin_auth_header(client, app_fixture):
+    """Register/login an admin user and return the auth header."""
+    from werkzeug.security import generate_password_hash
+    from app.models import User, Role
+
+    email = "admin@example.com"
+    password = "adminpassword123"
+    with app_fixture.app_context():
+        from app.extensions import db as _db
+        existing = _db.session.query(User).filter_by(email=email).first()
+        if not existing:
+            admin = User(
+                email=email,
+                password_hash=generate_password_hash(password),
+                role=Role.ADMIN.value,
+            )
+            _db.session.add(admin)
+            _db.session.commit()
+    r = client.post("/auth/login", json={"email": email, "password": password})
+    assert r.status_code == 200
+    access = r.get_json()["access_token"]
+    return {"Authorization": f"Bearer {access}"}

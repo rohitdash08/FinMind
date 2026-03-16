@@ -114,7 +114,7 @@ class JobRun(db.Model):
     job_name = db.Column(db.String(100), nullable=False)
     started_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     finished_at = db.Column(db.DateTime, nullable=True)
-    status = db.Column(db.String(20), nullable=False)  # success | partial | failed
+    status = db.Column(db.String(20), nullable=False)  # success | partial | failed | no_work
     processed = db.Column(db.Integer, default=0, nullable=False)
     succeeded = db.Column(db.Integer, default=0, nullable=False)
     errors = db.Column(db.Integer, default=0, nullable=False)

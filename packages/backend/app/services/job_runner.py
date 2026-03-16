@@ -70,7 +70,7 @@ def run_due_reminders(user_id: Optional[int] = None) -> dict:
         if user_id is not None:
             query = query.filter(Reminder.user_id == user_id)
 
-        reminders = query.all()
+        reminders = query.with_for_update(skip_locked=True).all()
 
         for reminder in reminders:
             stats["processed"] += 1
@@ -95,6 +95,7 @@ def run_due_reminders(user_id: Optional[int] = None) -> dict:
 
     except Exception:
         logger.exception("Job runner critical failure")
+        db.session.rollback()
         _finalize_job_run(job_run, "failed", stats)
         db.session.commit()
         raise
@@ -135,7 +136,7 @@ def _handle_failure(reminder: Reminder, error_msg: str, stats: dict) -> None:
             _MAX_BACKOFF_MINUTES,
         )
         reminder.next_retry_at = datetime.utcnow() + timedelta(minutes=backoff_minutes)
-        stats['retried'] = stats.get('retried', 0) + 1
+        stats['retried'] += 1
         track_reminder_event(
             event="retry_scheduled",
             channel=reminder.channel,
