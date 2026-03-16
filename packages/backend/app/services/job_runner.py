@@ -76,18 +76,15 @@ def run_due_reminders(user_id: Optional[int] = None) -> dict:
             stats["processed"] += 1
 
             try:
-                ok = send_reminder(reminder)
-                if ok:
-                    reminder.sent = True
-                    reminder.last_error = None
-                    stats["succeeded"] += 1
-                    track_reminder_event(event="sent", channel=reminder.channel)
-                    logger.info(
-                        "Reminder sent id=%s user=%s channel=%s retries=%s",
-                        reminder.id, reminder.user_id, reminder.channel, reminder.retry_count,
-                    )
-                else:
-                    _handle_failure(reminder, "send_reminder returned False", stats)
+                send_reminder(reminder)
+                reminder.sent = True
+                reminder.last_error = None
+                stats["succeeded"] += 1
+                track_reminder_event(event="sent", channel=reminder.channel)
+                logger.info(
+                    "Reminder sent id=%s user=%s channel=%s retries=%s",
+                    reminder.id, reminder.user_id, reminder.channel, reminder.retry_count,
+                )
             except Exception as exc:  # noqa: BLE001
                 _handle_failure(reminder, str(exc), stats)
                 logger.exception("Reminder dispatch error id=%s", reminder.id)

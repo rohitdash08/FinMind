@@ -85,7 +85,7 @@ class TestRunDueReminders:
             r = _make_reminder(uid)
             rid = r.id
 
-            with patch("app.services.job_runner.send_reminder", return_value=False):
+            with patch("app.services.job_runner.send_reminder", side_effect=RuntimeError("delivery failed")):
                 stats = run_due_reminders(user_id=uid)
 
             reminder = db.session.get(Reminder, rid)
@@ -101,7 +101,7 @@ class TestRunDueReminders:
         with app_fixture.app_context():
             uid = _make_user(app_fixture)
 
-            with patch("app.services.job_runner.send_reminder", return_value=False):
+            with patch("app.services.job_runner.send_reminder", side_effect=RuntimeError("delivery failed")):
                 # First failure → retry_count=1 → backoff=2 min
                 r = _make_reminder(uid)
                 run_due_reminders(user_id=uid)
@@ -118,7 +118,7 @@ class TestRunDueReminders:
             r = _make_reminder(uid, max_retries=2)
             rid = r.id
 
-            with patch("app.services.job_runner.send_reminder", return_value=False):
+            with patch("app.services.job_runner.send_reminder", side_effect=RuntimeError("delivery failed")):
                 # First run → retry_count=1
                 run_due_reminders(user_id=uid)
                 db.session.refresh(r)
@@ -199,9 +199,15 @@ class TestRunDueReminders:
             _make_reminder(uid)
             _make_reminder(uid)
 
-            results = iter([True, False])
+            call_count = {"n": 0}
+
+            def _side_effect(_):
+                call_count["n"] += 1
+                if call_count["n"] == 2:
+                    raise RuntimeError("delivery failed")
+
             with patch(
-                "app.services.job_runner.send_reminder", side_effect=lambda _: next(results)
+                "app.services.job_runner.send_reminder", side_effect=_side_effect
             ):
                 run_due_reminders(user_id=uid)
 

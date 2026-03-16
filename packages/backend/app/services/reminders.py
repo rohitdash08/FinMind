@@ -56,16 +56,21 @@ def send_whatsapp(to_number: str, body: str):
         return False
 
 
-def send_reminder(r: Reminder):
+def send_reminder(r: Reminder) -> bool:
     # Channel holds 'email' or 'whatsapp:<number>'
     if r.channel == "whatsapp":
-        return False
+        raise RuntimeError("whatsapp channel requires 'whatsapp:<number>' format")
     if r.channel.startswith("whatsapp:"):
         to = r.channel.split(":", 1)[1]
-        return send_whatsapp(to, r.message)
+        result = send_whatsapp(to, r.message)
+        if not result:
+            raise RuntimeError(f"WhatsApp delivery failed for {to}")
+        return True
     else:
-        # Fallback: assume email stored in channel as email
-        # or pull from user profile later
         to = r.channel if "@" in r.channel else (_settings.email_from or "")
-        subject = "Bill Reminder"
-        return send_email(to, subject, r.message)
+        if not to:
+            raise RuntimeError("No email address configured for reminder delivery")
+        result = send_email(to, "Bill Reminder", r.message)
+        if not result:
+            raise RuntimeError(f"Email delivery failed for {to}")
+        return True
