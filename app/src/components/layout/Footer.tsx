@@ -28,7 +28,7 @@ const socialLinks = [
 
 export function Footer() {
   return (
-    <footer className="mt-14 border-t border-border/70 bg-white/70 backdrop-blur-xl">
+    <footer className="mt-14 border-t border-border/70 bg-card/70 backdrop-blur-xl">
       <div className="container-financial py-12">
         <div className="grid gap-10 md:grid-cols-12">
           <div className="md:col-span-5">
@@ -53,7 +53,7 @@ export function Footer() {
                 <a
                   key={social.name}
                   href={social.href}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-white text-muted-foreground transition hover:border-primary hover:text-primary"
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition hover:border-primary hover:text-primary"
                   aria-label={social.name}
                 >
                   <social.icon className="h-4 w-4" />
