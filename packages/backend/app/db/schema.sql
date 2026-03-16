@@ -123,3 +123,15 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   action VARCHAR(100) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+-- Category budget limits and overspend early warnings (#117)
+CREATE TABLE IF NOT EXISTS category_budgets (
+  id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  category_id INT NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
+  month VARCHAR(7),
+  budget_limit NUMERIC(12,2) NOT NULL,
+  warning_threshold_pct INT NOT NULL DEFAULT 80,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_category_budgets_user ON category_budgets(user_id, month);

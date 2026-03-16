@@ -133,3 +133,20 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class CategoryBudget(db.Model):
+    """Monthly spending limit per category for overspend early warnings (#117)."""
+
+    __tablename__ = "category_budgets"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    category_id = db.Column(
+        db.Integer, db.ForeignKey("categories.id"), nullable=False
+    )
+    # YYYY-MM string, e.g. "2025-01".  NULL = applies to every month (default).
+    month = db.Column(db.String(7), nullable=True)
+    budget_limit = db.Column(db.Numeric(12, 2), nullable=False)
+    # Warning fires when spending reaches this % of the limit (default 80 %).
+    warning_threshold_pct = db.Column(db.Integer, default=80, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
