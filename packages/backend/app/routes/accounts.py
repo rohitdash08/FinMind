@@ -16,7 +16,7 @@ from decimal import Decimal, InvalidOperation
 
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import get_jwt_identity, jwt_required
-from sqlalchemy import func
+from sqlalchemy import case, func
 
 from ..extensions import db
 from ..models import Account, AccountType, Expense
@@ -83,6 +83,10 @@ def overview():
     """
     Aggregate financial overview across all active accounts.
     Returns per-account balance + totals.
+
+    Uses a single GROUP BY query to avoid the N+1 problem: instead of issuing
+    two separate SUM queries per account, all income/expense aggregates are
+    fetched in one shot and joined back to the account list.
     """
     uid = int(get_jwt_identity())
     accounts = (
@@ -92,30 +96,39 @@ def overview():
         .all()
     )
 
+    # Single aggregation query: SUM income and expenses per account_id in one round-trip.
+    agg_rows = (
+        db.session.query(
+            Expense.account_id,
+            func.coalesce(
+                func.sum(case((Expense.expense_type == "INCOME", Expense.amount), else_=0)), 0
+            ).label("income"),
+            func.coalesce(
+                func.sum(case((Expense.expense_type == "EXPENSE", Expense.amount), else_=0)), 0
+            ).label("expenses"),
+        )
+        .filter(
+            Expense.user_id == uid,
+            Expense.account_id.isnot(None),
+        )
+        .group_by(Expense.account_id)
+        .all()
+    )
+    # Map account_id → (income, expenses)
+    agg: dict[int, tuple[Decimal, Decimal]] = {
+        row.account_id: (Decimal(str(row.income)), Decimal(str(row.expenses)))
+        for row in agg_rows
+    }
+
     account_summaries = []
     total_assets = Decimal("0")
     total_liabilities = Decimal("0")
 
     for acc in accounts:
-        # Income (INCOME type expenses) linked to this account
-        income_row = (
-            db.session.query(func.coalesce(func.sum(Expense.amount), 0))
-            .filter_by(user_id=uid, account_id=acc.id, expense_type="INCOME")
-            .scalar()
-        )
-        # Expenses linked to this account
-        expense_row = (
-            db.session.query(func.coalesce(func.sum(Expense.amount), 0))
-            .filter_by(user_id=uid, account_id=acc.id, expense_type="EXPENSE")
-            .scalar()
-        )
-
-        income = Decimal(str(income_row))
-        expenses = Decimal(str(expense_row))
+        income, expenses = agg.get(acc.id, (Decimal("0"), Decimal("0")))
         balance = acc.initial_balance + income - expenses
 
-        is_credit = acc.account_type == AccountType.CREDIT.value
-        if is_credit:
+        if acc.account_type == AccountType.CREDIT.value:
             total_liabilities += balance
         else:
             total_assets += balance
@@ -127,19 +140,21 @@ def overview():
             "balance": float(balance),
         })
 
-    # Unassigned expenses (no account)
-    unassigned_income = Decimal(str(
-        db.session.query(func.coalesce(func.sum(Expense.amount), 0))
-        .filter_by(user_id=uid, expense_type="INCOME")
-        .filter(Expense.account_id.is_(None))
-        .scalar()
-    ))
-    unassigned_expenses = Decimal(str(
-        db.session.query(func.coalesce(func.sum(Expense.amount), 0))
-        .filter_by(user_id=uid, expense_type="EXPENSE")
-        .filter(Expense.account_id.is_(None))
-        .scalar()
-    ))
+    # Unassigned expenses (no account) — two scalars, not per-account, so no N+1 here.
+    unassigned_agg = (
+        db.session.query(
+            func.coalesce(
+                func.sum(case((Expense.expense_type == "INCOME", Expense.amount), else_=0)), 0
+            ).label("income"),
+            func.coalesce(
+                func.sum(case((Expense.expense_type == "EXPENSE", Expense.amount), else_=0)), 0
+            ).label("expenses"),
+        )
+        .filter(Expense.user_id == uid, Expense.account_id.is_(None))
+        .one()
+    )
+    unassigned_income = Decimal(str(unassigned_agg.income))
+    unassigned_expenses = Decimal(str(unassigned_agg.expenses))
 
     return jsonify({
         "accounts": account_summaries,
@@ -222,8 +237,12 @@ def delete_account(account_id: int):
 
 
 def _get_or_404(account_id: int, user_id: int):
+    # Soft-deleted accounts (active=False) are intentionally excluded: a
+    # deactivated account is treated as gone from the user's perspective.
+    # Historical expense rows that still reference it are preserved in the DB
+    # but the account itself is no longer accessible via the API.
     acc = db.session.get(Account, account_id)
-    if not acc or acc.user_id != user_id:
+    if not acc or acc.user_id != user_id or not acc.active:
         return None
     return acc
 
@@ -245,4 +264,5 @@ def _account_to_dict(acc: Account) -> dict:
         "color": acc.color,
         "active": acc.active,
         "created_at": acc.created_at.isoformat(),
+        "updated_at": acc.updated_at.isoformat(),
     }

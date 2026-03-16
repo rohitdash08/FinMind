@@ -160,3 +160,4 @@ class Account(db.Model):
     color        = db.Column(db.String(20), nullable=True)   # hex colour for UI
     active       = db.Column(db.Boolean, default=True, nullable=False)
     created_at   = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at   = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)

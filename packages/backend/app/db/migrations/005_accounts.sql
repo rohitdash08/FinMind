@@ -11,8 +11,27 @@ CREATE TABLE IF NOT EXISTS accounts (
     initial_balance NUMERIC(12,2) NOT NULL DEFAULT 0,
     color           VARCHAR(20)   NULL,
     active          BOOLEAN       NOT NULL DEFAULT TRUE,
-    created_at      TIMESTAMP     NOT NULL DEFAULT NOW()
+    created_at      TIMESTAMP     NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMP     NOT NULL DEFAULT NOW()
 );
+
+-- Trigger to keep updated_at current on every row update
+CREATE OR REPLACE FUNCTION _accounts_set_updated_at()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS accounts_set_updated_at ON accounts;
+CREATE TRIGGER accounts_set_updated_at
+    BEFORE UPDATE ON accounts
+    FOR EACH ROW EXECUTE FUNCTION _accounts_set_updated_at();
+
+-- If the table already exists (re-run scenario), add the column idempotently.
+ALTER TABLE accounts
+    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW();
 
 CREATE INDEX IF NOT EXISTS idx_accounts_user ON accounts (user_id, active);
 
