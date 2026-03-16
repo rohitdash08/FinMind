@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { me, updateMe } from '@/api/auth';
-import { setCurrency } from '@/lib/auth';
+import { setCurrency, clearToken, clearRefreshToken } from '@/lib/auth';
+import { exportPII, deletePII } from '@/api/privacy';
 
 const SUPPORTED_CURRENCIES = [
   { code: 'INR', label: 'Indian Rupee (INR)' },
@@ -19,10 +21,14 @@ const SUPPORTED_CURRENCIES = [
 
 export default function Account() {
   const { toast } = useToast();
+  const nav = useNavigate();
   const [email, setEmail] = useState('');
   const [currency, setCurrencyState] = useState('INR');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -57,6 +63,50 @@ export default function Account() {
       toast({ title: 'Failed to update account', description: message });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const onExport = async () => {
+    setExporting(true);
+    try {
+      const data = await exportPII();
+      const blob = new Blob([JSON.stringify(data, null, 2)], {
+        type: 'application/json',
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `finmind-export-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast({ title: 'Export complete', description: 'Your data has been downloaded.' });
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? error.message : 'Failed to export data';
+      toast({ title: 'Export failed', description: message });
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const onDelete = async () => {
+    setDeleting(true);
+    try {
+      await deletePII();
+      clearToken();
+      clearRefreshToken();
+      toast({
+        title: 'Account deleted',
+        description: 'All your personal data has been permanently removed.',
+      });
+      nav('/signin');
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? error.message : 'Failed to delete account';
+      toast({ title: 'Deletion failed', description: message });
+    } finally {
+      setDeleting(false);
+      setShowDeleteConfirm(false);
     }
   };
 
@@ -107,6 +157,54 @@ export default function Account() {
             </div>
           </>
         )}
+      </div>
+
+      {/* GDPR Data Privacy Section */}
+      <div className="card card-interactive space-y-5 fade-in-up">
+        <div className="space-y-1">
+          <h2 className="text-lg font-semibold">Data Privacy</h2>
+          <p className="text-sm text-muted-foreground">
+            Export or delete your personal data in compliance with GDPR.
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <Button
+            variant="outline"
+            onClick={() => void onExport()}
+            disabled={exporting}
+          >
+            {exporting ? 'Exporting…' : 'Export My Data'}
+          </Button>
+
+          {!showDeleteConfirm ? (
+            <Button
+              variant="destructive"
+              onClick={() => setShowDeleteConfirm(true)}
+            >
+              Delete My Account
+            </Button>
+          ) : (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-destructive font-medium">
+                This action is permanent and cannot be undone.
+              </span>
+              <Button
+                variant="destructive"
+                onClick={() => void onDelete()}
+                disabled={deleting}
+              >
+                {deleting ? 'Deleting…' : 'Confirm Delete'}
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() => setShowDeleteConfirm(false)}
+              >
+                Cancel
+              </Button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
