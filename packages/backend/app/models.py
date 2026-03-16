@@ -32,6 +32,9 @@ class Expense(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     category_id = db.Column(db.Integer, db.ForeignKey("categories.id"), nullable=True)
+    account_id = db.Column(
+        db.Integer, db.ForeignKey("financial_accounts.id"), nullable=True
+    )
     amount = db.Column(db.Numeric(12, 2), nullable=False)
     currency = db.Column(db.String(10), default="INR", nullable=False)
     expense_type = db.Column(db.String(20), default="EXPENSE", nullable=False)
@@ -132,4 +135,20 @@ class AuditLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class FinancialAccount(db.Model):
+    """A named financial account (e.g. Checking, Savings, Credit Card)."""
+
+    __tablename__ = "financial_accounts"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    name = db.Column(db.String(100), nullable=False)
+    account_type = db.Column(db.String(50), nullable=False, default="CHECKING")
+    # CHECKING | SAVINGS | CREDIT | CASH | INVESTMENT | OTHER
+    currency = db.Column(db.String(10), nullable=False, default="INR")
+    initial_balance = db.Column(db.Numeric(12, 2), nullable=False, default=0)
+    color = db.Column(db.String(20), nullable=True)
+    active = db.Column(db.Boolean, default=True, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
