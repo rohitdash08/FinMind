@@ -5,7 +5,7 @@ from decimal import Decimal, InvalidOperation
 from flask import Blueprint, current_app, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..extensions import db
-from ..models import Expense, RecurringCadence, RecurringExpense, User
+from ..models import Expense, RecurringCadence, RecurringExpense, User, Category
 from ..services.cache import cache_delete_patterns, monthly_summary_key
 from ..services import expense_import
 import logging
@@ -274,6 +274,65 @@ def import_preview():
     return jsonify(
         total=len(transactions), duplicates=duplicates, transactions=transactions
     )
+
+
+@bp.post("/import/validate")
+@jwt_required()
+def import_validate():
+    """
+    Enhanced import validation endpoint.
+
+    Accepts the same file upload as /import/preview but returns per-row
+    validation details including warnings and auto-corrections, making it
+    easy to review and fix data before committing.
+    """
+    uid = int(get_jwt_identity())
+    file = request.files.get("file")
+    if not file:
+        return jsonify(error="file required"), 400
+    raw = file.read()
+    try:
+        rows = expense_import.extract_transactions_from_statement(
+            filename=file.filename or "",
+            content_type=file.content_type,
+            data=raw,
+            gemini_api_key=current_app.config.get("GEMINI_API_KEY"),
+            gemini_model=current_app.config.get("GEMINI_MODEL", "gemini-1.5-flash"),
+        )
+    except ValueError as exc:
+        return jsonify(error=str(exc)), 400
+    except Exception as exc:  # pragma: no cover
+        logger.exception("Import validate failed user=%s", uid)
+        return jsonify(error=f"failed to parse statement: {exc}"), 500
+
+    # Build duplicate-detection set from existing expenses
+    existing = (
+        db.session.query(Expense.notes, Expense.spent_at)
+        .filter_by(user_id=uid)
+        .all()
+    )
+    existing_keys = {(str(e.notes or "").lower(), str(e.spent_at)) for e in existing}
+
+    # Build valid category IDs for this user
+    valid_cat_ids = {
+        c.id
+        for c in db.session.query(Category.id).filter_by(user_id=uid).all()
+    }
+
+    result = expense_import.validate_import_rows(
+        rows,
+        existing_descriptions=existing_keys,
+        valid_category_ids=valid_cat_ids,
+    )
+
+    logger.info(
+        "Import validate user=%s total=%s warnings=%s invalid=%s",
+        uid,
+        result["summary"]["total"],
+        result["summary"]["warnings"],
+        result["summary"]["invalid"],
+    )
+    return jsonify(result)
 
 
 @bp.post("/import/commit")

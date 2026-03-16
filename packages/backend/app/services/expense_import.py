@@ -268,3 +268,225 @@ def _parse_pdf_line(line: str) -> dict[str, Any] | None:
         "expense_type": _infer_expense_type(None, description, amount),
         "currency": "USD",
     }
+
+
+# ---------------------------------------------------------------------------
+# Validation & preview improvements (issue #115)
+# ---------------------------------------------------------------------------
+
+_MAX_REASONABLE_AMOUNT = Decimal("1_000_000")
+_MIN_REASONABLE_AMOUNT = Decimal("0.01")
+_FAR_FUTURE_DAYS = 7       # days ahead considered suspicious
+_OLD_DATE_YEARS = 10       # years back considered suspicious
+
+
+def validate_import_rows(
+    raw_rows: list[dict[str, Any]],
+    *,
+    existing_descriptions: set[str] | None = None,
+    existing_amounts: dict[str, list[Decimal]] | None = None,
+    valid_category_ids: set[int] | None = None,
+) -> dict[str, Any]:
+    """
+    Validate a list of raw import rows, enriching each with:
+      - ``status``: "valid" | "warning" | "invalid"
+      - ``warnings``: list of human-readable warning strings
+      - ``corrections``: list of {field, original, corrected} dicts
+      - ``normalized``: the cleaned row (None if invalid)
+
+    Parameters
+    ----------
+    raw_rows : list[dict]
+        Raw rows as returned by extract_transactions_from_statement.
+    existing_descriptions : set[str], optional
+        Set of (lower-cased description, date) tuples for duplicate detection.
+    existing_amounts : dict[str, list[Decimal]], optional
+        {YYYY-MM: [amounts]} for statistical outlier detection.
+    valid_category_ids : set[int], optional
+        Set of the user's valid category IDs; unknown IDs generate a warning.
+
+    Returns
+    -------
+    dict with keys:
+        rows         – list of per-row validation dicts
+        summary      – counts (total, valid, warnings, invalid, duplicates)
+    """
+    today = date.today()
+    far_future = date(today.year, today.month, today.day)
+    old_cutoff = date(today.year - _OLD_DATE_YEARS, today.month, today.day)
+
+    validated: list[dict[str, Any]] = []
+    counts = {"total": 0, "valid": 0, "warnings": 0, "invalid": 0, "duplicates": 0}
+
+    for idx, raw in enumerate(raw_rows):
+        counts["total"] += 1
+        row_warnings: list[str] = []
+        corrections: list[dict[str, str]] = []
+
+        # --- date ---
+        raw_date = raw.get("date")
+        norm_date = _normalize_date(raw_date)
+        if norm_date is None:
+            validated.append({
+                "row_index": idx,
+                "status": "invalid",
+                "warnings": [f"Cannot parse date: {raw_date!r}"],
+                "corrections": [],
+                "normalized": None,
+                "raw": raw,
+            })
+            counts["invalid"] += 1
+            continue
+        try:
+            parsed_date = date.fromisoformat(norm_date)
+        except ValueError:
+            parsed_date = None
+
+        if norm_date != str(raw_date or "").strip():
+            corrections.append({
+                "field": "date",
+                "original": str(raw_date),
+                "corrected": norm_date,
+            })
+
+        if parsed_date:
+            if parsed_date > today:
+                row_warnings.append(
+                    f"Date {norm_date} is in the future"
+                )
+            elif parsed_date < old_cutoff:
+                row_warnings.append(
+                    f"Date {norm_date} is more than {_OLD_DATE_YEARS} years old"
+                )
+
+        # --- amount ---
+        raw_amount = raw.get("amount")
+        norm_amount = _normalize_amount(raw_amount)
+        if norm_amount is None:
+            validated.append({
+                "row_index": idx,
+                "status": "invalid",
+                "warnings": [f"Cannot parse amount: {raw_amount!r}"],
+                "corrections": [],
+                "normalized": None,
+                "raw": raw,
+            })
+            counts["invalid"] += 1
+            continue
+
+        abs_amount = abs(norm_amount)
+        if abs_amount > _MAX_REASONABLE_AMOUNT:
+            row_warnings.append(
+                f"Amount {abs_amount} exceeds reasonable threshold "
+                f"({_MAX_REASONABLE_AMOUNT})"
+            )
+        if abs_amount < _MIN_REASONABLE_AMOUNT:
+            row_warnings.append(f"Amount {abs_amount} is below minimum 0.01")
+
+        if str(raw_amount or "").strip() != str(float(abs_amount)):
+            corrections.append({
+                "field": "amount",
+                "original": str(raw_amount),
+                "corrected": str(float(abs_amount)),
+            })
+
+        # --- description ---
+        raw_desc = raw.get("description") or ""
+        norm_desc = str(raw_desc).strip()[:500]
+        if not norm_desc:
+            validated.append({
+                "row_index": idx,
+                "status": "invalid",
+                "warnings": ["Description is empty"],
+                "corrections": [],
+                "normalized": None,
+                "raw": raw,
+            })
+            counts["invalid"] += 1
+            continue
+
+        if len(str(raw_desc)) > 500:
+            corrections.append({
+                "field": "description",
+                "original": f"{str(raw_desc)[:30]}… ({len(str(raw_desc))} chars)",
+                "corrected": f"Truncated to 500 chars",
+            })
+
+        # --- category ---
+        raw_cat = raw.get("category_id")
+        category_id: int | None = None
+        if raw_cat not in (None, "", "null"):
+            try:
+                category_id = int(raw_cat)
+            except (TypeError, ValueError):
+                row_warnings.append(
+                    f"category_id {raw_cat!r} is not a valid integer; ignored"
+                )
+                corrections.append({
+                    "field": "category_id",
+                    "original": str(raw_cat),
+                    "corrected": "null",
+                })
+        if category_id is not None and valid_category_ids is not None:
+            if category_id not in valid_category_ids:
+                row_warnings.append(
+                    f"category_id {category_id} does not exist; will be left unset"
+                )
+                corrections.append({
+                    "field": "category_id",
+                    "original": str(category_id),
+                    "corrected": "null",
+                })
+                category_id = None
+
+        if category_id is None and valid_category_ids is not None:
+            row_warnings.append("No category assigned; transaction will be uncategorised")
+
+        # --- duplicate detection ---
+        dup_key = (norm_desc.lower(), norm_date)
+        if existing_descriptions and dup_key in existing_descriptions:
+            row_warnings.append(
+                f"Possible duplicate: '{norm_desc}' on {norm_date} already exists"
+            )
+            counts["duplicates"] += 1
+
+        # --- expense type ---
+        raw_type = raw.get("expense_type")
+        norm_type = _infer_expense_type(raw_type, norm_desc, norm_amount)
+        if str(raw_type or "").strip().upper() not in ("INCOME", "EXPENSE", ""):
+            corrections.append({
+                "field": "expense_type",
+                "original": str(raw_type),
+                "corrected": norm_type,
+            })
+
+        # --- currency ---
+        raw_currency = str(raw.get("currency") or "USD").strip()[:10] or "USD"
+
+        # --- build normalized row ---
+        normalized = {
+            "date": norm_date,
+            "amount": float(abs_amount),
+            "description": norm_desc,
+            "category_id": category_id,
+            "expense_type": norm_type,
+            "currency": raw_currency,
+        }
+
+        status = "valid" if not row_warnings else "warning"
+        counts["valid" if status == "valid" else "warnings"] += 1
+
+        validated.append({
+            "row_index": idx,
+            "status": status,
+            "warnings": row_warnings,
+            "corrections": corrections,
+            "normalized": normalized,
+            "raw": raw,
+        })
+
+    return {
+        "rows": validated,
+        "summary": counts,
+    }
+
