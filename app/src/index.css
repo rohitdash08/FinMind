@@ -77,6 +77,10 @@
     @apply border-border;
   }
 
+  :focus-visible {
+    @apply outline-none ring-2 ring-primary ring-offset-2 ring-offset-background;
+  }
+
   body {
     @apply bg-background text-foreground antialiased;
     font-family: 'Manrope', sans-serif;

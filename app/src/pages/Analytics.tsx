@@ -11,7 +11,9 @@ import {
 } from '@/components/ui/financial-card';
 import { useToast } from '@/hooks/use-toast';
 import { getBudgetSuggestion, type BudgetSuggestion } from '@/api/insights';
+import { getExpenseHeatmap } from '@/api/expenses';
 import { formatMoney } from '@/lib/currency';
+import { SpendingHeatmap } from '@/components/spending-heatmap';
 
 const PERSONAS = [
   'Balanced coach',
@@ -26,18 +28,23 @@ export function Analytics() {
   const [geminiKey, setGeminiKey] = useState('');
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<BudgetSuggestion | null>(null);
+  const [heatmapData, setHeatmapData] = useState<Array<{ date: string; amount: number; count: number }>>([]);
   const [error, setError] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
     setError(null);
     try {
-      const payload = await getBudgetSuggestion({
-        month,
-        persona,
-        geminiApiKey: geminiKey.trim() || undefined,
-      });
-      setData(payload);
+      const [suggestion, heatmap] = await Promise.all([
+        getBudgetSuggestion({
+          month,
+          persona,
+          geminiApiKey: geminiKey.trim() || undefined,
+        }),
+        getExpenseHeatmap(90)
+      ]);
+      setData(suggestion);
+      setHeatmapData(heatmap);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to load insights';
       setError(message);
@@ -122,6 +129,16 @@ export function Analytics() {
         <div className="card text-red-600">{error}</div>
       ) : data ? (
         <div className="space-y-6">
+          <FinancialCard variant="financial">
+            <FinancialCardHeader>
+              <FinancialCardTitle>Spending Intensity (Last 90 Days)</FinancialCardTitle>
+              <FinancialCardDescription>Daily spending trends visualized</FinancialCardDescription>
+            </FinancialCardHeader>
+            <FinancialCardContent>
+              <SpendingHeatmap data={heatmapData} days={90} />
+            </FinancialCardContent>
+          </FinancialCard>
+
           <div className="grid gap-4 md:grid-cols-4">
             <FinancialCard variant="financial">
               <FinancialCardHeader className="pb-2">
