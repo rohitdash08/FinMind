@@ -14,6 +14,11 @@
 
 -- ── expenses ────────────────────────────────────────────────────────────────
 
+-- Basic user+date index — covers simple date-range queries that carry no
+-- type or category filter (e.g. GET /expenses?from=&to=).
+CREATE INDEX IF NOT EXISTS idx_expenses_user_spent_at
+    ON expenses (user_id, spent_at DESC);
+
 -- Category-filtered expense queries (GET /expenses?category_id=X)
 CREATE INDEX IF NOT EXISTS idx_expenses_user_category
     ON expenses (user_id, category_id, spent_at DESC)
@@ -24,6 +29,9 @@ CREATE INDEX IF NOT EXISTS idx_expenses_user_type_date
     ON expenses (user_id, expense_type, spent_at DESC);
 
 -- Monthly aggregation (used by insights: GROUP BY year/month)
+-- NOTE: DATE_TRUNC is a PostgreSQL-specific function.  This index will be
+-- created successfully only on PostgreSQL and will fail on SQLite or MySQL.
+-- On SQLite the test suite skips index-existence checks (see index_report.py).
 CREATE INDEX IF NOT EXISTS idx_expenses_user_month
     ON expenses (user_id, DATE_TRUNC('month', spent_at));
 
@@ -39,6 +47,11 @@ CREATE INDEX IF NOT EXISTS idx_expenses_user_amount
 
 -- ── bills ────────────────────────────────────────────────────────────────────
 
+-- Full (non-partial) user+due-date index — covers queries that do not
+-- filter on active, e.g. admin views and historical reporting.
+CREATE INDEX IF NOT EXISTS idx_bills_user_due
+    ON bills (user_id, next_due_date);
+
 -- Active bills only (most queries filter active=TRUE)
 CREATE INDEX IF NOT EXISTS idx_bills_user_active_due
     ON bills (user_id, next_due_date)
@@ -51,6 +64,11 @@ CREATE INDEX IF NOT EXISTS idx_bills_autopay
 
 
 -- ── reminders ────────────────────────────────────────────────────────────────
+
+-- Full user+send_at index — supports per-user reminder listing and
+-- queries that don't filter on sent status (e.g. history views).
+CREATE INDEX IF NOT EXISTS idx_reminders_due
+    ON reminders (user_id, send_at);
 
 -- Pending reminders — the hot path for reminder dispatch job
 -- Partial index: only unsent, non-permanently-failed rows
@@ -65,6 +83,11 @@ CREATE INDEX IF NOT EXISTS idx_reminders_bill
 
 
 -- ── recurring_expenses ────────────────────────────────────────────────────────
+
+-- Full user+start_date index — supports historical queries and admin views
+-- that list all recurring expenses regardless of active status.
+CREATE INDEX IF NOT EXISTS idx_recurring_expenses_user_start
+    ON recurring_expenses (user_id, start_date);
 
 -- Active recurring expenses for generation jobs
 CREATE INDEX IF NOT EXISTS idx_recurring_expenses_active

@@ -30,18 +30,80 @@ class TestIndexReport:
             assert isinstance(missing, list)
 
     def test_critical_indexes_documented(self):
-        """Verify all critical query paths have a corresponding index."""
+        """Verify all critical query paths have a corresponding index entry."""
         idx_set = set(REQUIRED_INDEXES)
+
         # Expenses — the hottest table
-        assert "idx_expenses_user_spent_at" in idx_set
-        assert "idx_expenses_user_type_date" in idx_set
-        assert "idx_expenses_user_category" in idx_set
-        # Bills
-        assert "idx_bills_user_active_due" in idx_set
-        # Reminders dispatch
-        assert "idx_reminders_pending_dispatch" in idx_set
+        assert "idx_expenses_user_spent_at" in idx_set       # basic date-range
+        assert "idx_expenses_user_type_date" in idx_set      # income/expense split
+        assert "idx_expenses_user_category" in idx_set       # category filter
+        assert "idx_expenses_user_month" in idx_set          # monthly aggregation
+
+        # Bills — both the partial (active=TRUE) and full index
+        assert "idx_bills_user_due" in idx_set               # full; historical/admin
+        assert "idx_bills_user_active_due" in idx_set        # partial; most queries
+
+        # Reminders — full and partial
+        assert "idx_reminders_due" in idx_set                # full; per-user listing
+        assert "idx_reminders_pending_dispatch" in idx_set   # partial; dispatch job
+
+        # Recurring expenses
+        assert "idx_recurring_expenses_user_start" in idx_set  # full; history
+        assert "idx_recurring_expenses_active" in idx_set       # partial; generation
+
         # Audit
         assert "idx_audit_logs_user_created" in idx_set
+        assert "idx_audit_logs_action_created" in idx_set
+
+    def test_required_indexes_match_migration(self):
+        """REQUIRED_INDEXES must not contain index names absent from the migration.
+
+        This is a static regression guard: if the migration and the Python list
+        drift apart, ``flask index-report`` will always show false positives.
+        Any name added to REQUIRED_INDEXES must have a corresponding
+        CREATE INDEX … statement in 007_db_indexing.sql.
+        """
+        import os, re
+
+        migration_path = os.path.join(
+            os.path.dirname(__file__),
+            "../app/db/migrations/007_db_indexing.sql",
+        )
+        with open(migration_path) as f:
+            sql = f.read()
+
+        # Extract every index name defined by a CREATE INDEX statement
+        defined_in_migration = set(re.findall(r"CREATE INDEX IF NOT EXISTS (\w+)", sql))
+
+        not_in_migration = [
+            idx for idx in REQUIRED_INDEXES if idx not in defined_in_migration
+        ]
+        assert not_in_migration == [], (
+            f"REQUIRED_INDEXES entries missing from migration: {not_in_migration}"
+        )
+
+    def test_date_trunc_index_is_postgres_only(self):
+        """idx_expenses_user_month uses DATE_TRUNC — must be documented as PG-only."""
+        import os
+
+        migration_path = os.path.join(
+            os.path.dirname(__file__),
+            "../app/db/migrations/007_db_indexing.sql",
+        )
+        with open(migration_path) as f:
+            sql = f.read()
+
+        # Find the block containing the DATE_TRUNC index and assert there is a
+        # PostgreSQL warning comment in the preceding lines.
+        idx = sql.find("idx_expenses_user_month")
+        assert idx != -1, "idx_expenses_user_month not found in migration"
+
+        # Look at the 400 characters before the CREATE INDEX statement
+        context = sql[max(0, idx - 400):idx]
+        assert "postgresql" in context.lower() or "postgres" in context.lower(), (
+            "Migration must document that idx_expenses_user_month requires PostgreSQL "
+            "(DATE_TRUNC is not supported on SQLite/MySQL)"
+        )
 
 
 class TestIndexedQueryPatterns:
