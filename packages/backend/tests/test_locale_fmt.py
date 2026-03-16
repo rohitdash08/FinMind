@@ -45,9 +45,21 @@ class TestFormatCurrency:
         assert "€" in result
 
     def test_inr_en_in(self):
+        # en_IN uses lakh grouping: 1234.56 has only 4 integer digits so the
+        # rightmost group of 3 is "234" and the remaining "1" stands alone → "1,234.56"
         result = format_currency(1234.56, "INR", "en_IN")
         assert "₹" in result
         assert "1,234.56" in result
+
+    def test_inr_en_in_lakh(self):
+        # 1234567.89 → lakh grouping: 12,34,567.89
+        result = format_currency(1234567.89, "INR", "en_IN")
+        assert result == "₹12,34,567.89"
+
+    def test_inr_hi_in_lakh(self):
+        # hi_IN also uses lakh grouping
+        result = format_currency(100000, "INR", "hi_IN")
+        assert result == "₹1,00,000.00"
 
     def test_gbp_en_gb(self):
         result = format_currency(1000, "GBP", "en_GB")
@@ -79,6 +91,31 @@ class TestFormatNumber:
 
     def test_zero(self):
         assert format_number(0, "en_US") == "0"
+
+    # ── Lakh grouping ──────────────────────────────────────────────────────
+
+    def test_en_in_lakh_grouping_large(self):
+        # 1234567 → 12,34,567 (3 digits rightmost, then groups of 2)
+        assert format_number(1234567, "en_IN") == "12,34,567"
+
+    def test_en_in_lakh_grouping_medium(self):
+        # 123456 → 1,23,456
+        assert format_number(123456, "en_IN") == "1,23,456"
+
+    def test_en_in_lakh_grouping_small(self):
+        # 1234 → 1,234 (only the rightmost 3-digit group applies)
+        assert format_number(1234, "en_IN") == "1,234"
+
+    def test_en_in_no_grouping_below_1000(self):
+        assert format_number(999, "en_IN") == "999"
+
+    def test_hi_in_lakh_grouping(self):
+        # hi_IN shares the same lakh grouping as en_IN
+        assert format_number(1000000, "hi_IN") == "10,00,000"
+
+    def test_en_us_not_lakh(self):
+        # Standard locale must NOT use lakh grouping
+        assert format_number(1234567, "en_US") == "1,234,567"
 
 
 class TestFormatDate:
@@ -113,6 +150,43 @@ class TestFormatDatetime:
         dt = datetime(2026, 3, 14, 10, 30)
         result = format_datetime(dt, "en_US")
         assert "10:30" in result or "AM" in result or "PM" in result
+
+    # ── 12h vs 24h by locale ───────────────────────────────────────────────
+
+    def test_en_us_12h_format(self):
+        dt = datetime(2026, 3, 14, 14, 30)  # 2:30 PM
+        result = format_datetime(dt, "en_US")
+        assert "02:30 PM" in result or "2:30 PM" in result
+        assert "14:30" not in result
+
+    def test_en_in_12h_format(self):
+        dt = datetime(2026, 3, 14, 14, 30)
+        result = format_datetime(dt, "en_IN")
+        assert "02:30 PM" in result or "2:30 PM" in result
+        assert "14:30" not in result
+
+    def test_de_de_24h_format(self):
+        dt = datetime(2026, 3, 14, 14, 30)
+        result = format_datetime(dt, "de_DE")
+        assert "14:30" in result
+        assert "PM" not in result and "AM" not in result
+
+    def test_fr_fr_24h_format(self):
+        dt = datetime(2026, 3, 14, 22, 5)
+        result = format_datetime(dt, "fr_FR")
+        assert "22:05" in result
+        assert "PM" not in result
+
+    def test_ja_jp_24h_format(self):
+        dt = datetime(2026, 3, 14, 9, 0)
+        result = format_datetime(dt, "ja_JP")
+        assert "09:00" in result
+        assert "AM" not in result
+
+    def test_zh_cn_24h_format(self):
+        dt = datetime(2026, 3, 14, 0, 0)  # midnight
+        result = format_datetime(dt, "zh_CN")
+        assert "00:00" in result
 
 
 class TestGetLocaleInfo:
