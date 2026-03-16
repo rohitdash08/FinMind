@@ -1,0 +1,23 @@
+version: 1.0
+runtime: docker
+build:
+  dockerfile: Dockerfile.fullstack
+  context: ./
+run:
+  command: gunicorn --workers=2 --threads=4 --bind 0.0.0.0:8000 wsgi:app
+  network:
+    port: 8000
+    env: PORT
+  env:
+    - name: DATABASE_URL
+      value: postgresql+psycopg2://finmind:finmind@HOST:5432/finmind
+    - name: REDIS_URL
+      value: redis://HOST:6379/0
+    - name: JWT_SECRET
+      value: change-me
+    - name: LOG_LEVEL
+      value: INFO
+    - name: GEMINI_MODEL
+      value: gemini-1.5-flash
+    - name: FINMIND_SERVE_SPA
+      value: "1"

@@ -118,6 +118,14 @@ def finalize_request(response: Response) -> Response:
     if request_id:
         response.headers["X-Request-ID"] = request_id
 
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+
+    if request.path.startswith("/auth/"):
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["Pragma"] = "no-cache"
+
     request_start = getattr(g, "request_start", None)
     if request_start is not None:
         elapsed = time.perf_counter() - request_start

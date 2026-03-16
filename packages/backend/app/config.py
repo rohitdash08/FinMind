@@ -22,6 +22,17 @@ class Settings(BaseSettings):
 
     email_from: str | None = None
     smtp_url: str | None = None  # e.g. smtp+ssl://user:pass@mail:465
+    max_upload_bytes: int = 10 * 1024 * 1024
+    cors_allowed_origins: str = Field(
+        default=(
+            "http://localhost:5173,"
+            "http://127.0.0.1:5173,"
+            "http://localhost:8081,"
+            "http://127.0.0.1:8081,"
+            "http://frontend,"
+            "http://frontend:80"
+        )
+    )
 
     # pydantic-settings v2 configuration
     model_config = SettingsConfigDict(
@@ -29,3 +40,8 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore",
     )
+
+    @property
+    def cors_origins(self) -> list[str]:
+        origins = [origin.strip() for origin in self.cors_allowed_origins.split(",")]
+        return [origin for origin in origins if origin]

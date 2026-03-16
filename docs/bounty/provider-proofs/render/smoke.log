@@ -1,0 +1,22 @@
+provider=render
+commit_sha=63ab7de
+validated_at_utc=2026-03-15 22:33:46 UTC
+frontend_url=https://finmind-frontend-sexs.onrender.com
+api_url=https://finmind-backend-ht43.onrender.com
+health_url=https://finmind-backend-ht43.onrender.com/health/ready
+waits=backend health reachable, frontend reachable
+health_status=200
+health_ready_json={"checks": {"database": "connected", "redis": "connected"}, "status": "ok"}
+frontend_status=200
+register_status=201
+login_status=200
+auth_me_status=200
+categories_status=create:201,list:200
+expense_status=201
+bill_status=201
+reminders_schedule_status=200
+reminders_list_status=200
+dashboard_status=200
+insights_status=200
+verified_modules=backend/health, backend/readiness, database, redis, frontend shell, auth/register, auth/login, auth/me, categories, expenses, bills, reminders, dashboard, insights
+FinMind deployment smoke check passed

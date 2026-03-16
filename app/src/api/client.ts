@@ -7,7 +7,7 @@ import {
 } from '../lib/auth';
 import { refresh as refreshApi } from './auth';
 
-function resolveApiBaseUrl(): string {
+export function resolveApiBaseUrl(): string {
   const fromRuntime = (globalThis as { __FINMIND_API_URL__?: string }).__FINMIND_API_URL__;
   if (fromRuntime) return fromRuntime.replace(/\/$/, '');
 
@@ -15,15 +15,15 @@ function resolveApiBaseUrl(): string {
     .process?.env?.VITE_API_URL;
   if (fromProcess) return fromProcess.replace(/\/$/, '');
 
-  try {
-    const metaEnv = Function(
-      'return (typeof import !== "undefined" && import.meta && import.meta.env) ? import.meta.env : {};',
-    )() as Record<string, string | undefined>;
-    if (metaEnv?.VITE_API_URL) return metaEnv.VITE_API_URL.replace(/\/$/, '');
-  } catch {
-    // ignored for non-vite runtime (tests).
+  if (typeof __FINMIND_VITE_API_URL__ !== 'undefined' && __FINMIND_VITE_API_URL__) {
+    return __FINMIND_VITE_API_URL__.replace(/\/$/, '');
   }
-  return 'http://localhost:8000';
+
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return '';
+  }
+
+  return 'http://127.0.0.1:8000';
 }
 
 export const baseURL = resolveApiBaseUrl();
@@ -45,7 +45,6 @@ export async function api<T = unknown>(
       method: opts.method || 'GET',
       headers,
       body: opts.body ? JSON.stringify(opts.body) : undefined,
-      credentials: 'include',
     });
   }
 

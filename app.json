@@ -1,0 +1,33 @@
+{
+  "name": "FinMind",
+  "description": "Docker-based full-stack deployment for FinMind on Heroku",
+  "stack": "container",
+  "env": {
+    "DATABASE_URL": {
+      "description": "SQLAlchemy/PostgreSQL connection string"
+    },
+    "REDIS_URL": {
+      "description": "Redis connection string"
+    },
+    "JWT_SECRET": {
+      "description": "JWT signing secret",
+      "generator": "secret"
+    },
+    "LOG_LEVEL": {
+      "value": "INFO"
+    },
+    "GEMINI_MODEL": {
+      "value": "gemini-1.5-flash"
+    }
+  },
+  "formation": {
+    "web": {
+      "quantity": 1,
+      "size": "standard-1x"
+    }
+  },
+  "addons": [
+    "heroku-postgresql:mini",
+    "heroku-redis:mini"
+  ]
+}

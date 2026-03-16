@@ -1,0 +1,75 @@
+name: K8s Runtime
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - 'Dockerfile.fullstack'
+      - 'deploy/helm/**'
+      - 'Tiltfile'
+      - 'scripts/review-k8s.sh'
+      - 'scripts/smoke-deploy.py'
+      - 'packages/backend/**'
+      - 'app/**'
+  pull_request:
+    paths:
+      - 'Dockerfile.fullstack'
+      - 'deploy/helm/**'
+      - 'Tiltfile'
+      - 'scripts/review-k8s.sh'
+      - 'scripts/smoke-deploy.py'
+      - 'packages/backend/**'
+      - 'app/**'
+
+permissions:
+  contents: read
+
+jobs:
+  kind-helm-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Kind
+        run: |
+          curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.24.0/kind-linux-amd64
+          chmod +x ./kind
+          sudo mv ./kind /usr/local/bin/kind
+
+      - name: Install Helm
+        run: |
+          curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+      - name: Install Tilt
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/tilt-dev/tilt/master/scripts/install.sh | bash
+
+      - name: Run kind + Helm runtime review
+        env:
+          FINMIND_RUN_TILT_CI: "1"
+        run: ./scripts/review-k8s.sh
+
+      - name: Collect cluster diagnostics on failure
+        if: failure()
+        run: |
+          mkdir -p "$RUNNER_TEMP/k8s-diagnostics"
+          kubectl get all -A -o wide > "$RUNNER_TEMP/k8s-diagnostics/get-all.txt" || true
+          kubectl get events -A --sort-by=.metadata.creationTimestamp > "$RUNNER_TEMP/k8s-diagnostics/events.txt" || true
+          kubectl describe pods -n finmind > "$RUNNER_TEMP/k8s-diagnostics/describe-pods.txt" || true
+          kubectl describe jobs -n finmind > "$RUNNER_TEMP/k8s-diagnostics/describe-jobs.txt" || true
+          kubectl logs -n finmind job/finmind-migrate > "$RUNNER_TEMP/k8s-diagnostics/migrate.log" || true
+          helm status finmind -n finmind > "$RUNNER_TEMP/k8s-diagnostics/helm-status.txt" || true
+          helm test finmind -n finmind --logs > "$RUNNER_TEMP/k8s-diagnostics/helm-test.log" || true
+          tilt dump engine > "$RUNNER_TEMP/k8s-diagnostics/tilt-engine.txt" || true
+          tilt doctor > "$RUNNER_TEMP/k8s-diagnostics/tilt-doctor.txt" || true
+
+      - name: Upload K8s diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: k8s-runtime-diagnostics
+          path: ${{ runner.temp }}/k8s-diagnostics
+
+      - name: Delete kind cluster
+        if: always()
+        run: kind delete cluster --name finmind-review

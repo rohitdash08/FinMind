@@ -1,0 +1,92 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "finmind.fullname" . }}-migrate
+  namespace: {{ .Values.namespaceOverride }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app: {{ include "finmind.fullname" . }}-migrate
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: migrate
+          image: {{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}
+          imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "finmind.fullname" . }}-secrets
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "finmind.fullname" . }}-secrets
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "finmind.fullname" . }}-secrets
+                  key: POSTGRES_DB
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "finmind.fullname" . }}-secrets
+                  key: JWT_SECRET
+            - name: GEMINI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "finmind.fullname" . }}-secrets
+                  key: GEMINI_API_KEY
+            - name: REDIS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "finmind.fullname" . }}-config
+                  key: REDIS_URL
+            - name: LOG_LEVEL
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "finmind.fullname" . }}-config
+                  key: LOG_LEVEL
+            - name: GEMINI_MODEL
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "finmind.fullname" . }}-config
+                  key: GEMINI_MODEL
+          command:
+            - sh
+            - -ec
+            - |
+              export DATABASE_URL="postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@{{ include "finmind.fullname" . }}-postgres:5432/${POSTGRES_DB}"
+              python - <<'PY'
+              import os
+              import time
+
+              import psycopg2
+              import redis
+
+              database_url = os.environ["DATABASE_URL"].replace(
+                  "postgresql+psycopg2://",
+                  "postgresql://",
+                  1,
+              )
+              redis_url = os.environ["REDIS_URL"]
+
+              for _ in range(150):
+                  try:
+                      conn = psycopg2.connect(database_url)
+                      conn.close()
+                      redis.Redis.from_url(redis_url).ping()
+                      break
+                  except Exception:
+                      time.sleep(2)
+              else:
+                  raise SystemExit("postgres or redis never became ready")
+              PY
+              python -m flask --app wsgi:app init-db

@@ -1,0 +1,10 @@
+.git
+.github
+app/dist
+app/node_modules
+packages/backend/.pytest_cache
+packages/backend/__pycache__
+packages/backend/app/__pycache__
+**/__pycache__
+**/*.pyc
+tmp

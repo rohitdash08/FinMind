@@ -1,0 +1,117 @@
+namespaceOverride: finmind
+
+backend:
+  image:
+    repository: ghcr.io/rohitdash08/finmind-backend
+    tag: latest
+    pullPolicy: IfNotPresent
+  replicas: 2
+  service:
+    port: 8000
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  hpa:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 6
+    cpuUtilization: 70
+  env:
+    logLevel: INFO
+    geminiModel: gemini-1.5-flash
+    corsAllowedOrigins: https://app.finmind.example,http://localhost:5173,http://127.0.0.1:5173,http://localhost:8081,http://127.0.0.1:8081
+  secret:
+    jwtSecret: change-me-long-random-secret
+    geminiApiKey: ""
+
+frontend:
+  image:
+    repository: ghcr.io/rohitdash08/finmind-frontend
+    tag: latest
+    pullPolicy: IfNotPresent
+  replicas: 2
+  service:
+    port: 80
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+  hpa:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 4
+    cpuUtilization: 70
+  env:
+    apiUrl: https://api.finmind.example
+
+postgres:
+  image: postgres:16
+  database: finmind
+  user: finmind
+  password: change-me-strong
+  storageSize: 10Gi
+
+redis:
+  image: redis:7
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    api: api.finmind.example
+    web: app.finmind.example
+  tls:
+    enabled: true
+    secretName: finmind-tls
+
+monitoring:
+  enabled: true
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    retentionTime: 14d
+    retentionSize: 1Gi
+    storageSize: 5Gi
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+  grafana:
+    enabled: true
+    image: grafana/grafana-oss:11.1.5
+    adminUser: finmind_admin
+    adminPassword: change-this-admin-password
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 250m
+        memory: 256Mi
+    ingress:
+      enabled: false
+      host: grafana.finmind.example
+  exporters:
+    postgres:
+      enabled: true
+      image: quay.io/prometheuscommunity/postgres-exporter:v0.16.0
+      port: 9187
+    redis:
+      enabled: true
+      image: oliver006/redis_exporter:v1.63.0
+      port: 9121
+    nginx:
+      enabled: true
+      image: nginx/nginx-prometheus-exporter:1.3.0
+      port: 9113

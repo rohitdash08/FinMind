@@ -1,0 +1,59 @@
+{{- if .Values.monitoring.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "finmind.fullname" . }}-prometheus-config
+  namespace: {{ .Values.namespaceOverride }}
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+
+    scrape_configs:
+      - job_name: prometheus
+        static_configs:
+          - targets: ['{{ include "finmind.fullname" . }}-prometheus:9090']
+
+      - job_name: backend
+        metrics_path: /metrics
+        static_configs:
+          - targets: ['{{ include "finmind.fullname" . }}-backend:{{ .Values.backend.service.port }}']
+
+      {{- if .Values.monitoring.exporters.postgres.enabled }}
+      - job_name: postgres
+        static_configs:
+          - targets: ['{{ include "finmind.fullname" . }}-postgres-exporter:{{ .Values.monitoring.exporters.postgres.port }}']
+      {{- end }}
+
+      {{- if .Values.monitoring.exporters.redis.enabled }}
+      - job_name: redis
+        static_configs:
+          - targets: ['{{ include "finmind.fullname" . }}-redis-exporter:{{ .Values.monitoring.exporters.redis.port }}']
+      {{- end }}
+
+      {{- if .Values.monitoring.exporters.nginx.enabled }}
+      - job_name: nginx
+        static_configs:
+          - targets: ['{{ include "finmind.fullname" . }}-nginx-exporter:{{ .Values.monitoring.exporters.nginx.port }}']
+      {{- end }}
+---
+{{- if .Values.monitoring.grafana.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "finmind.fullname" . }}-grafana-datasources
+  namespace: {{ .Values.namespaceOverride }}
+data:
+  datasources.yml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        uid: prometheus
+        type: prometheus
+        access: proxy
+        url: http://{{ include "finmind.fullname" . }}-prometheus:9090
+        isDefault: true
+        editable: false
+{{- end }}
+{{- end }}

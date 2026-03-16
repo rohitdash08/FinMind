@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_jwt_extended import (
     create_access_token,
@@ -10,6 +10,7 @@ from flask_jwt_extended import (
 )
 from ..extensions import db, redis_client
 from ..models import User
+from ..request_utils import get_json_object
 import logging
 import time
 
@@ -30,9 +31,11 @@ SUPPORTED_CURRENCIES = {
 
 @bp.post("/register")
 def register():
-    data = request.get_json() or {}
-    email = data.get("email")
-    password = data.get("password")
+    data = get_json_object()
+    if data is None:
+        return jsonify(error="json body must be an object"), 400
+    email = str(data.get("email") or "").strip()
+    password = str(data.get("password") or "")
     if not email or not password:
         logger.warning("Register missing email/password")
         return jsonify(error="email and password required"), 400
@@ -52,9 +55,11 @@ def register():
 
 @bp.post("/login")
 def login():
-    data = request.get_json() or {}
-    email = data.get("email")
-    password = data.get("password")
+    data = get_json_object()
+    if data is None:
+        return jsonify(error="json body must be an object"), 400
+    email = str(data.get("email") or "").strip()
+    password = str(data.get("password") or "")
     user = db.session.query(User).filter_by(email=email).first()
     if not user or not check_password_hash(user.password_hash, password):
         logger.warning("Login failed for email=%s", email)
@@ -87,7 +92,9 @@ def update_me():
     user = db.session.get(User, uid)
     if not user:
         return jsonify(error="not found"), 404
-    data = request.get_json() or {}
+    data = get_json_object()
+    if data is None:
+        return jsonify(error="json body must be an object"), 400
     if "preferred_currency" in data:
         cur = str(data.get("preferred_currency") or "").upper().strip()
         if cur not in SUPPORTED_CURRENCIES:

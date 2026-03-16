@@ -1,0 +1,59 @@
+services:
+  - type: web
+    name: finmind-backend
+    runtime: docker
+    dockerfilePath: ./packages/backend/Dockerfile
+    dockerContext: ./packages/backend
+    dockerCommand: ./docker-entrypoint.sh
+    plan: free
+    autoDeploy: false
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: finmind-postgres
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: finmind-redis
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: LOG_LEVEL
+        value: INFO
+      - key: GEMINI_MODEL
+        value: gemini-1.5-flash
+      - key: FINMIND_RUN_INIT_DB_ON_BOOT
+        value: "1"
+      - key: CORS_ALLOWED_ORIGINS
+        fromService:
+          type: web
+          name: finmind-frontend
+          envVarKey: RENDER_EXTERNAL_URL
+    healthCheckPath: /health/ready
+
+  - type: web
+    name: finmind-frontend
+    runtime: docker
+    dockerfilePath: ./app/Dockerfile
+    dockerContext: ./app
+    plan: free
+    autoDeploy: false
+    envVars:
+      - key: FINMIND_API_URL
+        fromService:
+          type: web
+          name: finmind-backend
+          envVarKey: RENDER_EXTERNAL_URL
+
+  - type: redis
+    name: finmind-redis
+    plan: free
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList: []
+
+databases:
+  - name: finmind-postgres
+    plan: free
+    postgresMajorVersion: "16"
+    ipAllowList: []

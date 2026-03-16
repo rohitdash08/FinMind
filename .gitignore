@@ -33,14 +33,13 @@ logs/
 npm-debug.log*
 yarn-debug.log*
 pnpm-debug.log*
+output/
+tmp/
 plan.md
 checklist.md
 continuation_prompt.md
 deployment.md
 SESSION_SUMMARY.md
-
-docker-compose.prod.yml
-
 FEATURES.md
 
 create_issues.ps1

@@ -76,6 +76,29 @@ def test_expense_create_defaults_to_user_preferred_currency(client, auth_header)
     assert created["currency"] == "INR"
 
 
+def test_expense_create_rejects_invalid_date_with_400(client, auth_header):
+    payload = {
+        "amount": 99.5,
+        "description": "Broken date payload",
+        "date": "2026-02-31",
+    }
+    r = client.post("/expenses", json=payload, headers=auth_header)
+    assert r.status_code == 400
+    assert r.get_json() == {"error": "invalid date"}
+
+
+def test_expense_create_rejects_invalid_category_id(client, auth_header):
+    payload = {
+        "amount": 99.5,
+        "description": "Bad category payload",
+        "date": "2026-02-12",
+        "category_id": "oops",
+    }
+    r = client.post("/expenses", json=payload, headers=auth_header)
+    assert r.status_code == 400
+    assert r.get_json() == {"error": "invalid category_id"}
+
+
 def test_expense_import_preview_and_commit_prevents_duplicates(client, auth_header):
     cat_id = _create_category(client, auth_header)
 
@@ -183,6 +206,86 @@ def test_expense_import_preview_pdf_fallback_without_gemini(
     assert tx[1]["description"] == "Payroll Deposit"
     assert tx[1]["amount"] == 2500.0
     assert tx[1]["expense_type"] == "INCOME"
+
+
+def test_expense_import_preview_hides_internal_errors(client, auth_header, monkeypatch):
+    monkeypatch.setattr(
+        "app.services.expense_import.extract_transactions_from_statement",
+        lambda **_kwargs: (_ for _ in ()).throw(RuntimeError("provider blew up")),
+    )
+
+    data = {"file": (BytesIO(b"%PDF-1.4 fake"), "statement.pdf")}
+    r = client.post(
+        "/expenses/import/preview",
+        data=data,
+        content_type="multipart/form-data",
+        headers=auth_header,
+    )
+
+    assert r.status_code == 500
+    assert r.get_json() == {"error": "failed to parse statement"}
+
+
+def test_expense_import_commit_rejects_invalid_category_id(client, auth_header):
+    r = client.post(
+        "/expenses/import/commit",
+        json={
+            "transactions": [
+                {
+                    "date": "2026-02-10",
+                    "amount": 10.5,
+                    "description": "Coffee",
+                    "category_id": "oops",
+                }
+            ]
+        },
+        headers=auth_header,
+    )
+
+    assert r.status_code == 400
+    assert r.get_json() == {"error": "invalid category_id"}
+
+
+def test_expense_import_preview_rejects_oversized_upload(client, auth_header):
+    client.application.config["MAX_CONTENT_LENGTH"] = 128
+
+    data = {"file": (BytesIO(b"x" * 2048), "statement.csv")}
+    r = client.post(
+        "/expenses/import/preview",
+        data=data,
+        content_type="multipart/form-data",
+        headers=auth_header,
+    )
+
+    assert r.status_code == 413
+    assert r.get_json() == {"error": "upload too large"}
+
+
+def test_expense_import_commit_rejects_non_object_transactions(client, auth_header):
+    r = client.post(
+        "/expenses/import/commit",
+        json={"transactions": ["bad-row"]},
+        headers=auth_header,
+    )
+
+    assert r.status_code == 400
+    assert r.get_json() == {"error": "invalid transaction payload"}
+
+
+def test_recurring_expense_create_rejects_invalid_category_id(client, auth_header):
+    r = client.post(
+        "/expenses/recurring",
+        json={
+            "amount": 40.0,
+            "description": "Subscription",
+            "cadence": "MONTHLY",
+            "start_date": "2026-01-01",
+            "category_id": "oops",
+        },
+        headers=auth_header,
+    )
+    assert r.status_code == 400
+    assert r.get_json() == {"error": "invalid category_id"}
 
 
 def test_recurring_expense_create_list_and_generate(client, auth_header):

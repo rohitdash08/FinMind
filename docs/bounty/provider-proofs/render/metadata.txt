@@ -1,0 +1,12 @@
+commit_sha=63ab7de
+validated_at_utc=2026-03-15 22:35:39 UTC
+provider=render
+frontend_url=https://finmind-frontend-sexs.onrender.com
+api_url=https://finmind-backend-ht43.onrender.com
+health_url=https://finmind-backend-ht43.onrender.com/health/ready
+frontend_deploy_id=dep-d6rj3ahaae7s73cq3ecg
+backend_deploy_id=dep-d6rj3aggjchc73bau9mg
+frontend_deployed_commit=63ab7def76da71eb484e6cffa095e3ced68f3b20
+backend_deployed_commit=63ab7def76da71eb484e6cffa095e3ced68f3b20
+blueprint_sync_url=https://dashboard.render.com/blueprint/exs-d6rghjh5pdvs73bpa7cg/sync
+branch_specific_deploy_url=https://render.com/deploy?repo=https%3A%2F%2Fgithub.com%2Fjuzigu40-ui%2FFinMind%2Ftree%2Fcodex%2Ffinmind-144-deploy-bounty

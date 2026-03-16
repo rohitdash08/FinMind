@@ -9,6 +9,7 @@ RUN npm run build
 FROM nginx:alpine
 # Copy custom nginx config for SPA fallback
 COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY docker-entrypoint.d/40-finmind-env.sh /docker-entrypoint.d/40-finmind-env.sh
 COPY --from=builder /app/dist /usr/share/nginx/html
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]

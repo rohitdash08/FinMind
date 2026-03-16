@@ -1,0 +1,12 @@
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile.fullstack"
+watchPatterns = ["packages/backend/**", "app/**", ".env.example", "Dockerfile.fullstack"]
+
+[deploy]
+preDeployCommand = "python -m flask --app wsgi:app init-db"
+startCommand = "gunicorn --workers=2 --threads=4 --bind 0.0.0.0:$PORT wsgi:app"
+healthcheckPath = "/health/ready"
+healthcheckTimeout = 120
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10

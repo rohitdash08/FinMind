@@ -1,0 +1,85 @@
+name: finmind
+region: nyc
+jobs:
+  - name: migrate
+    kind: PRE_DEPLOY
+    environment_slug: docker
+    dockerfile_path: packages/backend/Dockerfile
+    source_dir: /
+    git:
+      repo_clone_url: https://github.com/juzigu40-ui/FinMind.git
+      branch: codex/finmind-144-deploy-bounty
+      deploy_on_push: false
+    instance_count: 1
+    instance_size_slug: basic-xxs
+    run_command: python -m flask --app wsgi:app init-db
+    envs:
+      - key: DATABASE_URL
+        scope: RUN_TIME
+        value: ${finmind-db.DATABASE_URL}
+      - key: REDIS_URL
+        scope: RUN_TIME
+        value: ${finmind-redis.REDIS_URL}
+      - key: JWT_SECRET
+        scope: RUN_TIME
+        type: SECRET
+      - key: LOG_LEVEL
+        scope: RUN_TIME
+        value: INFO
+      - key: GEMINI_MODEL
+        scope: RUN_TIME
+        value: gemini-1.5-flash
+services:
+  - name: backend
+    environment_slug: docker
+    dockerfile_path: packages/backend/Dockerfile
+    source_dir: /
+    git:
+      repo_clone_url: https://github.com/juzigu40-ui/FinMind.git
+      branch: codex/finmind-144-deploy-bounty
+      deploy_on_push: false
+    http_port: 8000
+    instance_count: 1
+    instance_size_slug: basic-xxs
+    health_check:
+      http_path: /health/ready
+    envs:
+      - key: DATABASE_URL
+        scope: RUN_TIME
+        value: ${finmind-db.DATABASE_URL}
+      - key: REDIS_URL
+        scope: RUN_TIME
+        value: ${finmind-redis.REDIS_URL}
+      - key: JWT_SECRET
+        scope: RUN_TIME
+        type: SECRET
+      - key: LOG_LEVEL
+        scope: RUN_TIME
+        value: INFO
+      - key: GEMINI_MODEL
+        scope: RUN_TIME
+        value: gemini-1.5-flash
+      - key: CORS_ALLOWED_ORIGINS
+        scope: RUN_TIME
+        value: ${frontend.PUBLIC_URL}
+static_sites:
+  - name: frontend
+    git:
+      repo_clone_url: https://github.com/juzigu40-ui/FinMind.git
+      branch: codex/finmind-144-deploy-bounty
+      deploy_on_push: false
+    source_dir: app
+    build_command: npm ci && npm run build
+    output_dir: dist
+    envs:
+      - key: VITE_API_URL
+        scope: BUILD_TIME
+        value: ${backend.PUBLIC_URL}
+databases:
+  - name: finmind-db
+    engine: PG
+    production: false
+    version: "16"
+  - name: finmind-redis
+    engine: REDIS
+    production: false

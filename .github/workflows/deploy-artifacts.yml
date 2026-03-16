@@ -1,0 +1,104 @@
+name: Deploy Artifacts
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - 'docker-compose.prod.yml'
+      - 'render.yaml'
+      - 'railway.toml'
+      - 'heroku.yml'
+      - 'app.json'
+      - 'netlify.toml'
+      - 'vercel.json'
+      - '.do/app.yaml'
+      - 'deploy/**'
+      - 'Tiltfile'
+      - 'scripts/review-deploy.sh'
+      - 'scripts/collect-review-artifacts.sh'
+      - 'scripts/smoke-deploy.py'
+      - 'scripts/validate-deploy.sh'
+      - 'scripts/validate-observability.sh'
+      - 'docs/demo/**'
+      - 'app/**'
+      - 'packages/backend/**'
+  pull_request:
+    paths:
+      - 'docker-compose.prod.yml'
+      - 'render.yaml'
+      - 'railway.toml'
+      - 'heroku.yml'
+      - 'app.json'
+      - 'netlify.toml'
+      - 'vercel.json'
+      - '.do/app.yaml'
+      - 'deploy/**'
+      - 'Tiltfile'
+      - 'scripts/review-deploy.sh'
+      - 'scripts/collect-review-artifacts.sh'
+      - 'scripts/smoke-deploy.py'
+      - 'scripts/validate-deploy.sh'
+      - 'scripts/validate-observability.sh'
+      - 'docs/demo/**'
+      - 'app/**'
+      - 'packages/backend/**'
+
+permissions:
+  contents: read
+
+jobs:
+  compose-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare env
+        run: cp .env.example .env
+
+      - name: Run full review path
+        run: FINMIND_REVIEW_KEEP_RUNNING=1 ./scripts/review-deploy.sh
+
+      - name: Collect review artifacts
+        run: ./scripts/collect-review-artifacts.sh .artifacts/review
+
+      - name: Upload review artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: finmind-review-artifacts
+          path: .artifacts/review
+
+      - name: Compose logs on failure
+        if: failure()
+        run: docker compose -f docker-compose.prod.yml --profile observability logs --no-color
+
+      - name: Shutdown compose
+        if: always()
+        run: docker compose -f docker-compose.prod.yml --profile observability down -v
+
+  helm-render:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lint Helm chart
+        run: |
+          docker run --rm \
+            -v "$PWD":/work \
+            -w /work \
+            alpine/helm:3.16.2 \
+            lint deploy/helm/finmind
+
+      - name: Render Helm chart
+        run: |
+          docker run --rm \
+            -v "$PWD":/work \
+            -w /work \
+            alpine/helm:3.16.2 \
+            template finmind deploy/helm/finmind > /tmp/finmind-helm.yaml
+
+      - name: Ensure ingress and backend exist in rendered chart
+        run: |
+          grep -q "kind: Ingress" /tmp/finmind-helm.yaml
+          grep -q "name: finmind-backend" /tmp/finmind-helm.yaml
+          grep -q "name: finmind-prometheus" /tmp/finmind-helm.yaml
+          grep -q "name: finmind-grafana" /tmp/finmind-helm.yaml

@@ -1,0 +1,126 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ include "finmind.fullname" . }}-smoke
+  namespace: {{ .Values.namespaceOverride }}
+  annotations:
+    "helm.sh/hook": test
+spec:
+  restartPolicy: Never
+  containers:
+    - name: smoke
+      image: {{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}
+      imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+      command:
+        - sh
+        - -ec
+        - |
+          python - <<'PY'
+          import json
+          import time
+          import urllib.error
+          import urllib.parse
+          import urllib.request
+          from datetime import date, timedelta
+
+          API = "http://{{ include "finmind.fullname" . }}-backend:8000"
+          FRONTEND = "http://{{ include "finmind.fullname" . }}-frontend"
+
+          def request(method, url, payload=None, headers=None):
+              body = None
+              req_headers = {"Accept": "application/json"}
+              if payload is not None:
+                  body = json.dumps(payload).encode("utf-8")
+                  req_headers["Content-Type"] = "application/json"
+              if headers:
+                  req_headers.update(headers)
+              req = urllib.request.Request(url, data=body, headers=req_headers, method=method)
+              try:
+                  with urllib.request.urlopen(req, timeout=15) as response:
+                      text = response.read().decode("utf-8")
+                      data = None
+                      if "application/json" in (response.headers.get("Content-Type") or ""):
+                          data = json.loads(text)
+                      return response.status, text, data
+              except urllib.error.HTTPError as exc:
+                  text = exc.read().decode("utf-8")
+                  data = None
+                  if "application/json" in (exc.headers.get("Content-Type") or ""):
+                      data = json.loads(text)
+                  return exc.code, text, data
+
+          def wait_for(url):
+              deadline = time.time() + 180
+              while time.time() < deadline:
+                  try:
+                      status, _, _ = request("GET", url)
+                      if 200 <= status < 500:
+                          return
+                  except Exception:
+                      pass
+                  time.sleep(3)
+              raise SystemExit(f"timed out waiting for {url}")
+
+          wait_for(f"{API}/health/ready")
+          wait_for(FRONTEND)
+
+          ready_status, _, ready = request("GET", f"{API}/health/ready")
+          if ready_status != 200 or ready.get("status") != "ok":
+              raise SystemExit(f"unexpected readiness payload: {ready_status} {ready}")
+
+          front_status, front_body, _ = request("GET", FRONTEND)
+          if front_status != 200 or "FinMind" not in front_body:
+              raise SystemExit("frontend did not render FinMind shell")
+
+          email = f"helm-smoke-{int(time.time())}@example.com"
+          password = "SmokePassword123!"
+          if request("POST", f"{API}/auth/register", {"email": email, "password": password})[0] not in (200, 201):
+              raise SystemExit("register failed")
+
+          login_status, _, login_data = request("POST", f"{API}/auth/login", {"email": email, "password": password})
+          if login_status != 200 or not login_data.get("access_token"):
+              raise SystemExit("login failed")
+          auth = {"Authorization": f"Bearer {login_data['access_token']}"}
+
+          if request("POST", f"{API}/categories", {"name": "Helm Smoke Category"}, auth)[0] not in (201, 409):
+              raise SystemExit("category create failed")
+          _, _, categories = request("GET", f"{API}/categories", headers=auth)
+          category_id = (categories or [{}])[0].get("id")
+          if not category_id:
+              raise SystemExit("category list empty")
+
+          today = date.today()
+          due = today + timedelta(days=3)
+          month = today.strftime("%Y-%m")
+
+          if request("POST", f"{API}/expenses", {
+              "amount": 15.5,
+              "currency": "USD",
+              "category_id": category_id,
+              "description": "Helm smoke expense",
+              "date": today.isoformat(),
+              "expense_type": "EXPENSE",
+          }, auth)[0] != 201:
+              raise SystemExit("expense create failed")
+
+          bill_status, _, bill = request("POST", f"{API}/bills", {
+              "name": "Helm smoke bill",
+              "amount": 9.99,
+              "currency": "USD",
+              "next_due_date": due.isoformat(),
+              "cadence": "MONTHLY",
+              "channel_email": True,
+              "channel_whatsapp": False,
+          }, auth)
+          if bill_status != 201 or not bill.get("id"):
+              raise SystemExit("bill create failed")
+
+          if request("POST", f"{API}/reminders/bills/{bill['id']}/schedule", headers=auth)[0] != 200:
+              raise SystemExit("reminder schedule failed")
+
+          if request("GET", f"{API}/dashboard/summary?month={urllib.parse.quote(month)}", headers=auth)[0] != 200:
+              raise SystemExit("dashboard summary failed")
+
+          if request("GET", f"{API}/insights/budget-suggestion?month={urllib.parse.quote(month)}", headers=auth)[0] != 200:
+              raise SystemExit("insights failed")
+          PY

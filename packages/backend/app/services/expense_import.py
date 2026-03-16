@@ -45,14 +45,15 @@ def extract_transactions_from_statement(
 def normalize_import_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     normalized: list[dict[str, Any]] = []
     for row in rows:
+        if not isinstance(row, dict):
+            raise ValueError("invalid transaction payload")
         dt = _normalize_date(row.get("date"))
         amt = _normalize_amount(row.get("amount"))
         desc = str(row.get("description") or "").strip()
         if not dt or amt is None or not desc:
             continue
         expense_type = _infer_expense_type(row.get("expense_type"), desc, amt)
-        cid = row.get("category_id")
-        category_id = int(cid) if cid not in (None, "", "null") else None
+        category_id = _normalize_category_id(row.get("category_id"))
         normalized.append(
             {
                 "date": dt,
@@ -64,6 +65,16 @@ def normalize_import_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
             }
         )
     return normalized
+
+
+def _normalize_category_id(value: Any) -> int | None:
+    if value in (None, "", "null"):
+        return None
+    try:
+        category_id = int(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("invalid category_id") from exc
+    return category_id if category_id > 0 else None
 
 
 def _parse_csv_rows(data: bytes) -> list[dict[str, Any]]:

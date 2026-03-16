@@ -1,0 +1,10 @@
+provider=render
+commit_sha=a622e035bdfc0148f732aab603cc6b849c421152
+captured_at_utc=2026-03-15 19:33:14 UTC
+frontend_url=https://finmind-frontend-sexs.onrender.com
+api_url=https://finmind-backend-ht43.onrender.com
+health_url=https://finmind-backend-ht43.onrender.com/health/ready
+smoke_log=docs/bounty/provider-proofs/render/smoke.log
+ui_log=docs/bounty/provider-proofs/render/ui.log
+screenshot=docs/bounty/provider-proofs/render/render-2026-03-15-a622e03.png
+validated_at_utc=2026-03-15 19:46:45 UTC

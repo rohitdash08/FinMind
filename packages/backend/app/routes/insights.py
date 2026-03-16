@@ -13,6 +13,8 @@ logger = logging.getLogger("finmind.insights")
 def budget_suggestion():
     uid = int(get_jwt_identity())
     ym = (request.args.get("month") or date.today().strftime("%Y-%m")).strip()
+    if not _is_valid_month(ym):
+        return jsonify(error="invalid month, expected YYYY-MM"), 400
     user_gemini_key = (request.headers.get("X-Gemini-Api-Key") or "").strip() or None
     persona = (request.headers.get("X-Insight-Persona") or "").strip() or None
     suggestion = monthly_budget_suggestion(
@@ -23,3 +25,12 @@ def budget_suggestion():
     )
     logger.info("Budget suggestion served user=%s month=%s", uid, ym)
     return jsonify(suggestion)
+
+
+def _is_valid_month(ym: str) -> bool:
+    if len(ym) != 7 or ym[4] != "-":
+        return False
+    year, month = ym.split("-")
+    if not (year.isdigit() and month.isdigit()):
+        return False
+    return 1 <= int(month) <= 12

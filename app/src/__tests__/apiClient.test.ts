@@ -1,4 +1,4 @@
-import { api } from '@/api/client';
+import { api, resolveApiBaseUrl } from '@/api/client';
 import * as auth from '@/api/auth';
 
 // Use real localStorage via JSDOM
@@ -84,5 +84,10 @@ describe('api client', () => {
     await expect(api('/auth/login')).rejects.toThrow(
       'Server error. Please try again in a minute.',
     );
+  });
+
+  it('falls back to same-origin when no explicit API URL is configured', () => {
+    delete (globalThis as { __FINMIND_API_URL__?: string }).__FINMIND_API_URL__;
+    expect(resolveApiBaseUrl()).toBe('');
   });
 });

@@ -8,6 +8,8 @@ def test_auth_refresh_flow(client):
     # Login to get tokens
     r = client.post("/auth/login", json={"email": email, "password": password})
     assert r.status_code == 200
+    assert r.headers["Cache-Control"] == "no-store"
+    assert r.headers["Pragma"] == "no-cache"
     data = r.get_json()
     assert "access_token" in data and "refresh_token" in data
 
@@ -17,6 +19,7 @@ def test_auth_refresh_flow(client):
         "/auth/refresh", headers={"Authorization": f"Bearer {refresh_token}"}
     )
     assert r.status_code == 200
+    assert r.headers["Cache-Control"] == "no-store"
     new_access = r.get_json().get("access_token")
     assert isinstance(new_access, str) and len(new_access) > 10
 
@@ -66,3 +69,13 @@ def test_auth_me_and_update_preferred_currency(client):
 
     r = client.patch("/auth/me", json={"preferred_currency": "ZZZ"}, headers=auth)
     assert r.status_code == 400
+
+
+def test_auth_rejects_non_object_json_body(client):
+    r = client.post(
+        "/auth/register",
+        data='["bad"]',
+        content_type="application/json",
+    )
+    assert r.status_code == 400
+    assert r.get_json() == {"error": "json body must be an object"}

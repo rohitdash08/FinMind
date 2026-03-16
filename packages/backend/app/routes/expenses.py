@@ -6,6 +6,7 @@ from flask import Blueprint, current_app, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..extensions import db
 from ..models import Expense, RecurringCadence, RecurringExpense, User
+from ..request_utils import get_json_object
 from ..services.cache import cache_delete_patterns, monthly_summary_key
 from ..services import expense_import
 import logging
@@ -57,12 +58,24 @@ def list_expenses():
 def create_expense():
     uid = int(get_jwt_identity())
     user = db.session.get(User, uid)
-    data = request.get_json() or {}
+    data = get_json_object()
+    if data is None:
+        return jsonify(error="json body must be an object"), 400
     amount = _parse_amount(data.get("amount"))
     if amount is None:
         return jsonify(error="invalid amount"), 400
+    category_id = _parse_category_id(data.get("category_id"))
+    if (
+        "category_id" in data
+        and data.get("category_id") not in (None, "", "null")
+        and category_id is None
+    ):
+        return jsonify(error="invalid category_id"), 400
     raw_date = data.get("date") or data.get("spent_at")
-    description = (data.get("description") or data.get("notes") or "").strip()
+    spent_at = _parse_date(raw_date)
+    if raw_date and spent_at is None:
+        return jsonify(error="invalid date"), 400
+    description = str(data.get("description") or data.get("notes") or "").strip()
     if not description:
         return jsonify(error="description required"), 400
     e = Expense(
@@ -70,9 +83,9 @@ def create_expense():
         amount=amount,
         currency=(data.get("currency") or (user.preferred_currency if user else "INR")),
         expense_type=str(data.get("expense_type") or "EXPENSE").upper(),
-        category_id=data.get("category_id"),
+        category_id=category_id,
         notes=description,
-        spent_at=date.fromisoformat(raw_date) if raw_date else date.today(),
+        spent_at=spent_at or date.today(),
     )
     db.session.add(e)
     db.session.commit()
@@ -105,11 +118,20 @@ def list_recurring_expenses():
 def create_recurring_expense():
     uid = int(get_jwt_identity())
     user = db.session.get(User, uid)
-    data = request.get_json() or {}
+    data = get_json_object()
+    if data is None:
+        return jsonify(error="json body must be an object"), 400
     amount = _parse_amount(data.get("amount"))
     if amount is None:
         return jsonify(error="invalid amount"), 400
-    description = (data.get("description") or data.get("notes") or "").strip()
+    category_id = _parse_category_id(data.get("category_id"))
+    if (
+        "category_id" in data
+        and data.get("category_id") not in (None, "", "null")
+        and category_id is None
+    ):
+        return jsonify(error="invalid category_id"), 400
+    description = str(data.get("description") or data.get("notes") or "").strip()
     if not description:
         return jsonify(error="description required"), 400
     cadence = _parse_recurring_cadence(data.get("cadence"))
@@ -119,20 +141,20 @@ def create_recurring_expense():
     if not start_raw:
         return jsonify(error="start_date required"), 400
     try:
-        start_date = date.fromisoformat(start_raw)
-    except ValueError:
+        start_date = date.fromisoformat(str(start_raw))
+    except (TypeError, ValueError):
         return jsonify(error="invalid start_date"), 400
     end_date = None
     if data.get("end_date"):
         try:
-            end_date = date.fromisoformat(data.get("end_date"))
-        except ValueError:
+            end_date = date.fromisoformat(str(data.get("end_date")))
+        except (TypeError, ValueError):
             return jsonify(error="invalid end_date"), 400
         if end_date < start_date:
             return jsonify(error="end_date must be on or after start_date"), 400
     recurring = RecurringExpense(
         user_id=uid,
-        category_id=data.get("category_id"),
+        category_id=category_id,
         amount=amount,
         currency=(data.get("currency") or (user.preferred_currency if user else "INR")),
         expense_type=str(data.get("expense_type") or "EXPENSE").upper(),
@@ -153,13 +175,15 @@ def generate_recurring_expenses(recurring_id: int):
     recurring = db.session.get(RecurringExpense, recurring_id)
     if not recurring or recurring.user_id != uid:
         return jsonify(error="not found"), 404
-    payload = request.get_json() or {}
+    payload = get_json_object()
+    if payload is None:
+        return jsonify(error="json body must be an object"), 400
     through_raw = payload.get("through_date")
     if not through_raw:
         return jsonify(error="through_date required"), 400
     try:
-        through_date = date.fromisoformat(through_raw)
-    except ValueError:
+        through_date = date.fromisoformat(str(through_raw))
+    except (TypeError, ValueError):
         return jsonify(error="invalid through_date"), 400
     window_end = through_date
     if recurring.end_date and recurring.end_date < window_end:
@@ -209,7 +233,9 @@ def update_expense(expense_id: int):
     e = db.session.get(Expense, expense_id)
     if not e or e.user_id != uid:
         return jsonify(error="not found"), 404
-    data = request.get_json() or {}
+    data = get_json_object()
+    if data is None:
+        return jsonify(error="json body must be an object"), 400
     if "amount" in data:
         amount = _parse_amount(data.get("amount"))
         if amount is None:
@@ -220,15 +246,21 @@ def update_expense(expense_id: int):
     if "expense_type" in data:
         e.expense_type = str(data.get("expense_type") or "EXPENSE").upper()
     if "category_id" in data:
-        e.category_id = data.get("category_id")
+        category_id = _parse_category_id(data.get("category_id"))
+        if data.get("category_id") not in (None, "", "null") and category_id is None:
+            return jsonify(error="invalid category_id"), 400
+        e.category_id = category_id
     if "description" in data or "notes" in data:
-        description = (data.get("description") or data.get("notes") or "").strip()
+        description = str(data.get("description") or data.get("notes") or "").strip()
         if not description:
             return jsonify(error="description required"), 400
         e.notes = description
     if "date" in data or "spent_at" in data:
         raw_date = data.get("date") or data.get("spent_at")
-        e.spent_at = date.fromisoformat(raw_date)
+        spent_at = _parse_date(raw_date)
+        if spent_at is None:
+            return jsonify(error="invalid date"), 400
+        e.spent_at = spent_at
     db.session.commit()
     _invalidate_expense_cache(uid, e.spent_at.isoformat())
     return jsonify(_expense_to_dict(e))
@@ -267,9 +299,9 @@ def import_preview():
         transactions = expense_import.normalize_import_rows(rows)
     except ValueError as exc:
         return jsonify(error=str(exc)), 400
-    except Exception as exc:  # pragma: no cover
+    except Exception:  # pragma: no cover
         logger.exception("Import preview failed user=%s", uid)
-        return jsonify(error=f"failed to parse statement: {exc}"), 500
+        return jsonify(error="failed to parse statement"), 500
     duplicates = sum(1 for t in transactions if _is_duplicate(uid, t))
     return jsonify(
         total=len(transactions), duplicates=duplicates, transactions=transactions
@@ -281,11 +313,18 @@ def import_preview():
 def import_commit():
     uid = int(get_jwt_identity())
     user = db.session.get(User, uid)
-    data = request.get_json() or {}
+    data = get_json_object()
+    if data is None:
+        return jsonify(error="json body must be an object"), 400
     rows = data.get("transactions") or []
     if not isinstance(rows, list) or not rows:
         return jsonify(error="transactions required"), 400
-    transactions = expense_import.normalize_import_rows(rows)
+    try:
+        transactions = expense_import.normalize_import_rows(rows)
+    except ValueError as exc:
+        return jsonify(error=str(exc)), 400
+    if not transactions:
+        return jsonify(error="no valid transactions"), 400
     inserted = 0
     duplicates = 0
     touched_months: set[str] = set()
@@ -343,6 +382,27 @@ def _parse_amount(raw) -> Decimal | None:
         return Decimal(str(raw)).quantize(Decimal("0.01"))
     except (InvalidOperation, ValueError, TypeError):
         return None
+
+
+def _parse_date(raw) -> date | None:
+    if not raw:
+        return None
+    try:
+        return date.fromisoformat(str(raw))
+    except ValueError:
+        return None
+
+
+def _parse_category_id(raw) -> int | None:
+    if raw in (None, "", "null"):
+        return None
+    try:
+        category_id = int(raw)
+    except (TypeError, ValueError):
+        return None
+    if category_id <= 0:
+        return None
+    return category_id
 
 
 def _parse_recurring_cadence(raw: str | None) -> str | None:

@@ -1,0 +1,53 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "finmind.fullname" . }}-postgres-data
+  namespace: {{ .Values.namespaceOverride }}
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: {{ .Values.postgres.storageSize }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "finmind.fullname" . }}-postgres
+  namespace: {{ .Values.namespaceOverride }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ include "finmind.fullname" . }}-postgres
+  template:
+    metadata:
+      labels:
+        app: {{ include "finmind.fullname" . }}-postgres
+    spec:
+      containers:
+        - name: postgres
+          image: {{ .Values.postgres.image }}
+          envFrom:
+            - secretRef:
+                name: {{ include "finmind.fullname" . }}-secrets
+          ports:
+            - containerPort: 5432
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "finmind.fullname" . }}-postgres-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "finmind.fullname" . }}-postgres
+  namespace: {{ .Values.namespaceOverride }}
+spec:
+  selector:
+    app: {{ include "finmind.fullname" . }}-postgres
+  ports:
+    - port: 5432
+      targetPort: 5432

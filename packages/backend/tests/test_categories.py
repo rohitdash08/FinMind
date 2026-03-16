@@ -36,3 +36,14 @@ def test_categories_crud_flow(client, auth_header):
     r = client.get("/categories", headers=auth_header)
     assert r.status_code == 200
     assert r.get_json() == []
+
+
+def test_categories_reject_non_object_json_body(client, auth_header):
+    r = client.post(
+        "/categories",
+        data='["bad"]',
+        content_type="application/json",
+        headers=auth_header,
+    )
+    assert r.status_code == 400
+    assert r.get_json() == {"error": "json body must be an object"}

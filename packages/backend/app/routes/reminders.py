@@ -1,9 +1,10 @@
 from datetime import datetime, time, timedelta
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..extensions import db
 from ..models import Bill, Reminder
 from ..observability import track_reminder_event
+from ..request_utils import get_json_object
 from ..services.reminders import send_reminder
 import logging
 
@@ -40,11 +41,19 @@ def list_reminders():
 @jwt_required()
 def create_reminder():
     uid = int(get_jwt_identity())
-    data = request.get_json() or {}
+    data = get_json_object()
+    if data is None:
+        return jsonify(error="json body must be an object"), 400
+    message = str(data.get("message") or "").strip()
+    if not message:
+        return jsonify(error="message required"), 400
+    send_at = _parse_send_at(data.get("send_at"))
+    if send_at is None:
+        return jsonify(error="invalid send_at"), 400
     r = Reminder(
         user_id=uid,
-        message=data["message"],
-        send_at=datetime.fromisoformat(data["send_at"]),
+        message=message,
+        send_at=send_at,
         channel=data.get("channel", "email"),
     )
     db.session.add(r)
@@ -61,7 +70,9 @@ def schedule_bill_reminders(bill_id: int):
     bill = db.session.get(Bill, bill_id)
     if not bill or bill.user_id != uid:
         return jsonify(error="not found"), 404
-    data = request.get_json(silent=True) or {}
+    data = get_json_object()
+    if data is None:
+        return jsonify(error="json body must be an object"), 400
     offsets = data.get("offsets_days")
     if offsets is None:
         offsets = [7, 3, 1]
@@ -125,7 +136,9 @@ def autopay_result_followup(bill_id: int):
     bill = db.session.get(Bill, bill_id)
     if not bill or bill.user_id != uid:
         return jsonify(error="not found"), 404
-    data = request.get_json(silent=True) or {}
+    data = get_json_object()
+    if data is None:
+        return jsonify(error="json body must be an object"), 400
     status = str(data.get("status") or "").upper().strip()
     if status not in {"SUCCESS", "FAILED"}:
         return jsonify(error="status must be SUCCESS or FAILED"), 400
@@ -221,3 +234,12 @@ def _create_reminder_if_missing(
         )
     )
     return True
+
+
+def _parse_send_at(raw) -> datetime | None:
+    if not raw:
+        return None
+    try:
+        return datetime.fromisoformat(str(raw))
+    except ValueError:
+        return None

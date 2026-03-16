@@ -90,3 +90,12 @@ def test_budget_suggestion_falls_back_when_gemini_fails(
     assert payload["method"] == "heuristic"
     assert "warnings" in payload
     assert "gemini_unavailable" in payload["warnings"]
+
+
+def test_budget_suggestion_rejects_invalid_month_with_400(client, auth_header):
+    r = client.get(
+        "/insights/budget-suggestion?month=2026-13",
+        headers=auth_header,
+    )
+    assert r.status_code == 400
+    assert r.get_json() == {"error": "invalid month, expected YYYY-MM"}

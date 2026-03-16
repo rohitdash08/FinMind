@@ -80,3 +80,27 @@ def test_autopay_generates_precheck_and_result_followup_for_both_channels(
     followups = [x for x in reminders if "Autopay succeeded" in x["message"]]
     assert len(followups) == 2
     assert sorted([x["channel"] for x in followups]) == ["email", "whatsapp"]
+
+
+def test_create_reminder_rejects_invalid_payload_with_400(client, auth_header):
+    r = client.post(
+        "/reminders",
+        json={"message": "", "send_at": "not-a-date"},
+        headers=auth_header,
+    )
+    assert r.status_code == 400
+    assert r.get_json()["error"] in {"message required", "invalid send_at"}
+
+
+def test_bill_reminder_schedule_rejects_non_object_json_body(client, auth_header):
+    bill_id = _create_bill(client, auth_header, due_date="2026-03-20")
+
+    r = client.post(
+        f"/reminders/bills/{bill_id}/schedule",
+        data='["bad"]',
+        content_type="application/json",
+        headers=auth_header,
+    )
+
+    assert r.status_code == 400
+    assert r.get_json() == {"error": "json body must be an object"}

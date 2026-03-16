@@ -1,0 +1,280 @@
+{{- if .Values.monitoring.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "finmind.fullname" . }}-prometheus-data
+  namespace: {{ .Values.namespaceOverride }}
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: {{ .Values.monitoring.prometheus.storageSize }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "finmind.fullname" . }}-prometheus
+  namespace: {{ .Values.namespaceOverride }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ include "finmind.fullname" . }}-prometheus
+  template:
+    metadata:
+      labels:
+        app: {{ include "finmind.fullname" . }}-prometheus
+    spec:
+      containers:
+        - name: prometheus
+          image: {{ .Values.monitoring.prometheus.image }}
+          args:
+            - --config.file=/etc/prometheus/prometheus.yml
+            - --storage.tsdb.retention.time={{ .Values.monitoring.prometheus.retentionTime }}
+            - --storage.tsdb.retention.size={{ .Values.monitoring.prometheus.retentionSize }}
+          ports:
+            - containerPort: 9090
+          volumeMounts:
+            - name: config
+              mountPath: /etc/prometheus/prometheus.yml
+              subPath: prometheus.yml
+            - name: data
+              mountPath: /prometheus
+          resources:
+{{ toYaml .Values.monitoring.prometheus.resources | indent 12 }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "finmind.fullname" . }}-prometheus-config
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "finmind.fullname" . }}-prometheus-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "finmind.fullname" . }}-prometheus
+  namespace: {{ .Values.namespaceOverride }}
+spec:
+  selector:
+    app: {{ include "finmind.fullname" . }}-prometheus
+  ports:
+    - port: 9090
+      targetPort: 9090
+      name: http
+---
+{{- if .Values.monitoring.grafana.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "finmind.fullname" . }}-grafana
+  namespace: {{ .Values.namespaceOverride }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ include "finmind.fullname" . }}-grafana
+  template:
+    metadata:
+      labels:
+        app: {{ include "finmind.fullname" . }}-grafana
+    spec:
+      containers:
+        - name: grafana
+          image: {{ .Values.monitoring.grafana.image }}
+          ports:
+            - containerPort: 3000
+          env:
+            - name: GF_SECURITY_ADMIN_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "finmind.fullname" . }}-secrets
+                  key: GRAFANA_ADMIN_USER
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "finmind.fullname" . }}-secrets
+                  key: GRAFANA_ADMIN_PASSWORD
+            - name: GF_USERS_ALLOW_SIGN_UP
+              value: "false"
+          volumeMounts:
+            - name: datasources
+              mountPath: /etc/grafana/provisioning/datasources/datasources.yml
+              subPath: datasources.yml
+            - name: data
+              mountPath: /var/lib/grafana
+          resources:
+{{ toYaml .Values.monitoring.grafana.resources | indent 12 }}
+      volumes:
+        - name: datasources
+          configMap:
+            name: {{ include "finmind.fullname" . }}-grafana-datasources
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "finmind.fullname" . }}-grafana
+  namespace: {{ .Values.namespaceOverride }}
+spec:
+  selector:
+    app: {{ include "finmind.fullname" . }}-grafana
+  ports:
+    - port: 3000
+      targetPort: 3000
+      name: http
+---
+{{- if .Values.monitoring.grafana.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "finmind.fullname" . }}-grafana
+  namespace: {{ .Values.namespaceOverride }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  rules:
+    - host: {{ .Values.monitoring.grafana.ingress.host }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "finmind.fullname" . }}-grafana
+                port:
+                  number: 3000
+{{- end }}
+---
+{{- end }}
+{{- if .Values.monitoring.exporters.postgres.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "finmind.fullname" . }}-postgres-exporter
+  namespace: {{ .Values.namespaceOverride }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ include "finmind.fullname" . }}-postgres-exporter
+  template:
+    metadata:
+      labels:
+        app: {{ include "finmind.fullname" . }}-postgres-exporter
+    spec:
+      containers:
+        - name: postgres-exporter
+          image: {{ .Values.monitoring.exporters.postgres.image }}
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "finmind.fullname" . }}-secrets
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "finmind.fullname" . }}-secrets
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "finmind.fullname" . }}-secrets
+                  key: POSTGRES_DB
+            - name: DATA_SOURCE_NAME
+              value: postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@{{ include "finmind.fullname" . }}-postgres:5432/$(POSTGRES_DB)?sslmode=disable
+          ports:
+            - containerPort: {{ .Values.monitoring.exporters.postgres.port }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "finmind.fullname" . }}-postgres-exporter
+  namespace: {{ .Values.namespaceOverride }}
+spec:
+  selector:
+    app: {{ include "finmind.fullname" . }}-postgres-exporter
+  ports:
+    - port: {{ .Values.monitoring.exporters.postgres.port }}
+      targetPort: {{ .Values.monitoring.exporters.postgres.port }}
+      name: metrics
+---
+{{- end }}
+{{- if .Values.monitoring.exporters.redis.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "finmind.fullname" . }}-redis-exporter
+  namespace: {{ .Values.namespaceOverride }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ include "finmind.fullname" . }}-redis-exporter
+  template:
+    metadata:
+      labels:
+        app: {{ include "finmind.fullname" . }}-redis-exporter
+    spec:
+      containers:
+        - name: redis-exporter
+          image: {{ .Values.monitoring.exporters.redis.image }}
+          env:
+            - name: REDIS_ADDR
+              value: redis://{{ include "finmind.fullname" . }}-redis:6379
+          ports:
+            - containerPort: {{ .Values.monitoring.exporters.redis.port }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "finmind.fullname" . }}-redis-exporter
+  namespace: {{ .Values.namespaceOverride }}
+spec:
+  selector:
+    app: {{ include "finmind.fullname" . }}-redis-exporter
+  ports:
+    - port: {{ .Values.monitoring.exporters.redis.port }}
+      targetPort: {{ .Values.monitoring.exporters.redis.port }}
+      name: metrics
+---
+{{- end }}
+{{- if .Values.monitoring.exporters.nginx.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "finmind.fullname" . }}-nginx-exporter
+  namespace: {{ .Values.namespaceOverride }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ include "finmind.fullname" . }}-nginx-exporter
+  template:
+    metadata:
+      labels:
+        app: {{ include "finmind.fullname" . }}-nginx-exporter
+    spec:
+      containers:
+        - name: nginx-exporter
+          image: {{ .Values.monitoring.exporters.nginx.image }}
+          args:
+            - -nginx.scrape-uri=http://{{ include "finmind.fullname" . }}-frontend/nginx_status
+          ports:
+            - containerPort: {{ .Values.monitoring.exporters.nginx.port }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "finmind.fullname" . }}-nginx-exporter
+  namespace: {{ .Values.namespaceOverride }}
+spec:
+  selector:
+    app: {{ include "finmind.fullname" . }}-nginx-exporter
+  ports:
+    - port: {{ .Values.monitoring.exporters.nginx.port }}
+      targetPort: {{ .Values.monitoring.exporters.nginx.port }}
+      name: metrics
+{{- end }}
+{{- end }}

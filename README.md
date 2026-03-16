@@ -144,6 +144,10 @@ finmind/
 - Frontend: Vercel.
 - Secrets: use environment variables (.env locally, platform secrets in cloud).
 - Kubernetes manifests for full stack deployment are available in `deploy/k8s/`.
+- Production deployment artifacts are documented in `DEPLOY.md`.
+- Single-command production Compose entrypoints:
+  - POSIX: `./scripts/deploy-prod.sh`
+  - PowerShell: `./scripts/deploy-prod.ps1`
 
 ## Local Development
 1) Prereqs: Docker, Docker Compose, Node 20+, Python 3.11+
@@ -155,6 +159,13 @@ finmind/
    - Prometheus: http://localhost:9090
    - Loki: http://localhost:3100
    - Nginx proxy: http://localhost:8080 (status at `/nginx_status`)
+
+### Production-style local verification
+- Copy env: `cp .env.example .env`
+- Start prod stack: `./scripts/deploy-prod.sh`
+- Smoke-check runtime acceptance: `./scripts/validate-deploy.sh`
+- Full maintainer review path: `./scripts/review-deploy.sh`
+- CI review artifact bundle: `finmind-review-artifacts`
 
 ### Backend Test Runner (No local pytest setup required)
 - PowerShell (Windows):

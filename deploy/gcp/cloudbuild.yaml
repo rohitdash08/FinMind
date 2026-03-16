@@ -1,0 +1,35 @@
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - $_APP_IMAGE
+      - -f
+      - Dockerfile.fullstack
+      - .
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - $_APP_IMAGE
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: bash
+    env:
+      - GCP_PROJECT_ID=$PROJECT_ID
+      - GCP_REGION=$_REGION
+      - GCP_SERVICE_NAME=$_SERVICE_NAME
+      - APP_IMAGE=$_APP_IMAGE
+      - DATABASE_URL=$_DATABASE_URL
+      - REDIS_URL=$_REDIS_URL
+      - JWT_SECRET=$_JWT_SECRET
+      - LOG_LEVEL=INFO
+      - GEMINI_MODEL=gemini-1.5-flash
+    args:
+      - -lc
+      - ./deploy/gcp/deploy.sh --skip-build
+substitutions:
+  _REGION: us-central1
+  _SERVICE_NAME: finmind
+  _APP_IMAGE: us-central1-docker.pkg.dev/$PROJECT_ID/finmind/app:latest
+  _DATABASE_URL: ""
+  _REDIS_URL: ""
+  _JWT_SECRET: ""

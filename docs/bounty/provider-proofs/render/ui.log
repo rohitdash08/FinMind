@@ -1,0 +1,19 @@
+[2026-03-15T22:33:47.745Z] provider=render
+[2026-03-15T22:33:47.745Z] commit_sha=63ab7de
+[2026-03-15T22:33:47.745Z] validated_at_utc=2026-03-15T22:33:47.745Z
+[2026-03-15T22:33:47.745Z] frontend_url=https://finmind-frontend-sexs.onrender.com
+[2026-03-15T22:33:47.745Z] health_url=https://finmind-backend-ht43.onrender.com/health/ready
+[2026-03-15T22:33:47.745Z] step=readiness
+[2026-03-15T22:33:55.052Z] step=readiness ok
+[2026-03-15T22:33:55.052Z] step=signup
+[2026-03-15T22:34:12.335Z] step=signup ok
+[2026-03-15T22:34:17.243Z] step=bills
+[2026-03-15T22:34:29.490Z] step=bills ok
+[2026-03-15T22:34:29.490Z] step=reminders
+[2026-03-15T22:34:33.581Z] step=reminders ok
+[2026-03-15T22:34:33.581Z] step=expenses
+[2026-03-15T22:34:40.640Z] step=expenses ok
+[2026-03-15T22:34:50.215Z] step=insights
+[2026-03-15T22:35:05.360Z] step=insights ok
+FinMind UI validation passed for render
+ui_path=readiness -> signup -> dashboard -> bills -> reminders -> expenses -> insights

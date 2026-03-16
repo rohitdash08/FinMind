@@ -1,8 +1,9 @@
 import logging
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..extensions import db
 from ..models import Category
+from ..request_utils import get_json_object
 
 bp = Blueprint("categories", __name__)
 logger = logging.getLogger("finmind.categories")
@@ -23,8 +24,10 @@ def list_categories():
 @jwt_required()
 def create_category():
     uid = int(get_jwt_identity())
-    data = request.get_json() or {}
-    name = (data.get("name") or "").strip()
+    data = get_json_object()
+    if data is None:
+        return jsonify(error="json body must be an object"), 400
+    name = str(data.get("name") or "").strip()
     if not name:
         logger.warning("Create category missing name user=%s", uid)
         return jsonify(error="name required"), 400
@@ -46,8 +49,10 @@ def update_category(category_id: int):
     c = db.session.get(Category, category_id)
     if not c or c.user_id != uid:
         return jsonify(error="not found"), 404
-    data = request.get_json() or {}
-    name = (data.get("name") or "").strip()
+    data = get_json_object()
+    if data is None:
+        return jsonify(error="json body must be an object"), 400
+    name = str(data.get("name") or "").strip()
     if not name:
         return jsonify(error="name required"), 400
     c.name = name
