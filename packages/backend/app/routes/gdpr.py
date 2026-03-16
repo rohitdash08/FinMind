@@ -9,7 +9,7 @@ Audit trail: every action is logged to the AuditLog table.
 """
 
 from datetime import datetime, timezone
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..extensions import db
 from ..models import (
@@ -23,13 +23,19 @@ from ..models import (
     UserSubscription,
 )
 import logging
+import time
 
 bp = Blueprint("gdpr", __name__)
 logger = logging.getLogger("finmind.gdpr")
 
-# Kept for backwards compatibility so existing tests can import and call .clear()
-# without errors.  Deletion state is now persisted in User.deletion_requested_at.
-_pending_deletions: dict = {}
+# ---------------------------------------------------------------------------
+# Rate-limit state for POST /gdpr/export
+# Maps user_id → Unix timestamp (float) of the last accepted export request.
+# NOTE: This is in-process only; in a multi-worker deployment replace with a
+# shared backend (e.g. Redis) so limits are enforced across all workers.
+# ---------------------------------------------------------------------------
+_export_rate_limit: dict[int, float] = {}
+_EXPORT_RATE_LIMIT_SECONDS: int = 60
 
 
 # ---------------------------------------------------------------------------
@@ -139,8 +145,31 @@ def _subscription_to_dict(s: UserSubscription) -> dict:
 @bp.post("/export")
 @jwt_required()
 def export_pii():
-    """Generate and return a structured JSON export of all user PII data."""
+    """Generate and return a structured JSON export of all user PII data.
+
+    Rate-limited to one request per ``_EXPORT_RATE_LIMIT_SECONDS`` seconds per
+    authenticated user to prevent bulk scraping by compromised accounts.
+    """
     uid = int(get_jwt_identity())
+
+    # Rate-limit check: reject if the user already triggered an export recently.
+    now = time.time()
+    last_export = _export_rate_limit.get(uid)
+    if last_export is not None:
+        elapsed = now - last_export
+        if elapsed < _EXPORT_RATE_LIMIT_SECONDS:
+            retry_after = int(_EXPORT_RATE_LIMIT_SECONDS - elapsed) + 1
+            logger.warning(
+                "GDPR export rate-limited for user_id=%s (%.1fs since last export)",
+                uid,
+                elapsed,
+            )
+            return jsonify(
+                error="export rate limit exceeded; try again later",
+                retry_after_seconds=retry_after,
+            ), 429
+    _export_rate_limit[uid] = now
+
     user = db.session.get(User, uid)
     if not user:
         return jsonify(error="user not found"), 404
@@ -217,6 +246,14 @@ def confirm_delete():
     # Audit before deleting (retain per GDPR compliance — logs survive deletion).
     _audit(uid, "GDPR_DELETE_CONFIRMED")
     db.session.flush()
+
+    # NOTE — JWT token remains valid until its natural expiry: Flask-JWT-Extended
+    # does not maintain a server-side token registry by default, so revoking a
+    # token requires an external blocklist (e.g. Redis-backed JTI blocklist).
+    # Any request made with the same bearer token after this point will return
+    # 404 (user not found) because the user row is gone, which is safe but not
+    # a cryptographic revocation.  Consider adding a token blocklist if
+    # immediate invalidation is a hard requirement.
 
     # Cascade delete: reminders -> bills -> expenses -> recurring -> categories
     # -> subscriptions -> user.  AuditLog rows are kept for compliance.

@@ -113,6 +113,23 @@ def test_export_audit_logged(client, app_fixture):
         assert len(logs) >= 1
 
 
+def test_export_rate_limited(client, app_fixture):
+    """Second consecutive export from the same user must be rejected (429)."""
+    from app.routes.gdpr import _export_rate_limit
+
+    uid, auth = _make_user(app_fixture, "ratelimit@gdpr.test")
+    # Ensure no prior state for this user.
+    _export_rate_limit.pop(uid, None)
+
+    r1 = client.post("/gdpr/export", headers=auth)
+    assert r1.status_code == 200
+
+    r2 = client.post("/gdpr/export", headers=auth)
+    assert r2.status_code == 429
+    data = r2.get_json()
+    assert "retry_after_seconds" in data
+
+
 # ---------------------------------------------------------------------------
 # Delete-initiation tests
 # ---------------------------------------------------------------------------
@@ -124,9 +141,7 @@ def test_delete_requires_auth(client):
 
 
 def test_delete_initiate(client, app_fixture):
-    from app.routes.gdpr import _pending_deletions
     _uid, auth = _make_user(app_fixture, "delinit@gdpr.test")
-    _pending_deletions.clear()
     r = client.post("/gdpr/delete", headers=auth)
     assert r.status_code == 202
     data = r.get_json()
@@ -135,9 +150,7 @@ def test_delete_initiate(client, app_fixture):
 
 
 def test_delete_initiate_idempotent(client, app_fixture):
-    from app.routes.gdpr import _pending_deletions
     _uid, auth = _make_user(app_fixture, "delidem@gdpr.test")
-    _pending_deletions.clear()
     r1 = client.post("/gdpr/delete", headers=auth)
     r2 = client.post("/gdpr/delete", headers=auth)
     assert r1.status_code == 202
@@ -146,9 +159,7 @@ def test_delete_initiate_idempotent(client, app_fixture):
 
 
 def test_delete_audit_logged(client, app_fixture):
-    from app.routes.gdpr import _pending_deletions
     uid, auth = _make_user(app_fixture, "delaudit@gdpr.test")
-    _pending_deletions.clear()
     client.post("/gdpr/delete", headers=auth)
     with app_fixture.app_context():
         from app.models import AuditLog
@@ -164,17 +175,13 @@ def test_delete_audit_logged(client, app_fixture):
 
 
 def test_confirm_delete_without_initiation(client, app_fixture):
-    from app.routes.gdpr import _pending_deletions
     _uid, auth = _make_user(app_fixture, "nodelpend@gdpr.test")
-    _pending_deletions.clear()
     r = client.delete("/gdpr/delete/confirm", headers=auth)
     assert r.status_code == 409
 
 
 def test_confirm_delete_full_flow(client, app_fixture):
-    from app.routes.gdpr import _pending_deletions
     uid, auth = _make_user(app_fixture, "hardel@gdpr.test")
-    _pending_deletions.clear()
     _seed_data(uid, app_fixture)
 
     # Export before deletion works
@@ -191,15 +198,15 @@ def test_confirm_delete_full_flow(client, app_fixture):
     assert r_confirm.status_code == 200
     assert "permanently deleted" in r_confirm.get_json()["message"].lower()
 
-    # Subsequent requests with the same token should fail (user deleted)
+    # Subsequent requests with the same token should fail (user deleted).
+    # NOTE: the JWT is still cryptographically valid but returns 404 because
+    # the user row no longer exists — see comment in confirm_delete().
     r_after = client.post("/gdpr/export", headers=auth)
     assert r_after.status_code == 404
 
 
 def test_confirm_delete_audit_logged(client, app_fixture):
-    from app.routes.gdpr import _pending_deletions
     uid, auth = _make_user(app_fixture, "confirmaudit@gdpr.test")
-    _pending_deletions.clear()
     client.post("/gdpr/delete", headers=auth)
     client.delete("/gdpr/delete/confirm", headers=auth)
     with app_fixture.app_context():
@@ -210,15 +217,16 @@ def test_confirm_delete_audit_logged(client, app_fixture):
         assert len(logs) >= 1
 
 
-def test_confirm_delete_clears_pending_state(client, app_fixture):
-    """After hard-delete, the pending entry must be removed."""
-    from app.routes.gdpr import _pending_deletions
+def test_confirm_delete_user_gone(client, app_fixture):
+    """After hard-delete the user row must not exist in the DB."""
     uid, auth = _make_user(app_fixture, "clearpend@gdpr.test")
-    _pending_deletions.clear()
     client.post("/gdpr/delete", headers=auth)
     client.delete("/gdpr/delete/confirm", headers=auth)
-    # After deletion the user is gone: subsequent attempt returns 404
+
+    # The user row is gone: a second confirm attempt returns 404.
     r = client.delete("/gdpr/delete/confirm", headers=auth)
     assert r.status_code == 404
-    # And the pending dict must not retain a stale entry for deleted user
-    assert uid not in _pending_deletions
+
+    # Verify at DB level that the user row was actually removed.
+    with app_fixture.app_context():
+        assert _db.session.get(User, uid) is None
