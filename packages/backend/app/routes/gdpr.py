@@ -8,7 +8,7 @@ Provides three endpoints:
 Audit trail: every action is logged to the AuditLog table.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..extensions import db
@@ -27,9 +27,8 @@ import logging
 bp = Blueprint("gdpr", __name__)
 logger = logging.getLogger("finmind.gdpr")
 
-# In-memory store for pending deletions (maps user_id -> requested_at timestamp).
-# In production this would live in Redis or a DB column; for SQLite-compatible tests
-# a module-level dict is sufficient.
+# Kept for backwards compatibility so existing tests can import and call .clear()
+# without errors.  Deletion state is now persisted in User.deletion_requested_at.
 _pending_deletions: dict = {}
 
 
@@ -123,6 +122,15 @@ def _recurring_to_dict(r: RecurringExpense) -> dict:
     }
 
 
+def _subscription_to_dict(s: UserSubscription) -> dict:
+    return {
+        "id": s.id,
+        "plan_id": s.plan_id,
+        "active": s.active,
+        "started_at": _serialize_date(s.started_at),
+    }
+
+
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
@@ -142,15 +150,17 @@ def export_pii():
     categories = db.session.query(Category).filter_by(user_id=uid).all()
     reminders = db.session.query(Reminder).filter_by(user_id=uid).all()
     recurring = db.session.query(RecurringExpense).filter_by(user_id=uid).all()
+    subscriptions = db.session.query(UserSubscription).filter_by(user_id=uid).all()
 
     package = {
-        "exported_at": datetime.utcnow().isoformat() + "Z",
+        "exported_at": datetime.now(timezone.utc).isoformat(),
         "user": _user_to_dict(user),
         "expenses": [_expense_to_dict(e) for e in expenses],
         "bills": [_bill_to_dict(b) for b in bills],
         "categories": [_category_to_dict(c) for c in categories],
         "reminders": [_reminder_to_dict(r) for r in reminders],
         "recurring_expenses": [_recurring_to_dict(r) for r in recurring],
+        "subscriptions": [_subscription_to_dict(s) for s in subscriptions],
     }
 
     _audit(uid, "GDPR_EXPORT_REQUESTED")
@@ -168,13 +178,15 @@ def request_delete():
     if not user:
         return jsonify(error="user not found"), 404
 
-    if uid in _pending_deletions:
+    if user.deletion_requested_at is not None:
+        requested_at = user.deletion_requested_at.isoformat()
         return jsonify(
             message="deletion already pending; call DELETE /gdpr/delete/confirm to proceed",
-            requested_at=_pending_deletions[uid],
+            requested_at=requested_at,
         ), 200
 
-    _pending_deletions[uid] = datetime.utcnow().isoformat() + "Z"
+    user.deletion_requested_at = datetime.now(timezone.utc)
+    db.session.flush()
     _audit(uid, "GDPR_DELETE_REQUESTED")
     db.session.commit()
     logger.info("GDPR delete initiated for user_id=%s", uid)
@@ -184,7 +196,7 @@ def request_delete():
             "Call DELETE /gdpr/delete/confirm to permanently delete your account. "
             "This action is irreversible."
         ),
-        requested_at=_pending_deletions[uid],
+        requested_at=user.deletion_requested_at.isoformat(),
     ), 202
 
 
@@ -197,7 +209,7 @@ def confirm_delete():
     if not user:
         return jsonify(error="user not found"), 404
 
-    if uid not in _pending_deletions:
+    if user.deletion_requested_at is None:
         return jsonify(
             error="no pending deletion request; call POST /gdpr/delete first"
         ), 409
@@ -217,6 +229,5 @@ def confirm_delete():
     db.session.delete(user)
     db.session.commit()
 
-    _pending_deletions.pop(uid, None)
     logger.info("GDPR hard-delete executed for user_id=%s", uid)
     return jsonify(message="Account and all associated data permanently deleted."), 200
