@@ -2,6 +2,7 @@ from datetime import date
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..services.ai import monthly_budget_suggestion
+from ..services.savings import detect_savings_opportunities
 import logging
 
 bp = Blueprint("insights", __name__)
@@ -23,3 +24,27 @@ def budget_suggestion():
     )
     logger.info("Budget suggestion served user=%s month=%s", uid, ym)
     return jsonify(suggestion)
+
+
+@bp.get("/savings-opportunities")
+@jwt_required()
+def savings_opportunities():
+    """Detect and return personalised savings opportunities for the current user.
+
+    Query params:
+      - months: look-back window in months (default 3, max 12)
+    """
+    uid = int(get_jwt_identity())
+    try:
+        months = min(int(request.args.get("months", 3)), 12)
+    except (ValueError, TypeError):
+        months = 3
+
+    report = detect_savings_opportunities(uid, months=months)
+    logger.info(
+        "Savings opportunities analysed user=%s months=%s opportunities=%s",
+        uid,
+        months,
+        report["summary"]["total_opportunities"],
+    )
+    return jsonify(report)
