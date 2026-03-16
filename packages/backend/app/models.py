@@ -133,3 +133,32 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class CategorizationRule(db.Model):
+    __tablename__ = "categorization_rules"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    keyword = db.Column(db.String(200), nullable=False)
+    category_name = db.Column(db.String(100), nullable=False)
+    confidence = db.Column(db.Float, default=0.80, nullable=False)
+    source = db.Column(db.String(20), default="learned", nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(
+        db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+    )
+from datetime import datetime
+from .extensions import db
+
+
+class TrustedDevice(db.Model):
+    __tablename__ = "trusted_devices"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    device_name = db.Column(db.String(200), nullable=False)
+    device_fingerprint = db.Column(db.String(64), nullable=False, unique=False)
+    user_agent = db.Column(db.String(500), nullable=True)
+    ip_address = db.Column(db.String(45), nullable=True)
+    trusted = db.Column(db.Boolean, default=True, nullable=False)
+    last_seen_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
