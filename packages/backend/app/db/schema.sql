@@ -123,3 +123,19 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   action VARCHAR(100) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS background_jobs (
+  id SERIAL PRIMARY KEY,
+  job_type VARCHAR(100) NOT NULL,
+  payload TEXT,
+  status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+  attempts INT NOT NULL DEFAULT 0,
+  max_attempts INT NOT NULL DEFAULT 5,
+  last_error TEXT,
+  next_run_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  last_run_at TIMESTAMP,
+  finished_at TIMESTAMP,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_background_jobs_status ON background_jobs(status, next_run_at);

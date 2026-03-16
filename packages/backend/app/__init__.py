@@ -52,6 +52,11 @@ def create_app(settings: Settings | None = None) -> Flask:
     # Blueprint routes
     register_routes(app)
 
+    # Start background job scheduler (skip in test environments)
+    if not app.config.get("TESTING"):
+        from .services.jobs import start_scheduler
+        start_scheduler(app)
+
     # Backward-compatible schema patch for existing databases.
     with app.app_context():
         _ensure_schema_compatibility(app)
