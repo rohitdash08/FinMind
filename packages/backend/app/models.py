@@ -146,3 +146,17 @@ class LoginAttempt(db.Model):
     suspicious = db.Column(db.Boolean, default=False, nullable=False)
     anomaly_type = db.Column(db.String(200), nullable=True)
     location = db.Column(db.String(200), nullable=True)
+
+
+class WeeklyDigest(db.Model):
+    __tablename__ = "weekly_digests"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    week_start = db.Column(db.Date, nullable=False)
+    week_end = db.Column(db.Date, nullable=False)
+    total_income = db.Column(db.Numeric(12, 2), nullable=False, default=0)
+    total_expenses = db.Column(db.Numeric(12, 2), nullable=False, default=0)
+    net_flow = db.Column(db.Numeric(12, 2), nullable=False, default=0)
+    transaction_count = db.Column(db.Integer, nullable=False, default=0)
+    payload = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)

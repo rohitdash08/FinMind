@@ -137,3 +137,18 @@ CREATE TABLE IF NOT EXISTS login_attempts (
 );
 CREATE INDEX IF NOT EXISTS idx_login_attempts_user_ts ON login_attempts(user_id, timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_login_attempts_suspicious ON login_attempts(user_id, suspicious) WHERE suspicious = TRUE;
+
+CREATE TABLE IF NOT EXISTS weekly_digests (
+  id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  week_start DATE NOT NULL,
+  week_end DATE NOT NULL,
+  total_income NUMERIC(12,2) NOT NULL DEFAULT 0,
+  total_expenses NUMERIC(12,2) NOT NULL DEFAULT 0,
+  net_flow NUMERIC(12,2) NOT NULL DEFAULT 0,
+  transaction_count INT NOT NULL DEFAULT 0,
+  payload TEXT NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_weekly_digests_user_week ON weekly_digests(user_id, week_start DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_weekly_digests_user_week_unique ON weekly_digests(user_id, week_start);
