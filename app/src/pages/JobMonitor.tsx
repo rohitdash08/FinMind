@@ -21,7 +21,7 @@ function formatDuration(started: string, finished: string | null): string {
   return `${(ms / 1000).toFixed(1)}s`;
 }
 
-export function JobMonitor() {
+export default function JobMonitor() {
   const { toast } = useToast();
   const getErrorMessage = (error: unknown, fallback: string) =>
     error instanceof Error ? error.message : fallback;
@@ -124,5 +124,3 @@ export function JobMonitor() {
     </div>
   );
 }
-
-export default JobMonitor;
