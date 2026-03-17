@@ -1,0 +1,21 @@
+# ============================================================================
+# Railway Configuration - FinMind Full Stack Deployment
+# ============================================================================
+# Deploy command: railway up
+# 
+# Prerequisites:
+#   1. Install Railway CLI: npm install -g @railway/cli
+#   2. Login: railway login
+#   3. Create project: railway init
+#   4. Set environment variables in Railway dashboard
+# ============================================================================
+
+[build]
+builder = "nixpacks"
+
+[deploy]
+startCommand = "gunicorn --workers=2 --threads=4 --bind 0.0.0.0:$PORT wsgi:app"
+healthcheckPath = "/health"
+healthcheckTimeout = 100
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3

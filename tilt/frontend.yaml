@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: finmind-dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+        - name: frontend
+          image: finmind-frontend-dev
+          ports:
+            - containerPort: 5173
+          env:
+            - name: VITE_API_URL
+              value: http://localhost:8000
+            - name: CHOKIDAR_USEPOLLING
+              value: "true"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: finmind-dev
+spec:
+  selector:
+    app: frontend
+  ports:
+    - port: 5173
+      targetPort: 5173

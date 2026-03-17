@@ -1,0 +1,103 @@
+# ============================================================================
+# DigitalOcean App Platform Specification
+# ============================================================================
+# Deploy via doctl CLI or App Platform dashboard
+#
+# CLI:
+#   doctl apps create --spec digitalocean-app.yaml
+#
+# Dashboard:
+#   1. Go to DigitalOcean App Platform
+#   2. Create App → Import from GitHub
+#   3. Upload this spec file
+# ============================================================================
+
+name: finmind
+region: nyc
+features:
+  - buildpack-stack=ubuntu-22
+
+services:
+  # -------------------------------------------------------------------------
+  # Backend API
+  # -------------------------------------------------------------------------
+  - name: backend
+    github:
+      repo: rohitdash08/FinMind
+      branch: main
+      deploy_on_push: true
+    source_dir: packages/backend
+    dockerfile_path: packages/backend/Dockerfile
+    http_port: 8000
+    instance_count: 2
+    instance_size_slug: basic-xxs
+    
+    routes:
+      - path: /api
+        preserve_path_prefix: true
+      - path: /health
+      - path: /metrics
+    
+    health_check:
+      http_path: /health
+      initial_delay_seconds: 20
+      period_seconds: 10
+      timeout_seconds: 5
+      success_threshold: 1
+      failure_threshold: 3
+    
+    envs:
+      - key: DATABASE_URL
+        scope: RUN_TIME
+        value: ${db.DATABASE_URL}
+      - key: REDIS_URL
+        scope: RUN_TIME
+        value: ${redis.DATABASE_URL}
+      - key: JWT_SECRET
+        scope: RUN_TIME
+        type: SECRET
+      - key: GEMINI_API_KEY
+        scope: RUN_TIME
+        type: SECRET
+      - key: LOG_LEVEL
+        value: INFO
+      - key: GEMINI_MODEL
+        value: gemini-1.5-flash
+
+  # -------------------------------------------------------------------------
+  # Frontend
+  # -------------------------------------------------------------------------
+  - name: frontend
+    github:
+      repo: rohitdash08/FinMind
+      branch: main
+      deploy_on_push: true
+    source_dir: app
+    dockerfile_path: app/Dockerfile
+    http_port: 80
+    instance_count: 2
+    instance_size_slug: basic-xxs
+    
+    routes:
+      - path: /
+    
+    envs:
+      - key: VITE_API_URL
+        scope: BUILD_TIME
+        value: ${APP_URL}/api
+
+# ---------------------------------------------------------------------------
+# Databases
+# ---------------------------------------------------------------------------
+databases:
+  - name: db
+    engine: PG
+    version: "16"
+    size: db-s-1vcpu-1gb
+    num_nodes: 1
+
+  - name: redis
+    engine: REDIS
+    version: "7"
+    size: db-s-1vcpu-1gb
+    num_nodes: 1

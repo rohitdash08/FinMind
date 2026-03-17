@@ -1,0 +1,42 @@
+# ============================================================================
+# FinMind Backend - Development Dockerfile
+# ============================================================================
+# For use with Tilt local K8s development
+# Features: Hot reload, debug tools, verbose logging
+# ============================================================================
+
+FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    LOG_LEVEL=DEBUG
+
+WORKDIR /app
+
+# System dependencies (psycopg2)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libpq-dev \
+    curl \
+  && rm -rf /var/lib/apt/lists/*
+
+# Install dependencies
+COPY requirements.txt /app/requirements.txt
+RUN pip install -r requirements.txt
+
+# Install dev dependencies
+RUN pip install watchdog[watchmedo] debugpy ipdb
+
+# Copy source
+COPY app /app/app
+COPY wsgi.py /app/wsgi.py
+
+# Create non-root user
+RUN useradd -m -u 1000 finmind && chown -R finmind:finmind /app
+USER finmind
+
+EXPOSE 8000
+
+# Development command with hot reload
+CMD ["gunicorn", "--reload", "--workers=1", "--threads=2", "--bind", "0.0.0.0:8000", "wsgi:app"]

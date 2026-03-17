@@ -1,0 +1,221 @@
+# FinMind Helm Chart - Default Values
+# Production-ready configuration with sensible defaults
+
+global:
+  namespace: finmind
+  imageRegistry: ghcr.io/rohitdash08
+
+# =============================================================================
+# BACKEND (Flask API)
+# =============================================================================
+backend:
+  enabled: true
+  replicaCount: 2
+  
+  image:
+    repository: finmind-backend
+    tag: latest
+    pullPolicy: IfNotPresent
+  
+  service:
+    type: ClusterIP
+    port: 8000
+  
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 50
+    targetMemoryUtilizationPercentage: 70
+  
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+  
+  # Health probes
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 8000
+    initialDelaySeconds: 20
+    periodSeconds: 20
+    failureThreshold: 3
+  
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: 8000
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    failureThreshold: 3
+  
+  # Security context
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+
+# =============================================================================
+# FRONTEND (React + Vite)
+# =============================================================================
+frontend:
+  enabled: true
+  replicaCount: 2
+  
+  image:
+    repository: finmind-frontend
+    tag: latest
+    pullPolicy: IfNotPresent
+  
+  service:
+    type: ClusterIP
+    port: 80
+  
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+  
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 70
+
+# =============================================================================
+# POSTGRESQL
+# =============================================================================
+postgresql:
+  enabled: true
+  
+  image:
+    repository: postgres
+    tag: "16"
+  
+  auth:
+    username: finmind
+    password: ""  # Set via secret
+    database: finmind
+  
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClass: ""  # Use default
+  
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+
+# =============================================================================
+# REDIS
+# =============================================================================
+redis:
+  enabled: true
+  
+  image:
+    repository: redis
+    tag: "7"
+  
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+# =============================================================================
+# INGRESS
+# =============================================================================
+ingress:
+  enabled: true
+  className: nginx
+  
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+  
+  hosts:
+    - host: finmind.example.com
+      paths:
+        - path: /api
+          pathType: Prefix
+          service: backend
+        - path: /
+          pathType: Prefix
+          service: frontend
+  
+  tls:
+    - secretName: finmind-tls
+      hosts:
+        - finmind.example.com
+
+# =============================================================================
+# SECRETS (reference existing K8s secret)
+# =============================================================================
+secrets:
+  # Name of existing secret containing credentials
+  existingSecret: finmind-secrets
+  
+  # Keys in the secret
+  keys:
+    postgresUser: POSTGRES_USER
+    postgresPassword: POSTGRES_PASSWORD
+    postgresDb: POSTGRES_DB
+    jwtSecret: JWT_SECRET
+    geminiApiKey: GEMINI_API_KEY
+    openaiApiKey: OPENAI_API_KEY
+    twilioAccountSid: TWILIO_ACCOUNT_SID
+    twilioAuthToken: TWILIO_AUTH_TOKEN
+    twilioWhatsappFrom: TWILIO_WHATSAPP_FROM
+
+# =============================================================================
+# CONFIG
+# =============================================================================
+config:
+  logLevel: INFO
+  geminiModel: gemini-1.5-flash
+  
+  # API URL for frontend (set to ingress host in production)
+  apiUrl: ""
+
+# =============================================================================
+# MONITORING (optional - uses existing stack)
+# =============================================================================
+monitoring:
+  enabled: true
+  
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+  
+  exporters:
+    postgres:
+      enabled: true
+    redis:
+      enabled: true
+    nginx:
+      enabled: true
+
+# =============================================================================
+# NETWORK POLICIES
+# =============================================================================
+networkPolicy:
+  enabled: true
