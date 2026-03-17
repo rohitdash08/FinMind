@@ -9,6 +9,7 @@ prometheus-client==0.20.0
 pydantic==2.7.4
 pydantic-settings==2.4.0
 python-dotenv==1.0.1
+python-dateutil==2.9.0.post0
 apscheduler==3.10.4
 requests==2.32.3
 pypdf==4.3.1

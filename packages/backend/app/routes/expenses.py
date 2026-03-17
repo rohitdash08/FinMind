@@ -391,5 +391,6 @@ def _invalidate_expense_cache(uid: int, at: str):
             monthly_summary_key(uid, ym),
             f"insights:{uid}:*",
             f"user:{uid}:dashboard_summary:*",
+            f"user:{uid}:budget_suggestion:*",
         ]
     )

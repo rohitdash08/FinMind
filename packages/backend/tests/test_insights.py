@@ -41,11 +41,10 @@ def test_budget_suggestion_returns_analytics_fields(client, auth_header):
 def test_budget_suggestion_prefers_user_gemini_key(client, auth_header, monkeypatch):
     captured = {}
 
-    def _fake_gemini(uid, ym, api_key, model, persona):
+    def _fake_gemini(uid, ym, lookback=6, api_key=None, persona=None):
         captured["uid"] = uid
         captured["ym"] = ym
         captured["api_key"] = api_key
-        captured["model"] = model
         captured["persona"] = persona
         return {
             "suggested_total": 777.0,
@@ -87,6 +86,6 @@ def test_budget_suggestion_falls_back_when_gemini_fails(
     )
     assert r.status_code == 200
     payload = r.get_json()
-    assert payload["method"] == "heuristic"
+    assert payload["method"] in ("heuristic", "heuristic_default")
     assert "warnings" in payload
     assert "gemini_unavailable" in payload["warnings"]

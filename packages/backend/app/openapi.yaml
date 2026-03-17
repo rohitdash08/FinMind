@@ -446,7 +446,7 @@ paths:
 
   /insights/budget-suggestion:
     get:
-      summary: Get monthly budget suggestion
+      summary: Get dynamic budget suggestion based on 3-6 months of spending data
       tags: [Insights]
       security: [{ bearerAuth: [] }]
       parameters:
@@ -454,27 +454,84 @@ paths:
           name: month
           required: false
           schema: { type: string, pattern: '^\d{4}-\d{2}$' }
+          description: Target month (YYYY-MM). Defaults to current month.
+          example: "2026-02"
+        - in: query
+          name: months
+          required: false
+          schema: { type: integer, minimum: 3, maximum: 6 }
+          description: Number of months to look back (3-6). Defaults to 6.
+          example: 6
+        - in: header
+          name: X-Gemini-Api-Key
+          required: false
+          schema: { type: string }
+          description: Optional BYOK Gemini API key for AI-powered suggestions.
+        - in: header
+          name: X-Insight-Persona
+          required: false
+          schema: { type: string }
+          description: Optional coaching persona style.
       responses:
         '200':
-          description: Suggestion
+          description: Dynamic budget suggestion with confidence score
           content:
             application/json:
               schema:
-                type: object
-                additionalProperties: true
+                $ref: '#/components/schemas/BudgetSuggestion'
               example:
-                month: 2025-08
-                suggested_total: 1200
-                method: gemini
+                month: "2026-02"
+                suggested_total: 1425.50
+                breakdown:
+                  needs: 712.75
+                  wants: 427.65
+                  savings: 285.10
+                confidence:
+                  score: 0.78
+                  label: high
+                  months_analyzed: 4
+                spending_trend:
+                  direction: increasing
+                  change_pct: 5.3
+                category_suggestions:
+                  - category_id: 1
+                    category_name: Food
+                    suggested_limit: 475.00
+                    average_spending: 500.00
+                    trend_pct: 3.2
+                    trend_direction: increasing
+                    months_with_data: 4
+                    monthly_history:
+                      "2025-08": 480
+                      "2025-09": 490
+                      "2025-10": 510
+                      "2025-11": 520
+                data_range:
+                  months_requested: 6
+                  months_with_data: 4
+                  oldest_month: "2025-08"
+                  newest_month: "2025-11"
+                monthly_totals:
+                  "2025-08": 1350
+                  "2025-09": 1400
+                  "2025-10": 1450
+                  "2025-11": 1500
                 analytics:
                   month_over_month_change_pct: 5.5
                   current_month_expenses: 950
                   previous_month_expenses: 900
-                breakdown:
-                  needs: 600
-                  wants: 360
-                  savings: 240
+                  top_categories:
+                    - { category_id: "1", amount: 500 }
                 tips: ["Cap dining spend to 80% of last month", "Automate weekly transfer to savings"]
+                persona: "Balanced coach"
+                method: heuristic
+                net_flow: 1250.50
+        '400':
+          description: Invalid month format
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { error: "invalid month, expected YYYY-MM" }
         '401':
           description: Unauthorized
           content:
@@ -587,3 +644,76 @@ components:
         message: { type: string }
         send_at: { type: string, format: date-time }
         channel: { type: string, enum: [email, whatsapp], default: email }
+    BudgetSuggestion:
+      type: object
+      properties:
+        month: { type: string, description: "Target month YYYY-MM" }
+        suggested_total: { type: number, format: float }
+        breakdown:
+          type: object
+          properties:
+            needs: { type: number }
+            wants: { type: number }
+            savings: { type: number }
+        confidence:
+          $ref: '#/components/schemas/ConfidenceScore'
+        spending_trend:
+          type: object
+          properties:
+            direction: { type: string, enum: [increasing, decreasing, stable] }
+            change_pct: { type: number }
+        category_suggestions:
+          type: array
+          items:
+            $ref: '#/components/schemas/CategorySuggestion'
+        data_range:
+          type: object
+          properties:
+            months_requested: { type: integer }
+            months_with_data: { type: integer }
+            oldest_month: { type: string }
+            newest_month: { type: string }
+        monthly_totals:
+          type: object
+          additionalProperties: { type: number }
+        method: { type: string, enum: [heuristic, heuristic_default, openai, gemini] }
+        tips:
+          type: array
+          items: { type: string }
+        analytics:
+          type: object
+          properties:
+            month_over_month_change_pct: { type: number }
+            current_month_expenses: { type: number }
+            previous_month_expenses: { type: number }
+            top_categories:
+              type: array
+              items:
+                type: object
+                properties:
+                  category_id: { type: string }
+                  amount: { type: number }
+        persona: { type: string }
+        warnings:
+          type: array
+          items: { type: string }
+        net_flow: { type: number }
+    ConfidenceScore:
+      type: object
+      properties:
+        score: { type: number, minimum: 0, maximum: 1, description: "0.0 to 1.0" }
+        label: { type: string, enum: [no_data, low, medium, high, very_high] }
+        months_analyzed: { type: integer }
+    CategorySuggestion:
+      type: object
+      properties:
+        category_id: { type: integer, nullable: true }
+        category_name: { type: string }
+        suggested_limit: { type: number }
+        average_spending: { type: number }
+        trend_pct: { type: number }
+        trend_direction: { type: string, enum: [increasing, decreasing, stable] }
+        months_with_data: { type: integer }
+        monthly_history:
+          type: object
+          additionalProperties: { type: number }

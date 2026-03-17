@@ -23,6 +23,10 @@ def dashboard_summary_key(user_id: int, ym: str) -> str:
     return f"user:{user_id}:dashboard_summary:{ym}"
 
 
+def budget_suggestion_key(user_id: int, ym: str, lookback: int = 6) -> str:
+    return f"user:{user_id}:budget_suggestion:{ym}:{lookback}"
+
+
 def cache_set(key: str, value, ttl_seconds: int | None = None):
     payload = json.dumps(value)
     if ttl_seconds:
