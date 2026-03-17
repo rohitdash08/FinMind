@@ -17,6 +17,9 @@ class User(db.Model):
     preferred_currency = db.Column(db.String(10), default="INR", nullable=False)
     role = db.Column(db.String(20), default=Role.USER.value, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    # Client-side encryption setup (Issue #99).
+    # Stores the KDF salt + wrapped DEK as JSON; plaintext key never persisted.
+    encryption_setup = db.Column(db.Text, nullable=True)
 
 
 class Category(db.Model):
