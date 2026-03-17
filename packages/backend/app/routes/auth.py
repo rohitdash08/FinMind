@@ -56,13 +56,47 @@ def login():
     email = data.get("email")
     password = data.get("password")
     user = db.session.query(User).filter_by(email=email).first()
+    
+    # Anomaly Detection
+    ip_address = request.remote_addr
+    attempt_key = f"login_attempts:{ip_address}:{email}"
+    # Track IP frequency (e.g., more than 5 attempts in 15 mins)
+    if redis_client.get(attempt_key):
+        try:
+            count = int(redis_client.get(attempt_key))
+        except ValueError:
+            count = 1
+    else:
+        count = 0
+    
     if not user or not check_password_hash(user.password_hash, password):
-        logger.warning("Login failed for email=%s", email)
+        # Increment failed attempt counter
+        redis_client.incr(attempt_key)
+        redis_client.expire(attempt_key, 900) # 15 minutes
+        logger.warning("Login failed for email=%s from ip=%s", email, ip_address)
         return jsonify(error="invalid credentials"), 401
+    
+    # Successful login check
+    if count >= 5:
+        # Alert user via Email about suspicious activity
+        try:
+            from ..services.reminders import send_email
+            send_email(
+                user.email, 
+                "Security Alert: Unusual Login Activity", 
+                f"We detected multiple failed login attempts for your account before this successful login from IP: {ip_address}. If this wasn't you, please change your password immediately."
+            )
+            logger.info("Suspicious activity alert sent to user_id=%s", user.id)
+        except Exception:
+            logger.error("Failed to send suspicious activity alert")
+
     access = create_access_token(identity=str(user.id))
     refresh = create_refresh_token(identity=str(user.id))
     _store_refresh_session(refresh, str(user.id))
-    logger.info("Login success user_id=%s", user.id)
+    
+    # Clear failed attempts on successful login
+    redis_client.delete(attempt_key)
+    logger.info("Login success user_id=%s from ip=%s", user.id, ip_address)
     return jsonify(access_token=access, refresh_token=refresh)
 
 
