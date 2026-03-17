@@ -4,6 +4,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { me, updateMe } from '@/api/auth';
 import { setCurrency } from '@/lib/auth';
+import { exportPII, requestDeletion, confirmDeletion, cancelDeletion, getDeletionStatus } from '@/api/gdpr';
 
 const SUPPORTED_CURRENCIES = [
   { code: 'INR', label: 'Indian Rupee (INR)' },
@@ -24,6 +25,14 @@ export default function Account() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  // GDPR state
+  const [exporting, setExporting] = useState(false);
+  const [deletionStatus, setDeletionStatus] = useState<string | null>(null);
+  const [confirmToken, setConfirmToken] = useState('');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteReason, setDeleteReason] = useState('');
+  const [gdprLoading, setGdprLoading] = useState(false);
+
   useEffect(() => {
     const load = async () => {
       setLoading(true);
@@ -41,6 +50,71 @@ export default function Account() {
     };
     void load();
   }, [toast]);
+
+  useEffect(() => {
+    getDeletionStatus().then((s) => setDeletionStatus(s.status ?? null)).catch(() => null);
+  }, []);
+
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const data = await exportPII();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `finmind-export-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast({ title: 'Export downloaded', description: 'Your data has been exported.' });
+    } catch {
+      toast({ title: 'Export failed', variant: 'destructive' });
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleRequestDeletion = async () => {
+    setGdprLoading(true);
+    try {
+      const res = await requestDeletion(deleteReason || undefined);
+      setConfirmToken(res.confirmation_token);
+      setDeletionStatus('PENDING');
+      setShowDeleteConfirm(false);
+      toast({ title: 'Deletion requested', description: `Token: ${res.confirmation_token}` });
+    } catch {
+      toast({ title: 'Request failed', variant: 'destructive' });
+    } finally {
+      setGdprLoading(false);
+    }
+  };
+
+  const handleConfirmDeletion = async () => {
+    if (!confirmToken) return;
+    setGdprLoading(true);
+    try {
+      await confirmDeletion(confirmToken);
+      toast({ title: 'Account deleted', description: 'All your data has been permanently removed.' });
+    } catch {
+      toast({ title: 'Confirmation failed', variant: 'destructive' });
+    } finally {
+      setGdprLoading(false);
+    }
+  };
+
+  const handleCancelDeletion = async () => {
+    setGdprLoading(true);
+    try {
+      await cancelDeletion();
+      setDeletionStatus(null);
+      setConfirmToken('');
+      toast({ title: 'Deletion cancelled' });
+    } catch {
+      toast({ title: 'Cancel failed', variant: 'destructive' });
+    } finally {
+      setGdprLoading(false);
+    }
+  };
 
   const onSave = async () => {
     setSaving(true);
@@ -107,6 +181,94 @@ export default function Account() {
             </div>
           </>
         )}
+      </div>
+
+      {/* GDPR / Privacy */}
+      <div className="card card-interactive space-y-5 fade-in-up">
+        <div>
+          <h2 className="text-base font-semibold">Privacy & Data</h2>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Export or permanently delete your personal data (GDPR Article 17).
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-3">
+          <Button
+            variant="outline"
+            onClick={() => { void handleExport(); }}
+            disabled={exporting}
+            className="w-full sm:w-auto"
+          >
+            {exporting ? 'Preparing export...' : 'Download My Data'}
+          </Button>
+
+          {deletionStatus === 'PENDING' ? (
+            <div className="space-y-2 rounded-lg border border-destructive/40 bg-destructive/5 p-4">
+              <p className="text-sm font-medium text-destructive">Deletion request pending</p>
+              <p className="text-xs text-muted-foreground">
+                Paste your confirmation token below to permanently delete your account and all data.
+                This cannot be undone.
+              </p>
+              <input
+                className="input text-sm"
+                placeholder="Confirmation token"
+                value={confirmToken}
+                onChange={(e) => setConfirmToken(e.target.value)}
+              />
+              <div className="flex gap-2">
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  disabled={!confirmToken || gdprLoading}
+                  onClick={() => { void handleConfirmDeletion(); }}
+                >
+                  Permanently Delete Account
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={gdprLoading}
+                  onClick={() => { void handleCancelDeletion(); }}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          ) : !deletionStatus ? (
+            showDeleteConfirm ? (
+              <div className="space-y-2 rounded-lg border border-destructive/40 bg-destructive/5 p-4">
+                <p className="text-sm font-medium text-destructive">Request account deletion</p>
+                <input
+                  className="input text-sm"
+                  placeholder="Reason (optional)"
+                  value={deleteReason}
+                  onChange={(e) => setDeleteReason(e.target.value)}
+                />
+                <div className="flex gap-2">
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    disabled={gdprLoading}
+                    onClick={() => { void handleRequestDeletion(); }}
+                  >
+                    {gdprLoading ? 'Processing...' : 'Request Deletion'}
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => setShowDeleteConfirm(false)}>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <Button
+                variant="outline"
+                className="w-full sm:w-auto border-destructive/50 text-destructive hover:bg-destructive/10"
+                onClick={() => setShowDeleteConfirm(true)}
+              >
+                Delete My Account
+              </Button>
+            )
+          ) : null}
+        </div>
       </div>
     </div>
   );

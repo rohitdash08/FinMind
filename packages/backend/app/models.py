@@ -1,5 +1,6 @@
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from enum import Enum
+import secrets
 from sqlalchemy import Enum as SAEnum
 from .extensions import db
 
@@ -133,3 +134,45 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+# ── GDPR PII Export & Delete ───────────────────────────────────────────────────
+
+class GDPRAuditLog(db.Model):
+    """Immutable GDPR audit trail — preserved even after account deletion
+    (GDPR Article 17 para 3(e) legal-obligation exemption)."""
+
+    __tablename__ = "gdpr_audit_logs"
+    id         = db.Column(db.Integer, primary_key=True)
+    user_id    = db.Column(db.Integer, nullable=True)          # kept after deletion
+    user_email = db.Column(db.String(255), nullable=False)     # preserved for compliance
+    action     = db.Column(db.String(50), nullable=False)
+    details    = db.Column(db.JSON, default=dict)
+    ip_address = db.Column(db.String(45), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class DeletionRequest(db.Model):
+    """Account deletion lifecycle with 7-day grace period and confirmation token."""
+
+    __tablename__ = "deletion_requests"
+    GRACE_PERIOD_DAYS = 7
+
+    id                   = db.Column(db.Integer, primary_key=True)
+    user_id              = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    status               = db.Column(db.String(20), default="PENDING", nullable=False)
+    reason               = db.Column(db.String(500), nullable=True)
+    confirmation_token   = db.Column(db.String(100), unique=True, nullable=True)
+    confirmed_at         = db.Column(db.DateTime, nullable=True)
+    grace_period_ends_at = db.Column(db.DateTime, nullable=False)
+    completed_at         = db.Column(db.DateTime, nullable=True)
+    created_at           = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    @classmethod
+    def create_for(cls, user_id: int, reason: str | None = None) -> "DeletionRequest":
+        return cls(
+            user_id=user_id,
+            reason=reason,
+            confirmation_token=secrets.token_urlsafe(48),
+            grace_period_ends_at=datetime.utcnow() + timedelta(days=cls.GRACE_PERIOD_DAYS),
+        )
