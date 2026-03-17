@@ -48,6 +48,7 @@ See `backend/app/db/schema.sql`. Key tables:
 - users, categories, expenses, bills, reminders
 - ad_impressions, subscription_plans, user_subscriptions
 - refresh_tokens (optional if rotating), audit_logs
+- weekly_digests — persisted weekly financial summary snapshots
 
 ## Redis Caching Policy
 - Keys
@@ -55,8 +56,9 @@ See `backend/app/db/schema.sql`. Key tables:
   - `user:{id}:categories` — 24h TTL
   - `user:{id}:upcoming_bills` — 15 min TTL
   - `insights:{id}` — 24h TTL (invalidate on new expense/bill)
+  - `user:{id}:weekly_digest:{yyyy-mm-dd}` — 1h TTL (keyed by week start Monday)
 - Invalidation
-  - On expense/bill create/update/delete -> delete affected monthly_summary, upcoming_bills, insights
+  - On expense/bill create/update/delete -> delete affected monthly_summary, upcoming_bills, insights, weekly_digest
 - Rate limiting (optional): `rl:{userId}:{endpoint}:{minute}` with short TTL
 
 ## API Endpoints
@@ -66,6 +68,7 @@ OpenAPI: `backend/app/openapi.yaml`
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
 - Insights: `/insights/monthly`, `/insights/budget-suggestion`
+- Digest: `/digest/weekly`, `/digest/weekly/history`
 
 ## MVP UI/UX Plan
 - Auth screens: register/login.
@@ -104,11 +107,13 @@ finmind/
         bills.py
         reminders.py
         insights.py
+        digest.py
       services/
         __init__.py
         ai.py
         cache.py
         reminders.py
+        weekly_digest.py
       db/
         schema.sql
       openapi.yaml
@@ -182,6 +187,37 @@ finmind/
 ## Notes on Free-Tier Reminders
 - Primary: schedule via APScheduler in-process with persistence in Postgres (job table) and a simple daily trigger. Alternatively, use Railway/Render cron to hit `/reminders/run`.
 - Twilio WhatsApp free trial supports sandbox; email via SMTP (e.g., SendGrid free tier).
+
+## Login Anomaly Detection & Suspicious Activity Alerts
+FinMind monitors login activity for suspicious behavior:
+- **New IP detection**: flags logins from previously unseen IP addresses.
+- **New device detection**: flags logins from previously unseen user agents.
+- **Rapid attempt detection**: uses Redis to track and flag excessive login attempts per minute.
+- **Unusual time detection**: flags logins during unusual hours (2–5 AM UTC).
+
+Each login attempt (success or failure) is recorded in the `login_attempts` table. Suspicious logins are marked with the detected anomaly types.
+
+API endpoints:
+- `GET /auth/login-history` — paginated list of the user's login attempts.
+- `GET /auth/suspicious-alerts` — paginated list of suspicious login attempts only.
+
+## Weekly Financial Summary Digest
+FinMind generates weekly financial summaries that highlight trends and provide actionable insights.
+
+**Features:**
+- **Weekly summary**: total income, expenses, net flow, and transaction count for the selected week (Monday–Sunday).
+- **Week-over-week trends**: percentage change in spending and income compared to the previous week.
+- **Category breakdown**: spending by category with share percentages, sorted by amount.
+- **Daily spending chart**: day-by-day expense totals for the 7-day period.
+- **Top transactions**: the largest expenses of the week.
+- **Upcoming bills**: bills due in the following week to help plan cash flow.
+- **Actionable insights**: auto-generated text recommendations based on spending patterns (e.g., spending increase warnings, peak spending day, dominant category alerts, bill reminders).
+- **Digest persistence**: each generated digest is saved to the `weekly_digests` table, allowing users to browse their history.
+- **Caching**: digests are cached in Redis (1h TTL) and invalidated when expenses or bills change.
+
+API endpoints:
+- `GET /digest/weekly?week_of=YYYY-MM-DD` — generate/return the weekly digest for the week containing the given date (defaults to current week).
+- `GET /digest/weekly/history?page=1&per_page=12` — paginated list of previously generated weekly digest summaries.
 
 ## Security & Scalability
 - JWT access/refresh, secure cookies OR Authorization header.

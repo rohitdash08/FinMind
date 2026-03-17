@@ -82,6 +82,7 @@ def create_expense():
         [
             monthly_summary_key(uid, e.spent_at.strftime("%Y-%m")),
             f"insights:{uid}:*",
+            f"user:{uid}:weekly_digest:*",
         ]
     )
     return jsonify(_expense_to_dict(e)), 201
@@ -391,5 +392,6 @@ def _invalidate_expense_cache(uid: int, at: str):
             monthly_summary_key(uid, ym),
             f"insights:{uid}:*",
             f"user:{uid}:dashboard_summary:*",
+            f"user:{uid}:weekly_digest:*",
         ]
     )
