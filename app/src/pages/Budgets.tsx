@@ -110,6 +110,73 @@ export function Budgets() {
         <div className="relative flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
             <h1 className="page-title">Budget Management</h1>
+            <p className="page-description">Track your budget categories and savings goals in one place.</p>
+          </div>
+          <Button>
+            <Plus className="mr-2 h-4 w-4" /> Add Goal
+          </Button>
+        </div>
+      </div>
+
+      {/* Savings Goals Section */}
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 mb-8">
+        {budgetGoals.map((goal) => {
+          const progress = (goal.current / goal.target) * 100;
+          return (
+            <FinancialCard key={goal.id}>
+              <FinancialCardHeader className="pb-3">
+                <div className="flex justify-between items-start">
+                  <div className="flex items-center gap-2">
+                    <Target className="h-5 w-5 text-muted-foreground" />
+                    <FinancialCardTitle className="text-lg">{goal.title}</FinancialCardTitle>
+                  </div>
+                  <Badge 
+                    variant={goal.status === 'on-track' ? 'default' : goal.status === 'ahead' ? 'success' : 'destructive'}
+                  >
+                    {goal.status.replace('-', ' ')}
+                  </Badge>
+                </div>
+                <FinancialCardDescription className="flex items-center gap-2 mt-2">
+                  <Calendar className="h-3 w-3" /> Target: {goal.deadline}
+                </FinancialCardDescription>
+              </FinancialCardHeader>
+              <FinancialCardContent>
+                <div className="flex justify-between items-end mb-2">
+                  <div>
+                    <div className="text-2xl font-bold">
+                      ${goal.current.toLocaleString()}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      of ${goal.target.toLocaleString()} goal
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm font-medium text-muted-foreground">
+                      ${goal.monthlyTarget}/mo
+                    </div>
+                  </div>
+                </div>
+                {/* Progress Bar */}
+                <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
+                  <div 
+                    className={`h-full transition-all duration-500 ${
+                      progress >= 100 ? 'bg-success' : 'bg-primary'
+                    }`} 
+                    style={{ width: `${Math.min(progress, 100)}%` }}
+                  />
+                </div>
+                <div className="mt-2 text-xs text-right text-muted-foreground">
+                  {progress.toFixed(1)}% achieved
+                </div>
+              </FinancialCardContent>
+            </FinancialCard>
+          );
+        })}
+      </div>
+
+      <div className="page-header">
+        <h2 className="text-xl font-semibold">Expense Categories</h2>
+      </div>agement</h1>
             <p className="page-subtitle">
               Track your spending and stay on top of your financial goals
             </p>
