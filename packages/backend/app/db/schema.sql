@@ -123,3 +123,25 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   action VARCHAR(100) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+-- Financial Accounts (Issue #132)
+CREATE TABLE IF NOT EXISTS financial_accounts (
+  id              SERIAL PRIMARY KEY,
+  user_id         INT           NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name            VARCHAR(200)  NOT NULL,
+  account_type    VARCHAR(20)   NOT NULL DEFAULT 'BANK',
+  currency        VARCHAR(10)   NOT NULL DEFAULT 'INR',
+  initial_balance NUMERIC(12,2) NOT NULL DEFAULT 0,
+  color           VARCHAR(20),
+  active          BOOLEAN       NOT NULL DEFAULT TRUE,
+  created_at      TIMESTAMP     NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_financial_accounts_user ON financial_accounts (user_id, active);
+
+-- Link expenses to accounts (nullable, backward-compatible)
+ALTER TABLE expenses
+  ADD COLUMN IF NOT EXISTS account_id INT REFERENCES financial_accounts(id) ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS idx_expenses_account_id ON expenses (account_id)
+  WHERE account_id IS NOT NULL;
