@@ -74,6 +74,10 @@ export async function listExpenses(params?: {
   return api<Expense[]>(path);
 }
 
+export async function getExpenseHeatmap(days: number = 90): Promise<Array<{ date: string; amount: number; count: number }>> {
+  return api<Array<{ date: string; amount: number; count: number }>>(`/expenses/heatmap?days=${days}`);
+}
+
 export async function createExpense(payload: ExpenseCreate): Promise<Expense> {
   return api<Expense>('/expenses', { method: 'POST', body: payload });
 }

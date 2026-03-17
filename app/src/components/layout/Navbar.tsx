@@ -5,6 +5,7 @@ import { Menu, X, TrendingUp, ShieldCheck } from 'lucide-react';
 import { getToken, getRefreshToken, clearToken, clearRefreshToken } from '@/lib/auth';
 import { useToast } from '@/components/ui/use-toast';
 import { logout as logoutApi } from '@/api/auth';
+import { ModeToggle } from '@/components/mode-toggle';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard' },
@@ -12,6 +13,7 @@ const navigation = [
   { name: 'Bills', href: '/bills' },
   { name: 'Reminders', href: '/reminders' },
   { name: 'Expenses', href: '/expenses' },
+  { name: 'Weekly Digest', href: '/digest' },
   { name: 'Analytics', href: '/analytics' },
 ];
 
@@ -25,8 +27,12 @@ export function Navbar() {
   useEffect(() => {
     const onChange = () => setIsAuthed(!!getToken());
     window.addEventListener('auth_changed', onChange);
+    window.addEventListener('fm_logout', handleLogout);
     onChange();
-    return () => window.removeEventListener('auth_changed', onChange);
+    return () => {
+      window.removeEventListener('auth_changed', onChange);
+      window.removeEventListener('fm_logout', handleLogout);
+    };
   }, []);
 
   const handleLogout = async () => {
@@ -80,10 +86,11 @@ export function Navbar() {
           </div>
 
           <div className="hidden items-center gap-3 md:flex">
-            <div className="flex items-center gap-1 rounded-full border border-border/70 bg-white/70 px-3 py-1 text-[11px] text-muted-foreground">
+            <div className="flex items-center gap-1 rounded-full border border-border/70 bg-card/70 px-3 py-1 text-[11px] text-muted-foreground backdrop-blur-sm">
               <ShieldCheck className="h-3.5 w-3.5 text-primary" />
               Enterprise-grade security
             </div>
+            <ModeToggle />
             {isAuthed ? (
               <>
                 <Button variant="outline" size="sm" asChild>
@@ -105,7 +112,8 @@ export function Navbar() {
             )}
           </div>
 
-          <div className="md:hidden">
+          <div className="flex items-center gap-2 md:hidden">
+            <ModeToggle />
             <Button variant="ghost" size="icon" onClick={() => setIsOpen((v) => !v)}>
               {isOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </Button>
@@ -114,7 +122,7 @@ export function Navbar() {
 
         {isOpen && (
           <div className="md:hidden pb-4">
-            <div className="space-y-2 rounded-2xl border border-border/60 bg-white/90 p-3 shadow-md">
+            <div className="space-y-2 rounded-2xl border border-border/60 bg-card/90 p-3 shadow-md backdrop-blur-md">
               {navigation.map((item) => {
                 const active = location.pathname === item.href;
                 return (

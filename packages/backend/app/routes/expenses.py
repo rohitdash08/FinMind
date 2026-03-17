@@ -52,6 +52,38 @@ def list_expenses():
     return jsonify(data)
 
 
+@bp.get("/heatmap")
+@jwt_required()
+def expense_heatmap():
+    uid = int(get_jwt_identity())
+    days = min(365, max(7, int(request.args.get("days", "90"))))
+    end_date = date.today()
+    start_date = end_date - timedelta(days=days)
+
+    results = (
+        db.session.query(
+            Expense.spent_at,
+            db.func.sum(Expense.amount).label("total_amount"),
+            db.func.count(Expense.id).label("count")
+        )
+        .filter(Expense.user_id == uid)
+        .filter(Expense.spent_at >= start_date)
+        .filter(Expense.spent_at <= end_date)
+        .group_by(Expense.spent_at)
+        .all()
+    )
+
+    data = [
+        {
+            "date": r.spent_at.isoformat(),
+            "amount": float(r.total_amount),
+            "count": r.count
+        }
+        for r in results
+    ]
+    return jsonify(data)
+
+
 @bp.post("")
 @jwt_required()
 def create_expense():

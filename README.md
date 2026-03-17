@@ -76,6 +76,10 @@ OpenAPI: `backend/app/openapi.yaml`
 - Expenses page: add expense (amount, category, notes, date), list & filter.
 - Bills page: create bill (name, amount, cadence, due date, channel), toggle WhatsApp/email.
 - Settings: profile, categories, reminders default channel, export (premium).
+- **Theme & Accessibility:**
+  - Full Dark Mode support with system preference detection.
+  - HSL-based design system for improved accessibility contrast.
+  - Persistent theme settings via `LocalStorage`.
 
 ## Monetization Plan
 - Free: ads in dashboard and list pages (lightweight, non-intrusive). Record impressions in `ad_impressions`.
