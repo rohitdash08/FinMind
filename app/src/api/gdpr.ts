@@ -40,14 +40,14 @@ export async function exportPII(): Promise<ExportPackage> {
 export async function requestDeletion(reason?: string): Promise<DeletionRequestResponse> {
   return api<DeletionRequestResponse>('/gdpr/delete', {
     method: 'POST',
-    body: JSON.stringify({ reason }),
+    body: { reason },
   });
 }
 
 export async function confirmDeletion(token: string): Promise<{ message: string; deleted_at: string }> {
   return api('/gdpr/delete/confirm', {
     method: 'POST',
-    body: JSON.stringify({ confirmation_token: token }),
+    body: { confirmation_token: token },
   });
 }
 
