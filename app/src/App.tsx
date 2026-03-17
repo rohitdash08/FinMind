@@ -9,6 +9,7 @@ import { Budgets } from "./pages/Budgets";
 import { Bills } from "./pages/Bills";
 import { Analytics } from "./pages/Analytics";
 import Reminders from "./pages/Reminders";
+import JobMonitor from "./pages/JobMonitor";
 import Expenses from "./pages/Expenses";
 import { SignIn } from "./pages/SignIn";
 import { Register } from "./pages/Register";
@@ -91,6 +92,7 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
+            <Route path="jobs" element={<ProtectedRoute><JobMonitor /></ProtectedRoute>} />
           </Route>
           <Route path="/signin" element={<SignIn />} />
           <Route path="/register" element={<Register />} />
