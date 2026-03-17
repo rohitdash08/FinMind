@@ -11,6 +11,7 @@ from .observability import (
 from flask_cors import CORS
 import click
 import os
+import os
 import logging
 from datetime import timedelta
 
@@ -57,7 +58,7 @@ def create_app(settings: Settings | None = None) -> Flask:
         _ensure_schema_compatibility(app)
 
     # Start background scheduler (skip in testing mode)
-    if not app.config.get("TESTING"):
+    if not app.config.get("TESTING") and os.getenv("FLASK_ENV") != "testing":
         from .services.scheduler import init_scheduler
         import atexit
         scheduler = init_scheduler(app)
