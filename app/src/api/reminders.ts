@@ -55,3 +55,19 @@ export async function reportAutopayResult(
     body: { status },
   });
 }
+
+export type JobRun = {
+  id: number;
+  job_name: string;
+  status: 'success' | 'partial' | 'failed' | 'no_work';
+  started_at: string;
+  finished_at: string | null;
+  processed: number;
+  failed: number;
+  retried: number;
+  error_message: string | null;
+};
+
+export async function listJobRuns(): Promise<JobRun[]> {
+  return api<JobRun[]>('/reminders/job-runs');
+}
