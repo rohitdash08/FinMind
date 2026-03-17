@@ -156,3 +156,60 @@ class TestIndexedQueryPatterns:
         r = client.get("/categories", headers=h)
         assert r.status_code == 200
         assert isinstance(r.get_json(), list)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Admin HTTP endpoint — GET /admin/db/indexes
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestAdminDbIndexesEndpoint:
+    def _admin_auth(self, client, app_fixture):
+        email = "admin_idx@test.com"
+        client.post("/auth/register", json={"email": email, "password": "pass1234"})
+        # Elevate to ADMIN directly in DB
+        from app.models import User
+        from app.extensions import db
+        with app_fixture.app_context():
+            u = db.session.query(User).filter_by(email=email).first()
+            u.role = "ADMIN"
+            db.session.commit()
+        r = client.post("/auth/login", json={"email": email, "password": "pass1234"})
+        return {"Authorization": f"Bearer {r.get_json()['access_token']}"}
+
+    def _user_auth(self, client):
+        email = "plain_idx@test.com"
+        client.post("/auth/register", json={"email": email, "password": "pass1234"})
+        r = client.post("/auth/login", json={"email": email, "password": "pass1234"})
+        return {"Authorization": f"Bearer {r.get_json()['access_token']}"}
+
+    def test_requires_auth(self, client, app_fixture):
+        assert client.get("/admin/db/indexes").status_code == 401
+
+    def test_requires_admin_role(self, client, app_fixture):
+        h = self._user_auth(client)
+        r = client.get("/admin/db/indexes", headers=h)
+        assert r.status_code == 403
+
+    def test_admin_returns_200(self, client, app_fixture):
+        h = self._admin_auth(client, app_fixture)
+        r = client.get("/admin/db/indexes", headers=h)
+        assert r.status_code == 200
+
+    def test_response_structure(self, client, app_fixture):
+        h = self._admin_auth(client, app_fixture)
+        d = client.get("/admin/db/indexes", headers=h).get_json()
+        assert "existing" in d
+        assert "required" in d
+        assert "missing" in d
+        assert "extra" in d
+        assert "healthy" in d
+        assert isinstance(d["existing"], list)
+        assert isinstance(d["required"], list)
+        assert isinstance(d["missing"], list)
+        assert isinstance(d["healthy"], bool)
+
+    def test_required_list_matches_constant(self, client, app_fixture):
+        h = self._admin_auth(client, app_fixture)
+        d = client.get("/admin/db/indexes", headers=h).get_json()
+        from app.db.index_report import REQUIRED_INDEXES
+        assert set(d["required"]) == set(REQUIRED_INDEXES)
