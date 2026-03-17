@@ -1,5 +1,7 @@
 # Demo Instructions: Keyboard Shortcuts & Spending Heatmap
 
+**🎥 View Demo:** [https://github.com/user-attachments/assets/c88a7103-9379-4b25-bbc1-5cb73cab4f62](https://github.com/user-attachments/assets/c88a7103-9379-4b25-bbc1-5cb73cab4f62)
+
 These instructions guide you through demonstrating the features implemented in Issues #106 and #116.
 
 ## 1. Keyboard Shortcuts (Issue #106)
@@ -8,18 +10,22 @@ The application now supports global keyboard shortcuts for fast navigation and a
 ### How to Demo:
 1.  **Open the Application:** Navigate to the FinMind dashboard in your browser.
 2.  **Test Navigation:**
-    *   Press `G` then `E` quickly to jump to the **Expenses** page.
-    *   Press `G` then `A` to jump to the **Analytics** page.
-    *   Press `G` then `B` to jump to the **Bills** page.
-    *   Press `G` then `R` to jump to the **Reminders** page.
-    *   Press `G` then `D` to return to the **Dashboard**.
-3.  **Open Help Modal:**
-    *   Press `?` (Shift + `/`) to open the **Keyboard Shortcuts Help Modal**.
-    *   Verify that all shortcuts are listed with their descriptions.
-    *   Close the modal using the `Esc` key or the close button.
-4.  **Test Accessibility:**
+    *   Press `1` to jump to the **Dashboard**.
+    *   Press `2` to jump to the **Budgets** page.
+    *   Press `3` to jump to the **Bills** page.
+    *   Press `4` to jump to the **Reminders** page.
+    *   Press `5` to jump to the **Expenses** page.
+    *   Press `6` to jump to the **Analytics** page.
+    *   Press `7` to jump to the **Account** page.
+    *   (Optionally, use `G` prefixes: `G+D`, `G+B`, `G+L`, `G+R`, `G+E`, `G+A`, `G+C`).
+3.  **Logout:**
+    *   Press `G` then `Q` to logout securely.
+4.  **Show Shortcuts:**
+    *   Press `Shift + ?` to open the **Keyboard Shortcuts Help Modal**.
+    *   Verify that all shortcuts are listed with their descriptions and variants.
+5.  **Test Accessibility:**
     *   Use the `Tab` key to navigate through interactive elements.
-    *   Verify that a high-contrast focus ring (primary color) appears around the focused element, meeting WCAG AA standards.
+    *   Verify the high-contrast focus ring around focused elements.
 
 ---
 
@@ -27,24 +33,18 @@ The application now supports global keyboard shortcuts for fast navigation and a
 A GitHub-style heatmap provides a visual overview of spending intensity over the last 90 days.
 
 ### How to Demo:
-1.  **Navigate to Analytics:** Use `G + A` or click on "Analytics" in the navbar.
+1.  **Navigate to Analytics:** Use `6` or click on "Analytics" in the navbar.
 2.  **View Heatmap:**
     *   The **Spending Intensity** card is now displayed at the top of the page.
-    *   Each square represents one day.
-    *   **Colors:**
-        *   `Muted/Gray`: No spending.
-        *   `Light Green`: Low spending.
-        *   `Dark Green`: High spending (relative to the maximum daily spend in the 90-day period).
 3.  **Interactive Tooltips:**
     *   Hover over any square to see the exact date and the total amount spent on that day.
 4.  **Theme Compatibility:**
-    *   Toggle between Light and Dark modes.
-    *   Verify that the heatmap colors adapt correctly to the theme while maintaining visibility.
+    *   The heatmap colors adapt correctly to Light/Dark modes while maintaining visibility.
 
 ---
 
 ## 3. Automated Verification
-You can also run the automated test suites to verify the logic:
+Run the test suites to verify the logic:
 
 ### Backend (Heatmap Logic)
 ```bash

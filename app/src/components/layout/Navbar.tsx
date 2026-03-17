@@ -27,8 +27,12 @@ export function Navbar() {
   useEffect(() => {
     const onChange = () => setIsAuthed(!!getToken());
     window.addEventListener('auth_changed', onChange);
+    window.addEventListener('fm_logout', handleLogout);
     onChange();
-    return () => window.removeEventListener('auth_changed', onChange);
+    return () => {
+      window.removeEventListener('auth_changed', onChange);
+      window.removeEventListener('fm_logout', handleLogout);
+    };
   }, []);
 
   const handleLogout = async () => {

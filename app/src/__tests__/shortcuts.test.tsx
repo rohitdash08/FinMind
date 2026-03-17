@@ -28,7 +28,42 @@ describe("useShortcuts", () => {
     jest.useRealTimers();
   });
 
-  it("navigates to dashboard on G+D", () => {
+  it("navigates correctly on numeric and prefixed keys", () => {
+    render(
+      <BrowserRouter>
+        <ShortcutTestComponent />
+      </BrowserRouter>
+    );
+
+    const testCases = [
+      { key: "1", path: "/dashboard" },
+      { prefix: "g", key: "d", path: "/dashboard" },
+      { key: "2", path: "/budgets" },
+      { prefix: "g", key: "b", path: "/budgets" },
+      { key: "3", path: "/bills" },
+      { prefix: "g", key: "l", path: "/bills" },
+      { key: "4", path: "/reminders" },
+      { prefix: "g", key: "r", path: "/reminders" },
+      { key: "5", path: "/expenses" },
+      { prefix: "g", key: "e", path: "/expenses" },
+      { key: "6", path: "/analytics" },
+      { prefix: "g", key: "a", path: "/analytics" },
+      { key: "7", path: "/account" },
+      { prefix: "g", key: "c", path: "/account" },
+    ];
+
+    testCases.forEach((tc) => {
+      useNavigateMock.mockClear();
+      if (tc.prefix) {
+        fireEvent.keyDown(window, { key: tc.prefix });
+      }
+      fireEvent.keyDown(window, { key: tc.key });
+      expect(useNavigateMock).toHaveBeenCalledWith(tc.path);
+    });
+  });
+
+  it("triggers logout on G+Q", () => {
+    const dispatchSpy = jest.spyOn(window, 'dispatchEvent');
     render(
       <BrowserRouter>
         <ShortcutTestComponent />
@@ -36,25 +71,18 @@ describe("useShortcuts", () => {
     );
 
     fireEvent.keyDown(window, { key: "g" });
-    fireEvent.keyDown(window, { key: "d" });
-
-    expect(useNavigateMock).toHaveBeenCalledWith("/dashboard");
-  });
-
-  it("navigates to expenses on G+E", () => {
-    render(
-      <BrowserRouter>
-        <ShortcutTestComponent />
-      </BrowserRouter>
+    fireEvent.keyDown(window, { key: "q" });
+    
+    // Find the fm_logout call among other event dispatches (like keydown)
+    const logoutCall = dispatchSpy.mock.calls.find(call => 
+      call[0] instanceof CustomEvent && call[0].type === 'fm_logout'
     );
-
-    fireEvent.keyDown(window, { key: "g" });
-    fireEvent.keyDown(window, { key: "e" });
-
-    expect(useNavigateMock).toHaveBeenCalledWith("/expenses");
+    
+    expect(logoutCall).toBeDefined();
+    dispatchSpy.mockRestore();
   });
 
-  it("opens help modal on ?", () => {
+  it("toggles help modal on ?", () => {
     render(
       <BrowserRouter>
         <ShortcutTestComponent />
@@ -62,10 +90,10 @@ describe("useShortcuts", () => {
     );
 
     expect(screen.getByTestId("help-status").textContent).toBe("closed");
-
     fireEvent.keyDown(window, { key: "?" });
-
     expect(screen.getByTestId("help-status").textContent).toBe("open");
+    fireEvent.keyDown(window, { key: "?" });
+    expect(screen.getByTestId("help-status").textContent).toBe("closed");
   });
 
   it("ignores shortcuts when typing in inputs", () => {
@@ -79,9 +107,11 @@ describe("useShortcuts", () => {
     const input = screen.getByTestId("test-input");
     input.focus();
 
+    fireEvent.keyDown(input, { key: "1" });
+    expect(useNavigateMock).not.toHaveBeenCalled();
+
     fireEvent.keyDown(input, { key: "g" });
     fireEvent.keyDown(input, { key: "d" });
-
     expect(useNavigateMock).not.toHaveBeenCalled();
   });
 });
