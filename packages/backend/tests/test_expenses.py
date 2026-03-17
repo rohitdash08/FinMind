@@ -183,3 +183,80 @@ def test_expense_import_preview_pdf_fallback_without_gemini(
     assert tx[1]["description"] == "Payroll Deposit"
     assert tx[1]["amount"] == 2500.0
     assert tx[1]["expense_type"] == "INCOME"
+
+
+def test_recurring_expense_create_list_and_generate(client, auth_header):
+    cat_id = _create_category(client, auth_header, name="Rent")
+
+    create_payload = {
+        "amount": 1500.0,
+        "description": "House Rent",
+        "category_id": cat_id,
+        "cadence": "MONTHLY",
+        "start_date": "2026-01-05",
+        "end_date": "2026-03-31",
+    }
+    r = client.post("/expenses/recurring", json=create_payload, headers=auth_header)
+    assert r.status_code == 201
+    recurring = r.get_json()
+    recurring_id = recurring["id"]
+    assert recurring["cadence"] == "MONTHLY"
+    assert recurring["description"] == "House Rent"
+    assert recurring["currency"] == "INR"
+
+    r = client.get("/expenses/recurring", headers=auth_header)
+    assert r.status_code == 200
+    items = r.get_json()
+    assert len(items) == 1
+    assert items[0]["id"] == recurring_id
+
+    r = client.post(
+        f"/expenses/recurring/{recurring_id}/generate",
+        json={"through_date": "2026-03-31"},
+        headers=auth_header,
+    )
+    assert r.status_code == 200
+    gen = r.get_json()
+    assert gen["inserted"] == 3
+
+    # Second run for same window should not duplicate generated rows.
+    r = client.post(
+        f"/expenses/recurring/{recurring_id}/generate",
+        json={"through_date": "2026-03-31"},
+        headers=auth_header,
+    )
+    assert r.status_code == 200
+    gen2 = r.get_json()
+    assert gen2["inserted"] == 0
+
+    r = client.get("/expenses?search=House%20Rent", headers=auth_header)
+    assert r.status_code == 200
+    generated = r.get_json()
+    assert len(generated) == 3
+
+
+def test_recurring_expense_generate_respects_end_date(client, auth_header):
+    create_payload = {
+        "amount": 100.0,
+        "description": "Gym Membership",
+        "cadence": "WEEKLY",
+        "start_date": "2026-01-01",
+        "end_date": "2026-01-15",
+    }
+    r = client.post("/expenses/recurring", json=create_payload, headers=auth_header)
+    assert r.status_code == 201
+    recurring_id = r.get_json()["id"]
+
+    r = client.post(
+        f"/expenses/recurring/{recurring_id}/generate",
+        json={"through_date": "2026-02-28"},
+        headers=auth_header,
+    )
+    assert r.status_code == 200
+    gen = r.get_json()
+    assert gen["inserted"] == 3
+
+    r = client.get("/expenses?search=Gym%20Membership", headers=auth_header)
+    assert r.status_code == 200
+    generated = r.get_json()
+    assert len(generated) == 3

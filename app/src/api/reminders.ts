@@ -35,3 +35,23 @@ export async function deleteReminder(id: number): Promise<{ message?: string } |
 export async function runDue(): Promise<{ processed?: number } | Record<string, never>> {
   return api('/reminders/run', { method: 'POST' });
 }
+
+export async function scheduleBillReminders(
+  billId: number,
+  offsetsDays?: number[],
+): Promise<{ created: number }> {
+  return api<{ created: number }>(`/reminders/bills/${billId}/schedule`, {
+    method: 'POST',
+    body: offsetsDays && offsetsDays.length > 0 ? { offsets_days: offsetsDays } : {},
+  });
+}
+
+export async function reportAutopayResult(
+  billId: number,
+  status: 'SUCCESS' | 'FAILED',
+): Promise<{ created: number }> {
+  return api<{ created: number }>(`/reminders/bills/${billId}/autopay-result`, {
+    method: 'POST',
+    body: { status },
+  });
+}

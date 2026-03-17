@@ -32,6 +32,30 @@ export type ImportPreviewResponse = {
   transactions: ImportTransaction[];
 };
 
+export type RecurringExpense = {
+  id: number;
+  amount: number;
+  currency: string;
+  expense_type: string;
+  category_id: number | null;
+  description: string;
+  cadence: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY';
+  start_date: string;
+  end_date: string | null;
+  active: boolean;
+};
+
+export type RecurringExpenseCreate = {
+  amount: number;
+  description: string;
+  category_id?: number | null;
+  cadence: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY';
+  start_date: string;
+  end_date?: string | null;
+  expense_type?: 'EXPENSE' | 'INCOME';
+  currency?: string;
+};
+
 export async function listExpenses(params?: {
   from?: string;
   to?: string;
@@ -91,5 +115,25 @@ export async function commitExpenseImport(
   return api<{ inserted: number; duplicates: number }>('/expenses/import/commit', {
     method: 'POST',
     body: { transactions },
+  });
+}
+
+export async function listRecurringExpenses(): Promise<RecurringExpense[]> {
+  return api<RecurringExpense[]>('/expenses/recurring');
+}
+
+export async function createRecurringExpense(
+  payload: RecurringExpenseCreate,
+): Promise<RecurringExpense> {
+  return api<RecurringExpense>('/expenses/recurring', { method: 'POST', body: payload });
+}
+
+export async function generateRecurringExpenses(
+  recurringId: number,
+  throughDate: string,
+): Promise<{ inserted: number }> {
+  return api<{ inserted: number }>(`/expenses/recurring/${recurringId}/generate`, {
+    method: 'POST',
+    body: { through_date: throughDate },
   });
 }

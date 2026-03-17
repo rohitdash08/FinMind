@@ -2,6 +2,12 @@ from flask import Flask, jsonify
 from .config import Settings
 from .extensions import db, jwt
 from .routes import register_routes
+from .observability import (
+    Observability,
+    configure_logging,
+    finalize_request,
+    init_request_context,
+)
 from flask_cors import CORS
 import click
 import os
@@ -31,16 +37,14 @@ def create_app(settings: Settings | None = None) -> Flask:
 
     # Logging
     log_level = os.getenv("LOG_LEVEL", "INFO").upper()
-    logging.basicConfig(
-        level=getattr(logging, log_level, logging.INFO),
-        format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
-    )
+    configure_logging(log_level)
     logger = logging.getLogger("finmind")
     logger.info("Starting FinMind backend with log level %s", log_level)
 
     # Extensions
     db.init_app(app)
     jwt.init_app(app)
+    app.extensions["observability"] = Observability()
     # CORS for local dev frontend
     CORS(app, resources={r"*": {"origins": "*"}}, supports_credentials=True)
 
@@ -52,9 +56,22 @@ def create_app(settings: Settings | None = None) -> Flask:
     with app.app_context():
         _ensure_schema_compatibility(app)
 
+    @app.before_request
+    def _before_request():
+        init_request_context()
+
+    @app.after_request
+    def _after_request(response):
+        return finalize_request(response)
+
     @app.get("/health")
     def health():
         return jsonify(status="ok"), 200
+
+    @app.get("/metrics")
+    def metrics():
+        obs = app.extensions["observability"]
+        return obs.metrics_response()
 
     @app.errorhandler(500)
     def internal_error(_error):

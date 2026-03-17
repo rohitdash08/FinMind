@@ -56,6 +56,9 @@ const updateExpenseMock = jest.fn();
 const deleteExpenseMock = jest.fn();
 const previewImportMock = jest.fn();
 const commitImportMock = jest.fn();
+const listRecurringMock = jest.fn();
+const createRecurringMock = jest.fn();
+const generateRecurringMock = jest.fn();
 jest.mock('@/api/expenses', () => ({
   listExpenses: (...args: unknown[]) => listExpensesMock(...args),
   createExpense: (...args: unknown[]) => createExpenseMock(...args),
@@ -63,6 +66,9 @@ jest.mock('@/api/expenses', () => ({
   deleteExpense: (...args: unknown[]) => deleteExpenseMock(...args),
   previewExpenseImport: (...args: unknown[]) => previewImportMock(...args),
   commitExpenseImport: (...args: unknown[]) => commitImportMock(...args),
+  listRecurringExpenses: (...args: unknown[]) => listRecurringMock(...args),
+  createRecurringExpense: (...args: unknown[]) => createRecurringMock(...args),
+  generateRecurringExpenses: (...args: unknown[]) => generateRecurringMock(...args),
 }));
 
 const listCategoriesMock = jest.fn();
@@ -88,6 +94,20 @@ describe('Expenses page integration', () => {
       transactions: [{ date: '2026-02-10', amount: 14.2, description: 'Taxi', category_id: null }],
     });
     commitImportMock.mockResolvedValue({ inserted: 1, duplicates: 0 });
+    listRecurringMock.mockResolvedValue([]);
+    createRecurringMock.mockResolvedValue({
+      id: 77,
+      amount: 100,
+      currency: 'INR',
+      expense_type: 'EXPENSE',
+      category_id: null,
+      description: 'Gym',
+      cadence: 'MONTHLY',
+      start_date: '2026-02-01',
+      end_date: null,
+      active: true,
+    });
+    generateRecurringMock.mockResolvedValue({ inserted: 1 });
   });
 
   it('creates expense from quick add form', async () => {
@@ -126,5 +146,23 @@ describe('Expenses page integration', () => {
         expect.objectContaining({ description: 'Taxi', amount: 14.2 }),
       ]),
     ));
+  });
+
+  it('creates recurring expense from recurring form', async () => {
+    render(<Expenses />);
+    await waitFor(() => expect(listExpensesMock).toHaveBeenCalled());
+
+    await userEvent.type(screen.getByLabelText(/recurring amount/i), '100');
+    await userEvent.type(screen.getByLabelText(/recurring description/i), 'Gym');
+    await userEvent.click(screen.getByRole('button', { name: /add recurring/i }));
+
+    await waitFor(() => expect(createRecurringMock).toHaveBeenCalled());
+    expect(createRecurringMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        amount: 100,
+        description: 'Gym',
+        cadence: 'MONTHLY',
+      }),
+    );
   });
 });

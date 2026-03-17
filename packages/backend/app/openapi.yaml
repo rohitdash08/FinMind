@@ -180,8 +180,8 @@ paths:
               amount: 12.5
               currency: USD
               category_id: 1
-              notes: Lunch
-              spent_at: 2025-08-10
+              description: Lunch
+              date: 2025-08-10
       responses:
         '201': { description: Created }
         '400':
@@ -189,6 +189,67 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
+
+  /expenses/recurring:
+    get:
+      summary: List recurring expenses
+      tags: [Expenses]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: List of recurring expenses
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RecurringExpense'
+    post:
+      summary: Create recurring expense
+      tags: [Expenses]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewRecurringExpense'
+      responses:
+        '201': { description: Created }
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /expenses/recurring/{recurringId}/generate:
+    post:
+      summary: Generate concrete expenses from recurring definition
+      tags: [Expenses]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: recurringId
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [through_date]
+              properties:
+                through_date: { type: string, format: date }
+      responses:
+        '200':
+          description: Generated count
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  inserted: { type: integer }
 
   /bills:
     get:
@@ -324,11 +385,75 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
 
+  /reminders/bills/{billId}/schedule:
+    post:
+      summary: Create bill reminders with default/override offsets
+      tags: [Reminders]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: billId
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                offsets_days:
+                  type: array
+                  items: { type: integer }
+      responses:
+        '200':
+          description: Created reminders count
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  created: { type: integer }
+
+  /reminders/bills/{billId}/autopay-result:
+    post:
+      summary: Emit autopay outcome follow-up reminders
+      tags: [Reminders]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: billId
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { type: string, enum: [SUCCESS, FAILED] }
+      responses:
+        '200':
+          description: Created reminders count
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  created: { type: integer }
+
   /insights/budget-suggestion:
     get:
       summary: Get monthly budget suggestion
       tags: [Insights]
       security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: month
+          required: false
+          schema: { type: string, pattern: '^\d{4}-\d{2}$' }
       responses:
         '200':
           description: Suggestion
@@ -339,11 +464,17 @@ paths:
                 additionalProperties: true
               example:
                 month: 2025-08
-                total_budget: 1200
-                categories:
-                  Groceries: 300
-                  Utilities: 200
-                  Entertainment: 150
+                suggested_total: 1200
+                method: gemini
+                analytics:
+                  month_over_month_change_pct: 5.5
+                  current_month_expenses: 950
+                  previous_month_expenses: 900
+                breakdown:
+                  needs: 600
+                  wants: 360
+                  savings: 240
+                tips: ["Cap dining spend to 80% of last month", "Automate weekly transfer to savings"]
         '401':
           description: Unauthorized
           content:
@@ -379,8 +510,9 @@ components:
         amount: { type: number, format: float }
         currency: { type: string }
         category_id: { type: integer }
-        notes: { type: string, nullable: true }
-        spent_at: { type: string, format: date }
+        expense_type: { type: string }
+        description: { type: string, nullable: true }
+        date: { type: string, format: date }
     NewExpense:
       type: object
       required: [amount]
@@ -388,8 +520,34 @@ components:
         amount: { type: number, format: float }
         currency: { type: string, default: USD }
         category_id: { type: integer, nullable: true }
-        notes: { type: string, nullable: true }
-        spent_at: { type: string, format: date, nullable: true }
+        expense_type: { type: string, default: EXPENSE }
+        description: { type: string, nullable: true }
+        date: { type: string, format: date, nullable: true }
+    RecurringExpense:
+      type: object
+      properties:
+        id: { type: integer }
+        amount: { type: number, format: float }
+        currency: { type: string }
+        expense_type: { type: string }
+        category_id: { type: integer, nullable: true }
+        description: { type: string }
+        cadence: { type: string, enum: [DAILY, WEEKLY, MONTHLY, YEARLY] }
+        start_date: { type: string, format: date }
+        end_date: { type: string, format: date, nullable: true }
+        active: { type: boolean }
+    NewRecurringExpense:
+      type: object
+      required: [amount, description, cadence, start_date]
+      properties:
+        amount: { type: number, format: float }
+        currency: { type: string, default: INR }
+        expense_type: { type: string, default: EXPENSE }
+        category_id: { type: integer, nullable: true }
+        description: { type: string }
+        cadence: { type: string, enum: [DAILY, WEEKLY, MONTHLY, YEARLY] }
+        start_date: { type: string, format: date }
+        end_date: { type: string, format: date, nullable: true }
     Bill:
       type: object
       properties:
@@ -399,6 +557,7 @@ components:
         currency: { type: string }
         next_due_date: { type: string, format: date }
         cadence: { type: string, enum: [WEEKLY, MONTHLY, YEARLY, ONCE] }
+        autopay_enabled: { type: boolean }
         channel_email: { type: boolean }
         channel_whatsapp: { type: boolean }
     NewBill:
@@ -410,6 +569,7 @@ components:
         currency: { type: string, default: USD }
         next_due_date: { type: string, format: date }
         cadence: { type: string, enum: [WEEKLY, MONTHLY, YEARLY, ONCE], default: MONTHLY }
+        autopay_enabled: { type: boolean, default: false }
         channel_email: { type: boolean, default: true }
         channel_whatsapp: { type: boolean, default: false }
     Reminder:

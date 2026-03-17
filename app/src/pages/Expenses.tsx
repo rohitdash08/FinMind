@@ -38,8 +38,12 @@ import {
   deleteExpense,
   previewExpenseImport,
   commitExpenseImport,
+  listRecurringExpenses,
+  createRecurringExpense,
+  generateRecurringExpenses,
   type Expense,
   type ImportTransaction,
+  type RecurringExpense,
 } from '@/api/expenses';
 import { listCategories, type Category } from '@/api/categories';
 import { formatMoney } from '@/lib/currency';
@@ -69,6 +73,16 @@ export default function Expenses() {
   const [previewDuplicates, setPreviewDuplicates] = useState<number>(0);
   const [importLoading, setImportLoading] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [recurringItems, setRecurringItems] = useState<RecurringExpense[]>([]);
+  const [recurringAmount, setRecurringAmount] = useState('');
+  const [recurringDescription, setRecurringDescription] = useState('');
+  const [recurringCadence, setRecurringCadence] =
+    useState<'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY'>('MONTHLY');
+  const [recurringStartDate, setRecurringStartDate] = useState<string>(
+    () => new Date().toISOString().slice(0, 10),
+  );
+  const [recurringEndDate, setRecurringEndDate] = useState<string>('');
+  const [recurringSaving, setRecurringSaving] = useState(false);
 
   const [from, setFrom] = useState<string>('');
   const [to, setTo] = useState<string>('');
@@ -110,10 +124,23 @@ export default function Expenses() {
     }
   }, [toast]);
 
+  const loadRecurring = useCallback(async () => {
+    try {
+      const data = await listRecurringExpenses();
+      setRecurringItems(data);
+    } catch {
+      toast({
+        title: 'Failed to load recurring expenses',
+        description: 'Please try again.',
+      });
+    }
+  }, [toast]);
+
   useEffect(() => {
     void refresh();
     void loadCategories();
-  }, [refresh, loadCategories]);
+    void loadRecurring();
+  }, [refresh, loadCategories, loadRecurring]);
 
   function resetForm() {
     setAmount('');
@@ -260,6 +287,56 @@ export default function Expenses() {
     }
   }
 
+  async function onCreateRecurring() {
+    if (!recurringDescription.trim() || !recurringAmount || Number(recurringAmount) <= 0) {
+      setError('Recurring expense requires valid amount and description');
+      return;
+    }
+    setRecurringSaving(true);
+    try {
+      const created = await createRecurringExpense({
+        amount: Number(recurringAmount),
+        description: recurringDescription.trim(),
+        category_id: categoryId ? Number(categoryId) : null,
+        cadence: recurringCadence,
+        start_date: recurringStartDate,
+        end_date: recurringEndDate || null,
+      });
+      setRecurringItems((prev) => [created, ...prev]);
+      setRecurringAmount('');
+      setRecurringDescription('');
+      setRecurringCadence('MONTHLY');
+      setRecurringStartDate(new Date().toISOString().slice(0, 10));
+      setRecurringEndDate('');
+      toast({ title: 'Recurring expense created' });
+    } catch (error: unknown) {
+      const message = getErrorMessage(error, 'Failed to create recurring expense');
+      setError(message);
+      toast({ title: 'Failed to create recurring expense', description: message || 'Please try again.' });
+    } finally {
+      setRecurringSaving(false);
+    }
+  }
+
+  async function onGenerateRecurring(id: number) {
+    setRecurringSaving(true);
+    try {
+      const throughDate = new Date().toISOString().slice(0, 10);
+      const result = await generateRecurringExpenses(id, throughDate);
+      toast({
+        title: 'Recurring generation complete',
+        description: `${result.inserted} transactions generated.`,
+      });
+      await refresh();
+    } catch (error: unknown) {
+      const message = getErrorMessage(error, 'Failed to generate recurring expenses');
+      setError(message);
+      toast({ title: 'Failed to generate recurring expenses', description: message || 'Please try again.' });
+    } finally {
+      setRecurringSaving(false);
+    }
+  }
+
   const categoryMap = useMemo(() => new Map(categories.map((c) => [c.id, c.name])), [categories]);
   const totals = useMemo(() => {
     const sum = allItems.reduce((acc, e) => acc + Number(e.amount || 0), 0);
@@ -385,6 +462,69 @@ export default function Expenses() {
                 ))}
               </div>
             </div>
+          )}
+        </div>
+      </div>
+
+      <div className="card card-interactive p-4 space-y-4 fade-in-up">
+        <h3 className="text-base font-semibold">Recurring Expenses</h3>
+        <div className="grid gap-3 md:grid-cols-6">
+          <Input
+            aria-label="recurring amount"
+            type="number"
+            min="0"
+            step="0.01"
+            placeholder="Amount"
+            value={recurringAmount}
+            onChange={(e) => setRecurringAmount(e.target.value)}
+          />
+          <Input
+            aria-label="recurring description"
+            placeholder="Description"
+            value={recurringDescription}
+            onChange={(e) => setRecurringDescription(e.target.value)}
+          />
+          <select
+            aria-label="recurring cadence"
+            className="input"
+            value={recurringCadence}
+            onChange={(e) => setRecurringCadence(e.target.value as 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY')}
+          >
+            <option value="DAILY">Daily</option>
+            <option value="WEEKLY">Weekly</option>
+            <option value="MONTHLY">Monthly</option>
+            <option value="YEARLY">Yearly</option>
+          </select>
+          <Input
+            aria-label="recurring start date"
+            type="date"
+            value={recurringStartDate}
+            onChange={(e) => setRecurringStartDate(e.target.value)}
+          />
+          <Input
+            aria-label="recurring end date"
+            type="date"
+            value={recurringEndDate}
+            onChange={(e) => setRecurringEndDate(e.target.value)}
+          />
+          <Button onClick={onCreateRecurring} disabled={recurringSaving}>
+            Add Recurring
+          </Button>
+        </div>
+        <div className="space-y-2">
+          {recurringItems.length === 0 ? (
+            <div className="text-sm text-muted-foreground">No recurring expenses configured.</div>
+          ) : (
+            recurringItems.map((r) => (
+              <div key={r.id} className="interactive-row flex items-center justify-between border-b py-2">
+                <div className="text-sm">
+                  {r.description} • {r.cadence} • {formatMoney(r.amount, r.currency)}
+                </div>
+                <Button variant="outline" onClick={() => onGenerateRecurring(r.id)} disabled={recurringSaving}>
+                  Generate Now
+                </Button>
+              </div>
+            ))
           )}
         </div>
       </div>

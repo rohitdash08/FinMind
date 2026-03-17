@@ -7,6 +7,7 @@ export type Bill = {
   currency?: string;
   next_due_date?: string; // YYYY-MM-DD
   cadence?: 'WEEKLY' | 'MONTHLY' | 'YEARLY' | 'ONCE';
+  autopay_enabled?: boolean;
   channel_email?: boolean;
   channel_whatsapp?: boolean;
   paid_at?: string | null;

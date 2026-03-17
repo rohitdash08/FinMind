@@ -58,6 +58,8 @@ def send_whatsapp(to_number: str, body: str):
 
 def send_reminder(r: Reminder):
     # Channel holds 'email' or 'whatsapp:<number>'
+    if r.channel == "whatsapp":
+        return False
     if r.channel.startswith("whatsapp:"):
         to = r.channel.split(":", 1)[1]
         return send_whatsapp(to, r.message)
