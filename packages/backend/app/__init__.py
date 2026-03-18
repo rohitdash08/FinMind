@@ -33,6 +33,8 @@ def create_app(settings: Settings | None = None) -> Flask:
         TWILIO_AUTH_TOKEN=cfg.twilio_auth_token,
         TWILIO_WHATSAPP_FROM=cfg.twilio_whatsapp_from,
         EMAIL_FROM=cfg.email_from,
+        RESEND_API_KEY=cfg.resend_api_key,
+        ADMIN_EMAIL=cfg.admin_email,
     )
 
     # Logging

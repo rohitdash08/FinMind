@@ -35,3 +35,19 @@ export async function updateMe(payload: {
 }): Promise<MeResponse> {
   return api<MeResponse>('/auth/me', { method: 'PATCH', body: payload });
 }
+
+export type SecurityAlert = {
+  id: number;
+  alert_type: string;
+  description: string;
+  is_read: boolean;
+  created_at: string;
+};
+
+export async function getAlerts(): Promise<{ alerts: SecurityAlert[] }> {
+  return api<{ alerts: SecurityAlert[] }>('/auth/alerts');
+}
+
+export async function markAlertRead(alertId: number): Promise<{ message: string }> {
+  return api<{ message: string }>(`/auth/alerts/${alertId}/read`, { method: 'PATCH' });
+}

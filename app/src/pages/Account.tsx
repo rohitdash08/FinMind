@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { me, updateMe } from '@/api/auth';
+import { me, updateMe, getAlerts, markAlertRead, SecurityAlert } from '@/api/auth';
 import { setCurrency } from '@/lib/auth';
 
 const SUPPORTED_CURRENCIES = [
@@ -23,6 +23,7 @@ export default function Account() {
   const [currency, setCurrencyState] = useState('INR');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [alerts, setAlerts] = useState<SecurityAlert[]>([]);
 
   useEffect(() => {
     const load = async () => {
@@ -31,6 +32,12 @@ export default function Account() {
         const data = await me();
         setEmail(data.email);
         setCurrencyState(data.preferred_currency || 'INR');
+        try {
+          const alertsData = await getAlerts();
+          setAlerts(alertsData.alerts);
+        } catch (e) {
+          console.error("Failed to load alerts", e);
+        }
       } catch (error: unknown) {
         const message =
           error instanceof Error ? error.message : 'Failed to load account';
@@ -57,6 +64,15 @@ export default function Account() {
       toast({ title: 'Failed to update account', description: message });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleMarkRead = async (id: number) => {
+    try {
+      await markAlertRead(id);
+      setAlerts(alerts.map((a) => (a.id === id ? { ...a, is_read: true } : a)));
+    } catch {
+      toast({ title: 'Failed to mark alert as read', variant: 'destructive' });
     }
   };
 
@@ -108,6 +124,40 @@ export default function Account() {
           </>
         )}
       </div>
+
+      {alerts.length > 0 && (
+        <div className="card space-y-4 fade-in-up" style={{ animationDelay: '100ms' }}>
+          <h2 className="text-xl font-semibold text-destructive">Security Alerts</h2>
+          <div className="space-y-3">
+            {alerts.map((alert) => (
+              <div
+                key={alert.id}
+                className={`p-4 rounded-md border ${alert.is_read
+                  ? 'bg-muted/30 border-muted'
+                  : 'bg-destructive/10 border-destructive/20'
+                  }`}
+              >
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h3 className="font-medium capitalize">
+                      {alert.alert_type.replace(/_/g, ' ').toLowerCase()}
+                    </h3>
+                    <p className="text-sm mt-1 opacity-80">{alert.description}</p>
+                    <p className="text-xs mt-2 opacity-60">
+                      {new Date(alert.created_at).toLocaleString()}
+                    </p>
+                  </div>
+                  {!alert.is_read && (
+                    <Button variant="outline" size="sm" onClick={() => handleMarkRead(alert.id)}>
+                      Mark Read
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
