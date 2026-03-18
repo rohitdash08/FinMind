@@ -5,6 +5,7 @@ from ..extensions import db
 from ..models import Bill, Reminder
 from ..observability import track_reminder_event
 from ..services.reminders import send_reminder
+from ..services.reminder_jobs import enqueue_reminder
 import logging
 
 bp = Blueprint("reminders", __name__)
@@ -159,7 +160,16 @@ def autopay_result_followup(bill_id: int):
 @bp.post("/run")
 @jwt_required()
 def run_due():
+    """Process due reminders.
+
+    When ``?queue=true`` is passed, reminders are enqueued through the
+    resilient background job queue instead of being sent inline.  This
+    gives automatic retries with exponential backoff for delivery
+    failures.  The default behaviour (inline send) is preserved for
+    backward compatibility.
+    """
     uid = int(get_jwt_identity())
+    use_queue = request.args.get("queue", "").lower() in ("true", "1", "yes")
     now = datetime.utcnow() + timedelta(minutes=1)
     items = (
         db.session.query(Reminder)
@@ -170,13 +180,22 @@ def run_due():
         )
         .all()
     )
-    for r in items:
-        send_reminder(r)
-        r.sent = True
-        track_reminder_event(event="sent", channel=r.channel)
-    db.session.commit()
-    logger.info("Processed due reminders user=%s count=%s", uid, len(items))
-    return jsonify(processed=len(items))
+
+    if use_queue:
+        enqueued = 0
+        for r in items:
+            enqueue_reminder(r.id)
+            enqueued += 1
+        logger.info("Enqueued due reminders user=%s count=%s", uid, enqueued)
+        return jsonify(enqueued=enqueued)
+    else:
+        for r in items:
+            send_reminder(r)
+            r.sent = True
+            track_reminder_event(event="sent", channel=r.channel)
+        db.session.commit()
+        logger.info("Processed due reminders user=%s count=%s", uid, len(items))
+        return jsonify(processed=len(items))
 
 
 def _bill_channels(bill: Bill) -> list[str]:
