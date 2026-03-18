@@ -133,3 +133,32 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class AccountType(str, Enum):
+    CHECKING = "CHECKING"
+    SAVINGS = "SAVINGS"
+    CREDIT = "CREDIT"
+    INVESTMENT = "INVESTMENT"
+    CASH = "CASH"
+    OTHER = "OTHER"
+
+
+class FinancialAccount(db.Model):
+    __tablename__ = "financial_accounts"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    name = db.Column(db.String(200), nullable=False)
+    account_type = db.Column(
+        SAEnum(AccountType, name="account_type_enum", create_type=False),
+        nullable=False,
+        default=AccountType.CHECKING,
+    )
+    balance = db.Column(db.Numeric(14, 2), nullable=False, default=0)
+    institution = db.Column(db.String(200), nullable=True)
+    currency = db.Column(db.String(10), nullable=False, default="INR")
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(
+        db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+    )

@@ -123,3 +123,23 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   action VARCHAR(100) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+DO $$ BEGIN
+  CREATE TYPE account_type_enum AS ENUM ('CHECKING','SAVINGS','CREDIT','INVESTMENT','CASH','OTHER');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
+
+CREATE TABLE IF NOT EXISTS financial_accounts (
+  id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name VARCHAR(200) NOT NULL,
+  account_type account_type_enum NOT NULL DEFAULT 'CHECKING',
+  balance NUMERIC(14,2) NOT NULL DEFAULT 0,
+  institution VARCHAR(200),
+  currency VARCHAR(10) NOT NULL DEFAULT 'INR',
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_financial_accounts_user ON financial_accounts(user_id, is_active);
