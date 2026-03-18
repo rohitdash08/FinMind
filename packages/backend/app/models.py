@@ -133,3 +133,71 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class LoginEvent(db.Model):
+    """Records every login attempt, successful or not."""
+
+    __tablename__ = "login_events"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    ip_address = db.Column(db.String(45), nullable=True)  # IPv4/IPv6
+    user_agent = db.Column(db.String(512), nullable=True)
+    geo_location = db.Column(db.String(255), nullable=True)  # "City, Country"
+    success = db.Column(db.Boolean, default=False, nullable=False)
+    is_suspicious = db.Column(db.Boolean, default=False, nullable=False)
+    suspicion_reasons = db.Column(db.Text, nullable=True)  # JSON list of reason strings
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    __table_args__ = (
+        db.Index("ix_login_events_user_id_timestamp", "user_id", "timestamp"),
+    )
+
+    def to_dict(self):
+        import json
+
+        reasons = []
+        if self.suspicion_reasons:
+            try:
+                reasons = json.loads(self.suspicion_reasons)
+            except Exception:
+                reasons = [self.suspicion_reasons]
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "ip_address": self.ip_address,
+            "user_agent": self.user_agent,
+            "geo_location": self.geo_location,
+            "success": self.success,
+            "is_suspicious": self.is_suspicious,
+            "suspicion_reasons": reasons,
+            "timestamp": self.timestamp.isoformat() + "Z",
+        }
+
+
+class LoginAlert(db.Model):
+    """Stores a security alert generated for a suspicious login event."""
+
+    __tablename__ = "login_alerts"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    login_event_id = db.Column(
+        db.Integer, db.ForeignKey("login_events.id"), nullable=False
+    )
+    alert_type = db.Column(db.String(50), nullable=False)  # e.g. "new_ip", "brute_force"
+    message = db.Column(db.String(500), nullable=False)
+    acknowledged = db.Column(db.Boolean, default=False, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "login_event_id": self.login_event_id,
+            "alert_type": self.alert_type,
+            "message": self.message,
+            "acknowledged": self.acknowledged,
+            "created_at": self.created_at.isoformat() + "Z",
+        }

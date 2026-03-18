@@ -10,6 +10,7 @@ from flask_jwt_extended import (
 )
 from ..extensions import db, redis_client
 from ..models import User
+from ..services import login_anomaly as anomaly_svc
 import logging
 import time
 
@@ -56,14 +57,42 @@ def login():
     email = data.get("email")
     password = data.get("password")
     user = db.session.query(User).filter_by(email=email).first()
+
+    ip = request.headers.get("X-Forwarded-For", request.remote_addr or "").split(",")[0].strip()
+    ua = request.headers.get("User-Agent", "")
+
     if not user or not check_password_hash(user.password_hash, password):
         logger.warning("Login failed for email=%s", email)
+        # Record failed attempt (user_id may be None if email unknown)
+        anomaly_svc.record_login(
+            user_id=user.id if user else None,
+            ip_address=ip or None,
+            user_agent=ua or None,
+            success=False,
+        )
         return jsonify(error="invalid credentials"), 401
+
     access = create_access_token(identity=str(user.id))
     refresh = create_refresh_token(identity=str(user.id))
     _store_refresh_session(refresh, str(user.id))
+
+    # Record successful login and run anomaly detection
+    event = anomaly_svc.record_login(
+        user_id=user.id,
+        ip_address=ip or None,
+        user_agent=ua or None,
+        success=True,
+    )
+    if event.is_suspicious:
+        logger.warning(
+            "Suspicious login user_id=%s reasons=%s", user.id, event.suspicion_reasons
+        )
     logger.info("Login success user_id=%s", user.id)
-    return jsonify(access_token=access, refresh_token=refresh)
+    return jsonify(
+        access_token=access,
+        refresh_token=refresh,
+        suspicious=event.is_suspicious,
+    )
 
 
 @bp.get("/me")
