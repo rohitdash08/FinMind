@@ -1,9 +1,9 @@
 import os
 import pytest
+from unittest.mock import MagicMock, patch
 from app import create_app
 from app.config import Settings
 from app.extensions import db
-from app.extensions import redis_client
 from app import models  # noqa: F401 - ensure models are registered
 
 
@@ -19,6 +19,19 @@ def _setup_db(app):
         db.create_all()
 
 
+def _make_redis_mock():
+    """Return a MagicMock that behaves like a simple in-memory Redis for tests."""
+    store: dict = {}
+    mock = MagicMock()
+    mock.get.side_effect = lambda key: store.get(key)
+    mock.set.side_effect = lambda key, value, **_: store.update({key: value})
+    mock.setex.side_effect = lambda key, ttl, value: store.update({key: value})
+    mock.delete.side_effect = lambda *keys: [store.pop(k, None) for k in keys]
+    mock.scan.return_value = (0, [])
+    mock.flushdb.side_effect = store.clear
+    return mock
+
+
 @pytest.fixture()
 def app_fixture():
     # Ensure a clean env for tests
@@ -28,21 +41,17 @@ def app_fixture():
         redis_url="redis://localhost:6379/15",
         jwt_secret="test-secret-with-32-plus-chars-1234567890",
     )
-    app = create_app(settings)
-    app.config.update(TESTING=True)
-    _setup_db(app)
-    try:
-        redis_client.flushdb()
-    except Exception:
-        pass
-    yield app
-    with app.app_context():
-        db.session.remove()
-        db.drop_all()
-    try:
-        redis_client.flushdb()
-    except Exception:
-        pass
+    redis_mock = _make_redis_mock()
+    with patch("app.extensions.redis_client", redis_mock), \
+         patch("app.routes.auth.redis_client", redis_mock), \
+         patch("app.services.cache.redis_client", redis_mock):
+        app = create_app(settings)
+        app.config.update(TESTING=True)
+        _setup_db(app)
+        yield app
+        with app.app_context():
+            db.session.remove()
+            db.drop_all()
 
 
 @pytest.fixture()
