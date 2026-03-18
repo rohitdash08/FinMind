@@ -100,6 +100,34 @@ class Reminder(db.Model):
     channel = db.Column(db.String(20), default="email", nullable=False)
 
 
+class CategoryRule(db.Model):
+    """Rule for automatic transaction categorization."""
+
+    __tablename__ = "category_rules"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    category_id = db.Column(db.Integer, db.ForeignKey("categories.id"), nullable=False)
+    # 'keyword' | 'merchant' | 'amount_range' | 'learned'
+    rule_type = db.Column(db.String(20), nullable=False, default="keyword")
+    pattern = db.Column(db.String(255), nullable=True)  # keyword / merchant substring
+    amount_min = db.Column(db.Numeric(12, 2), nullable=True)
+    amount_max = db.Column(db.Numeric(12, 2), nullable=True)
+    priority = db.Column(db.Integer, default=0, nullable=False)  # higher = checked first
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class CategorizationCorrection(db.Model):
+    """Stores user corrections used for learning."""
+
+    __tablename__ = "categorization_corrections"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    expense_id = db.Column(db.Integer, db.ForeignKey("expenses.id"), nullable=True)
+    description_normalized = db.Column(db.String(500), nullable=False)
+    category_id = db.Column(db.Integer, db.ForeignKey("categories.id"), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
 class AdImpression(db.Model):
     __tablename__ = "ad_impressions"
     id = db.Column(db.Integer, primary_key=True)
