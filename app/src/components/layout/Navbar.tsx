@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Menu, X, TrendingUp, ShieldCheck } from 'lucide-react';
+import { Menu, X, TrendingUp, ShieldCheck, RefreshCw, WifiOff } from 'lucide-react';
 import { getToken, getRefreshToken, clearToken, clearRefreshToken } from '@/lib/auth';
 import { useToast } from '@/components/ui/use-toast';
 import { logout as logoutApi } from '@/api/auth';
+import { useRequestMonitor } from '@/hooks/use-request-monitor';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard' },
@@ -21,6 +22,7 @@ export function Navbar() {
   const location = useLocation();
   const nav = useNavigate();
   const { toast } = useToast();
+  const { inFlight, failed } = useRequestMonitor();
 
   useEffect(() => {
     const onChange = () => setIsAuthed(!!getToken());
@@ -80,6 +82,18 @@ export function Navbar() {
           </div>
 
           <div className="hidden items-center gap-3 md:flex">
+            {inFlight > 0 && (
+              <div className="flex items-center gap-1 rounded-full border border-amber-300/70 bg-amber-50/80 px-3 py-1 text-[11px] text-amber-700 animate-pulse">
+                <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                {inFlight} request{inFlight > 1 ? 's' : ''} retrying…
+              </div>
+            )}
+            {failed > 0 && (
+              <div className="flex items-center gap-1 rounded-full border border-red-300/70 bg-red-50/80 px-3 py-1 text-[11px] text-red-700">
+                <WifiOff className="h-3.5 w-3.5" />
+                {failed} failed
+              </div>
+            )}
             <div className="flex items-center gap-1 rounded-full border border-border/70 bg-white/70 px-3 py-1 text-[11px] text-muted-foreground">
               <ShieldCheck className="h-3.5 w-3.5 text-primary" />
               Enterprise-grade security
