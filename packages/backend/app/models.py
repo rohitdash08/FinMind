@@ -133,3 +133,45 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+# ---------------------------------------------------------------------------
+# Savings Goals
+# ---------------------------------------------------------------------------
+
+
+class GoalStatus(str, Enum):
+    ACTIVE = "ACTIVE"
+    PAUSED = "PAUSED"
+    COMPLETED = "COMPLETED"
+
+
+class SavingsGoal(db.Model):
+    __tablename__ = "savings_goals"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    name = db.Column(db.String(200), nullable=False)
+    target_amount = db.Column(db.Numeric(12, 2), nullable=False)
+    current_amount = db.Column(db.Numeric(12, 2), default=0, nullable=False)
+    currency = db.Column(db.String(10), default="INR", nullable=False)
+    status = db.Column(SAEnum(GoalStatus), default=GoalStatus.ACTIVE, nullable=False)
+    deadline = db.Column(db.Date, nullable=True)
+    color = db.Column(db.String(20), default="#6366f1", nullable=False)
+    icon = db.Column(db.String(50), default="piggy-bank", nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    deposits = db.relationship(
+        "SavingsDeposit",
+        backref="goal",
+        cascade="all, delete-orphan",
+        lazy="select",
+    )
+
+
+class SavingsDeposit(db.Model):
+    __tablename__ = "savings_deposits"
+    id = db.Column(db.Integer, primary_key=True)
+    goal_id = db.Column(db.Integer, db.ForeignKey("savings_goals.id"), nullable=False)
+    amount = db.Column(db.Numeric(12, 2), nullable=False)
+    note = db.Column(db.String(500), nullable=True)
+    deposited_at = db.Column(db.Date, default=date.today, nullable=False)
