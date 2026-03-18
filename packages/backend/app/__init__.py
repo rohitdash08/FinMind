@@ -13,6 +13,7 @@ import click
 import os
 import logging
 from datetime import timedelta
+from .services.scheduler import build_scheduler
 
 
 def create_app(settings: Settings | None = None) -> Flask:
@@ -55,6 +56,9 @@ def create_app(settings: Settings | None = None) -> Flask:
     # Backward-compatible schema patch for existing databases.
     with app.app_context():
         _ensure_schema_compatibility(app)
+
+    # Start background job scheduler (skipped in test environment)
+    build_scheduler(app)
 
     @app.before_request
     def _before_request():
