@@ -84,6 +84,14 @@ const App = () => (
               }
             />
             <Route
+              path="savings"
+              element={
+                <ProtectedRoute>
+                  <Savings />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="account"
               element={
                 <ProtectedRoute>

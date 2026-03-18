@@ -123,3 +123,29 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   action VARCHAR(100) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+-- Savings Goals & Contributions
+CREATE TABLE IF NOT EXISTS savings_goals (
+  id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name VARCHAR(200) NOT NULL,
+  target_amount NUMERIC(12,2) NOT NULL,
+  current_amount NUMERIC(12,2) NOT NULL DEFAULT 0,
+  currency VARCHAR(10) NOT NULL DEFAULT 'INR',
+  deadline DATE,
+  color VARCHAR(7) DEFAULT '#4F46E5',
+  icon VARCHAR(50) DEFAULT 'piggy-bank',
+  completed BOOLEAN NOT NULL DEFAULT FALSE,
+  completed_at TIMESTAMP,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_savings_goals_user ON savings_goals(user_id, completed);
+
+CREATE TABLE IF NOT EXISTS savings_contributions (
+  id SERIAL PRIMARY KEY,
+  goal_id INT NOT NULL REFERENCES savings_goals(id) ON DELETE CASCADE,
+  amount NUMERIC(12,2) NOT NULL,
+  notes VARCHAR(500),
+  contributed_at DATE NOT NULL DEFAULT CURRENT_DATE,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
