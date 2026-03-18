@@ -110,10 +110,38 @@ def _ensure_schema_compatibility(app: Flask) -> None:
             NOT NULL DEFAULT 'INR'
             """
         )
+        # Categorization tables (safe to run on existing DBs)
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS category_rules (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id),
+                category_id INTEGER NOT NULL REFERENCES categories(id),
+                rule_type VARCHAR(20) NOT NULL DEFAULT 'keyword',
+                pattern VARCHAR(255),
+                amount_min NUMERIC(12,2),
+                amount_max NUMERIC(12,2),
+                priority INTEGER NOT NULL DEFAULT 0,
+                created_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+            """
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS categorization_corrections (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id),
+                expense_id INTEGER REFERENCES expenses(id),
+                description_normalized VARCHAR(500) NOT NULL,
+                category_id INTEGER NOT NULL REFERENCES categories(id),
+                created_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+            """
+        )
         conn.commit()
     except Exception:
         app.logger.exception(
-            "Schema compatibility patch failed for users.preferred_currency"
+            "Schema compatibility patch failed"
         )
         conn.rollback()
     finally:
