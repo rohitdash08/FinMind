@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Menu, X, TrendingUp, ShieldCheck } from 'lucide-react';
+import { Menu, X, TrendingUp, ShieldCheck, Shield } from 'lucide-react';
 import { getToken, getRefreshToken, clearToken, clearRefreshToken } from '@/lib/auth';
 import { useToast } from '@/components/ui/use-toast';
 import { logout as logoutApi } from '@/api/auth';
@@ -87,6 +87,12 @@ export function Navbar() {
             {isAuthed ? (
               <>
                 <Button variant="outline" size="sm" asChild>
+                  <Link to="/privacy" className="flex items-center gap-1">
+                    <Shield className="h-3.5 w-3.5" />
+                    Privacy
+                  </Link>
+                </Button>
+                <Button variant="outline" size="sm" asChild>
                   <Link to="/account">Account</Link>
                 </Button>
                 <Button variant="hero" size="sm" onClick={() => { void handleLogout(); }}>
@@ -135,6 +141,12 @@ export function Navbar() {
               <div className="grid grid-cols-2 gap-2 pt-2">
                 {isAuthed ? (
                   <>
+                    <Button variant="outline" size="sm" asChild onClick={() => setIsOpen(false)}>
+                      <Link to="/privacy" className="flex items-center gap-1">
+                        <Shield className="h-3.5 w-3.5" />
+                        Privacy
+                      </Link>
+                    </Button>
                     <Button variant="outline" size="sm" asChild onClick={() => setIsOpen(false)}>
                       <Link to="/account">Account</Link>
                     </Button>
