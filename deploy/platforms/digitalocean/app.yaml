@@ -1,0 +1,86 @@
+## DigitalOcean App Platform — FinMind
+## Deploy: doctl apps create --spec deploy/platforms/digitalocean/app.yaml
+## Update: doctl apps update APP_ID --spec deploy/platforms/digitalocean/app.yaml
+
+name: finmind
+region: nyc
+features:
+  - buildpack-stack=ubuntu-22
+
+services:
+  - name: backend
+    image:
+      registry_type: GHCR
+      registry: rohitdash08
+      repository: finmind-backend
+      tag: latest
+    http_port: 8000
+    instance_count: 1
+    instance_size_slug: basic-xxs
+    health_check:
+      http_path: /health
+      initial_delay_seconds: 15
+      period_seconds: 10
+      success_threshold: 1
+      failure_threshold: 3
+    run_command: >
+      sh -c "python -m flask --app wsgi:app init-db &&
+      export PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus_multiproc &&
+      rm -rf $PROMETHEUS_MULTIPROC_DIR && mkdir -p $PROMETHEUS_MULTIPROC_DIR &&
+      exec gunicorn --workers=2 --threads=4 --bind 0.0.0.0:8000 wsgi:app"
+    envs:
+      - key: LOG_LEVEL
+        value: "INFO"
+      - key: GEMINI_MODEL
+        value: "gemini-1.5-flash"
+      - key: PROMETHEUS_MULTIPROC_DIR
+        value: "/tmp/prometheus_multiproc"
+      - key: POSTGRES_USER
+        value: "${finmind-db.USERNAME}"
+      - key: POSTGRES_PASSWORD
+        value: "${finmind-db.PASSWORD}"
+        type: SECRET
+      - key: POSTGRES_DB
+        value: "${finmind-db.DATABASE}"
+      - key: DATABASE_URL
+        value: "${finmind-db.DATABASE_URL}"
+        type: SECRET
+      - key: REDIS_URL
+        value: "${finmind-redis.DATABASE_URL}"
+        type: SECRET
+      - key: JWT_SECRET
+        value: "REPLACE_WITH_STRONG_SECRET"
+        type: SECRET
+      - key: GEMINI_API_KEY
+        value: "REPLACE_WITH_YOUR_KEY"
+        type: SECRET
+
+  - name: frontend
+    image:
+      registry_type: GHCR
+      registry: rohitdash08
+      repository: finmind-frontend
+      tag: latest
+    http_port: 80
+    instance_count: 1
+    instance_size_slug: basic-xxs
+    health_check:
+      http_path: /
+      initial_delay_seconds: 10
+      period_seconds: 15
+    envs:
+      - key: VITE_API_URL
+        value: "${backend.PUBLIC_URL}"
+
+databases:
+  - name: finmind-db
+    engine: PG
+    version: "16"
+    size: db-s-dev-database
+    num_nodes: 1
+
+  - name: finmind-redis
+    engine: REDIS
+    version: "7"
+    size: db-s-dev-database
+    num_nodes: 1

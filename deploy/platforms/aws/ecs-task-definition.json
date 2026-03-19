@@ -1,0 +1,53 @@
+{
+  "family": "finmind-backend",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "arn:aws:iam::ACCOUNT_ID:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::ACCOUNT_ID:role/ecsTaskRole",
+  "containerDefinitions": [
+    {
+      "name": "backend",
+      "image": "ghcr.io/rohitdash08/finmind-backend:latest",
+      "portMappings": [
+        {
+          "containerPort": 8000,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        { "name": "LOG_LEVEL", "value": "INFO" },
+        { "name": "GEMINI_MODEL", "value": "gemini-1.5-flash" }
+      ],
+      "secrets": [
+        { "name": "POSTGRES_USER",     "valueFrom": "arn:aws:ssm:REGION:ACCOUNT_ID:parameter/finmind/POSTGRES_USER" },
+        { "name": "POSTGRES_PASSWORD", "valueFrom": "arn:aws:ssm:REGION:ACCOUNT_ID:parameter/finmind/POSTGRES_PASSWORD" },
+        { "name": "POSTGRES_DB",       "valueFrom": "arn:aws:ssm:REGION:ACCOUNT_ID:parameter/finmind/POSTGRES_DB" },
+        { "name": "DATABASE_URL",      "valueFrom": "arn:aws:ssm:REGION:ACCOUNT_ID:parameter/finmind/DATABASE_URL" },
+        { "name": "REDIS_URL",         "valueFrom": "arn:aws:ssm:REGION:ACCOUNT_ID:parameter/finmind/REDIS_URL" },
+        { "name": "JWT_SECRET",        "valueFrom": "arn:aws:ssm:REGION:ACCOUNT_ID:parameter/finmind/JWT_SECRET" },
+        { "name": "GEMINI_API_KEY",    "valueFrom": "arn:aws:ssm:REGION:ACCOUNT_ID:parameter/finmind/GEMINI_API_KEY" }
+      ],
+      "command": [
+        "sh", "-c",
+        "python -m flask --app wsgi:app init-db && export PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus_multiproc && rm -rf $PROMETHEUS_MULTIPROC_DIR && mkdir -p $PROMETHEUS_MULTIPROC_DIR && exec gunicorn --workers=2 --threads=4 --bind 0.0.0.0:8000 wsgi:app"
+      ],
+      "healthCheck": {
+        "command": ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 30
+      },
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/finmind-backend",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      }
+    }
+  ]
+}
