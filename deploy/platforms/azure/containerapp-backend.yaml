@@ -1,0 +1,90 @@
+## Azure Container Apps — FinMind Backend
+## Deploy: az containerapp create --yaml containerapp-backend.yaml --resource-group finmind-rg
+
+properties:
+  managedEnvironmentId: /subscriptions/SUBSCRIPTION_ID/resourceGroups/finmind-rg/providers/Microsoft.App/managedEnvironments/finmind-env
+  configuration:
+    ingress:
+      external: true
+      targetPort: 8000
+      transport: http
+      allowInsecure: false
+    secrets:
+      - name: postgres-user
+        keyVaultUrl: https://finmind-kv.vault.azure.net/secrets/POSTGRES-USER
+        identity: system
+      - name: postgres-password
+        keyVaultUrl: https://finmind-kv.vault.azure.net/secrets/POSTGRES-PASSWORD
+        identity: system
+      - name: postgres-db
+        keyVaultUrl: https://finmind-kv.vault.azure.net/secrets/POSTGRES-DB
+        identity: system
+      - name: database-url
+        keyVaultUrl: https://finmind-kv.vault.azure.net/secrets/DATABASE-URL
+        identity: system
+      - name: redis-url
+        keyVaultUrl: https://finmind-kv.vault.azure.net/secrets/REDIS-URL
+        identity: system
+      - name: jwt-secret
+        keyVaultUrl: https://finmind-kv.vault.azure.net/secrets/JWT-SECRET
+        identity: system
+      - name: gemini-api-key
+        keyVaultUrl: https://finmind-kv.vault.azure.net/secrets/GEMINI-API-KEY
+        identity: system
+    registries: []
+  template:
+    containers:
+      - name: backend
+        image: ghcr.io/rohitdash08/finmind-backend:latest
+        resources:
+          cpu: 0.5
+          memory: 1Gi
+        env:
+          - name: LOG_LEVEL
+            value: INFO
+          - name: GEMINI_MODEL
+            value: gemini-1.5-flash
+          - name: PROMETHEUS_MULTIPROC_DIR
+            value: /tmp/prometheus_multiproc
+          - name: POSTGRES_USER
+            secretRef: postgres-user
+          - name: POSTGRES_PASSWORD
+            secretRef: postgres-password
+          - name: POSTGRES_DB
+            secretRef: postgres-db
+          - name: DATABASE_URL
+            secretRef: database-url
+          - name: REDIS_URL
+            secretRef: redis-url
+          - name: JWT_SECRET
+            secretRef: jwt-secret
+          - name: GEMINI_API_KEY
+            secretRef: gemini-api-key
+        command:
+          - sh
+          - -c
+          - >
+            python -m flask --app wsgi:app init-db &&
+            rm -rf $PROMETHEUS_MULTIPROC_DIR && mkdir -p $PROMETHEUS_MULTIPROC_DIR &&
+            exec gunicorn --workers=2 --threads=4 --bind 0.0.0.0:8000 wsgi:app
+        probes:
+          - type: readiness
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          - type: liveness
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 20
+            periodSeconds: 30
+    scale:
+      minReplicas: 1
+      maxReplicas: 10
+      rules:
+        - name: http-scaling
+          http:
+            metadata:
+              concurrentRequests: "50"

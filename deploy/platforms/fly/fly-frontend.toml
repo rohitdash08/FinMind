@@ -1,0 +1,41 @@
+# FinMind Frontend — Fly.io configuration
+# Deploy: fly deploy --config deploy/platforms/fly/fly-frontend.toml
+
+app = "finmind-frontend"
+primary_region = "iad"
+
+[build]
+  dockerfile = "app/Dockerfile"
+  build-target = "production"
+
+[env]
+  # Set VITE_API_URL to your backend URL:
+  # fly secrets set VITE_API_URL=https://finmind-backend.fly.dev --app finmind-frontend
+
+[[services]]
+  internal_port = 80
+  protocol = "tcp"
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[services.ports]]
+    handlers = ["http"]
+    port = 80
+    force_https = true
+
+  [[services.ports]]
+    handlers = ["tls", "http"]
+    port = 443
+
+  [[services.http_checks]]
+    interval = "15s"
+    timeout = "3s"
+    grace_period = "10s"
+    method = "GET"
+    path = "/"
+    protocol = "http"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"

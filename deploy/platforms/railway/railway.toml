@@ -1,0 +1,17 @@
+[build]
+builder = "dockerfile"
+dockerfilePath = "packages/backend/Dockerfile"
+
+[deploy]
+startCommand = "sh -c 'python -m flask --app wsgi:app init-db && export PROMETHEUS_MULTIPROC_DIR=/tmp/prom_mp && rm -rf $PROMETHEUS_MULTIPROC_DIR && mkdir -p $PROMETHEUS_MULTIPROC_DIR && exec gunicorn --workers=2 --threads=4 --bind 0.0.0.0:$PORT wsgi:app'"
+healthcheckPath = "/health"
+healthcheckTimeout = 30
+restartPolicyType = "on-failure"
+restartPolicyMaxRetries = 3
+
+[environment]
+LOG_LEVEL = "INFO"
+GEMINI_MODEL = "gemini-1.5-flash"
+# Set via Railway dashboard secrets:
+# POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB, DATABASE_URL
+# REDIS_URL, JWT_SECRET, GEMINI_API_KEY

@@ -1,0 +1,52 @@
+# FinMind Backend — Fly.io configuration
+# Deploy: fly deploy --config deploy/platforms/fly/fly-backend.toml
+
+app = "finmind-backend"
+primary_region = "iad"
+kill_signal = "SIGTERM"
+kill_timeout = 30
+
+[build]
+  dockerfile = "packages/backend/Dockerfile"
+
+[env]
+  LOG_LEVEL = "INFO"
+  GEMINI_MODEL = "gemini-1.5-flash"
+  PROMETHEUS_MULTIPROC_DIR = "/tmp/prometheus_multiproc"
+  # Secrets set via: fly secrets set POSTGRES_PASSWORD=xxx JWT_SECRET=xxx GEMINI_API_KEY=xxx
+
+[processes]
+  app = "sh -c 'python -m flask --app wsgi:app init-db && rm -rf $PROMETHEUS_MULTIPROC_DIR && mkdir -p $PROMETHEUS_MULTIPROC_DIR && exec gunicorn --workers=2 --threads=4 --bind 0.0.0.0:8080 wsgi:app'"
+
+[[services]]
+  internal_port = 8080
+  protocol = "tcp"
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[services.ports]]
+    handlers = ["http"]
+    port = 80
+    force_https = true
+
+  [[services.ports]]
+    handlers = ["tls", "http"]
+    port = 443
+
+  [services.concurrency]
+    type = "connections"
+    hard_limit = 100
+    soft_limit = 80
+
+  [[services.http_checks]]
+    interval = "15s"
+    timeout = "5s"
+    grace_period = "30s"
+    method = "GET"
+    path = "/health"
+    protocol = "http"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

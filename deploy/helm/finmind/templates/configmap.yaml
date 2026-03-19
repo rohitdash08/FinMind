@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: finmind-config
+  namespace: {{ include "finmind.namespace" . }}
+  labels:
+    {{- include "finmind.labels" . | nindent 4 }}
+data:
+  LOG_LEVEL: "INFO"
+  GEMINI_MODEL: "gemini-1.5-flash"
+  REDIS_URL: "redis://redis:6379/0"
+  PROMETHEUS_MULTIPROC_DIR: "/tmp/prometheus_multiproc"
