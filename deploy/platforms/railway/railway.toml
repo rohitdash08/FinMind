@@ -1,0 +1,33 @@
+[build]
+builder = "DOCKERFILE"
+
+[build.dockerfilePath]
+backend = "packages/backend/Dockerfile"
+frontend = "app/Dockerfile"
+
+[deploy]
+startCommand = "gunicorn --workers=2 --threads=4 --bind 0.0.0.0:$PORT wsgi:app"
+healthcheckPath = "/health"
+healthcheckTimeout = 30
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
+
+[[services]]
+name = "backend"
+source = "packages/backend"
+buildCommand = "pip install -r requirements.txt"
+startCommand = "python -m flask --app wsgi:app init-db && gunicorn --workers=2 --threads=4 --bind 0.0.0.0:$PORT wsgi:app"
+
+[services.healthcheck]
+path = "/health"
+timeout = 30
+
+[[services]]
+name = "frontend"
+source = "app"
+buildCommand = "npm ci && npm run build"
+startCommand = "npx serve -s dist -l $PORT"
+
+[services.healthcheck]
+path = "/"
+timeout = 15

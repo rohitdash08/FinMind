@@ -1,0 +1,62 @@
+# Azure Container Apps deployment configuration
+# Deploy with: az containerapp create --yaml deploy/platforms/azure/container-app.yaml
+type: Microsoft.App/containerApps
+location: eastus
+properties:
+  managedEnvironmentId: /subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}/providers/Microsoft.App/managedEnvironments/${ENVIRONMENT_NAME}
+  configuration:
+    ingress:
+      external: true
+      targetPort: 8000
+      transport: auto
+      allowInsecure: false
+    secrets:
+      - name: database-url
+        value: "${DATABASE_URL}"
+      - name: redis-url
+        value: "${REDIS_URL}"
+      - name: jwt-secret
+        value: "${JWT_SECRET}"
+      - name: gemini-api-key
+        value: "${GEMINI_API_KEY}"
+  template:
+    containers:
+      - name: backend
+        image: ${ACR_NAME}.azurecr.io/finmind-backend:latest
+        resources:
+          cpu: 0.5
+          memory: 1Gi
+        env:
+          - name: DATABASE_URL
+            secretRef: database-url
+          - name: REDIS_URL
+            secretRef: redis-url
+          - name: JWT_SECRET
+            secretRef: jwt-secret
+          - name: GEMINI_API_KEY
+            secretRef: gemini-api-key
+          - name: GEMINI_MODEL
+            value: gemini-1.5-flash
+          - name: LOG_LEVEL
+            value: INFO
+        probes:
+          - type: readiness
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          - type: liveness
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 20
+            periodSeconds: 20
+    scale:
+      minReplicas: 1
+      maxReplicas: 10
+      rules:
+        - name: http-scaling
+          http:
+            metadata:
+              concurrentRequests: "50"

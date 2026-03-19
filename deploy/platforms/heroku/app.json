@@ -1,0 +1,41 @@
+{
+  "name": "FinMind",
+  "description": "AI Finance Tracker - Manage expenses, budgets, and insights",
+  "keywords": ["finance", "ai", "tracker", "python", "flask"],
+  "stack": "container",
+  "addons": [
+    {
+      "plan": "heroku-postgresql:essential-0"
+    },
+    {
+      "plan": "heroku-redis:mini"
+    }
+  ],
+  "env": {
+    "JWT_SECRET": {
+      "description": "Secret key for JWT token signing",
+      "generator": "secret"
+    },
+    "GEMINI_API_KEY": {
+      "description": "Google Gemini API key for AI features",
+      "required": false
+    },
+    "GEMINI_MODEL": {
+      "description": "Gemini model to use",
+      "value": "gemini-1.5-flash"
+    },
+    "LOG_LEVEL": {
+      "description": "Logging level",
+      "value": "INFO"
+    }
+  },
+  "formation": {
+    "web": {
+      "quantity": 1,
+      "size": "basic"
+    }
+  },
+  "buildpacks": [
+    { "url": "heroku/python" }
+  ]
+}

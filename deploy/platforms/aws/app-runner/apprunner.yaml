@@ -1,0 +1,30 @@
+# AWS App Runner service configuration
+# Deploy: aws apprunner create-service --cli-input-yaml file://deploy/platforms/aws/app-runner/apprunner.yaml
+ServiceName: finmind-backend
+SourceConfiguration:
+  ImageRepository:
+    ImageIdentifier: "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/finmind-backend:latest"
+    ImageRepositoryType: ECR
+    ImageConfiguration:
+      Port: "8000"
+      RuntimeEnvironmentVariables:
+        GEMINI_MODEL: gemini-1.5-flash
+        LOG_LEVEL: INFO
+      RuntimeEnvironmentSecrets:
+        DATABASE_URL: "arn:aws:ssm:${AWS_REGION}:${AWS_ACCOUNT_ID}:parameter/finmind/DATABASE_URL"
+        REDIS_URL: "arn:aws:ssm:${AWS_REGION}:${AWS_ACCOUNT_ID}:parameter/finmind/REDIS_URL"
+        JWT_SECRET: "arn:aws:ssm:${AWS_REGION}:${AWS_ACCOUNT_ID}:parameter/finmind/JWT_SECRET"
+        GEMINI_API_KEY: "arn:aws:ssm:${AWS_REGION}:${AWS_ACCOUNT_ID}:parameter/finmind/GEMINI_API_KEY"
+  AuthenticationConfiguration:
+    AccessRoleArn: "${APP_RUNNER_ECR_ACCESS_ROLE_ARN}"
+InstanceConfiguration:
+  Cpu: "0.5 vCPU"
+  Memory: "1 GB"
+HealthCheckConfiguration:
+  Protocol: HTTP
+  Path: /health
+  Interval: 10
+  Timeout: 5
+  HealthyThreshold: 1
+  UnhealthyThreshold: 5
+AutoScalingConfigurationArn: "${AUTO_SCALING_CONFIG_ARN}"

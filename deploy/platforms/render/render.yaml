@@ -1,0 +1,57 @@
+# Render Blueprint - https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: finmind-backend
+    runtime: docker
+    dockerfilePath: packages/backend/Dockerfile
+    dockerContext: .
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: finmind-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: finmind-redis
+          type: redis
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-1.5-flash
+      - key: LOG_LEVEL
+        value: INFO
+    healthCheckPath: /health
+    autoDeploy: true
+    plan: starter
+
+  - type: web
+    name: finmind-frontend
+    runtime: docker
+    dockerfilePath: app/Dockerfile
+    dockerContext: ./app
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          name: finmind-backend
+          type: web
+          property: hostport
+    healthCheckPath: /
+    autoDeploy: true
+    plan: starter
+
+  - type: redis
+    name: finmind-redis
+    plan: starter
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList: []
+
+databases:
+  - name: finmind-db
+    plan: starter
+    databaseName: finmind
+    user: finmind
+    postgresMajorVersion: 16
+    ipAllowList: []
