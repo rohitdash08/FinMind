@@ -127,6 +127,34 @@ class UserSubscription(db.Model):
     started_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
 
+class NotificationType(str, Enum):
+    BILL_DUE = "BILL_DUE"
+    BUDGET_EXCEEDED = "BUDGET_EXCEEDED"
+    SAVINGS_OPPORTUNITY = "SAVINGS_OPPORTUNITY"
+    WEEKLY_SUMMARY = "WEEKLY_SUMMARY"
+
+
+class NotificationPriority(str, Enum):
+    CRITICAL = "critical"
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
+
+
+class Notification(db.Model):
+    __tablename__ = "notifications"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    type = db.Column(db.String(50), nullable=False)
+    priority = db.Column(
+        db.String(20), nullable=False, default=NotificationPriority.MEDIUM.value
+    )
+    group = db.Column(db.String(50), nullable=False)
+    message = db.Column(db.String(500), nullable=False)
+    read = db.Column(db.Boolean, default=False, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
 class AuditLog(db.Model):
     __tablename__ = "audit_logs"
     id = db.Column(db.Integer, primary_key=True)
