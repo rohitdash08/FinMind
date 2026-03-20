@@ -19,6 +19,7 @@ backend:
   env:
     LOG_LEVEL: INFO
     GEMINI_MODEL: gemini-1.5-flash
+    REDIS_URL: redis://finmind-redis:6379/0
 
 frontend:
   image:
@@ -50,13 +51,6 @@ redis:
     repository: redis
     tag: "7"
 
-nginx:
-  enabled: true
-  image:
-    repository: nginx
-    tag: 1.27-alpine
-  replicas: 1
-
 ingress:
   enabled: true
   className: nginx
@@ -65,12 +59,30 @@ ingress:
   hosts:
     - host: finmind.example.com
       paths:
+        - path: /health
+          pathType: Prefix
+          service: backend
+        - path: /auth
+          pathType: Prefix
+          service: backend
+        - path: /expenses
+          pathType: Prefix
+          service: backend
+        - path: /bills
+          pathType: Prefix
+          service: backend
+        - path: /reminders
+          pathType: Prefix
+          service: backend
+        - path: /dashboard
+          pathType: Prefix
+          service: backend
+        - path: /insights
+          pathType: Prefix
+          service: backend
         - path: /
           pathType: Prefix
           service: frontend
-        - path: /api
-          pathType: Prefix
-          service: backend
   tls:
     - secretName: finmind-tls
       hosts:
@@ -84,5 +96,5 @@ secrets:
 
 monitoring:
   serviceMonitor:
-    enabled: true
+    enabled: false
     interval: 30s

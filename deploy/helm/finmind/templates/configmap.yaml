@@ -7,4 +7,4 @@ metadata:
 data:
   LOG_LEVEL: {{ .Values.backend.env.LOG_LEVEL | quote }}
   GEMINI_MODEL: {{ .Values.backend.env.GEMINI_MODEL | quote }}
-  REDIS_URL: "redis://{{ include "finmind.fullname" . }}-redis:6379/0"
+  REDIS_URL: {{ .Values.backend.env.REDIS_URL | quote }}

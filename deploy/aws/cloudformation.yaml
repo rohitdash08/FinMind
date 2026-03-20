@@ -21,7 +21,7 @@ Parameters:
   JwtSecret:
     Type: String
     NoEcho: true
-    Default: ''
+    MinLength: 32
 
 Resources:
   ECSCluster:

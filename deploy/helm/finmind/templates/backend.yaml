@@ -4,6 +4,7 @@ metadata:
   name: {{ include "finmind.fullname" . }}-backend
   labels:
     {{- include "finmind.labels" . | nindent 4 }}
+    app: {{ include "finmind.fullname" . }}-backend
     app.kubernetes.io/component: backend
 spec:
   replicas: {{ .Values.backend.replicas }}
@@ -94,9 +95,11 @@ metadata:
   name: {{ include "finmind.fullname" . }}-backend
   labels:
     {{- include "finmind.labels" . | nindent 4 }}
+    app: {{ include "finmind.fullname" . }}-backend
 spec:
   selector:
     app: {{ include "finmind.fullname" . }}-backend
   ports:
-    - port: 8000
+    - name: http
+      port: 8000
       targetPort: 8000

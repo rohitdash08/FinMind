@@ -10,7 +10,7 @@ spec:
     matchLabels:
       app: {{ include "finmind.fullname" . }}-backend
   endpoints:
-    - port: "8000"
+    - port: http
       path: /metrics
       interval: {{ .Values.monitoring.serviceMonitor.interval }}
 {{- end }}

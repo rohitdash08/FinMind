@@ -54,10 +54,11 @@
 
 ## Option B: App Runner
 
-Simpler but less configurable. See `deploy/aws/apprunner.yaml` for the service config reference. Use the AWS Console or CLI:
+Simpler but less configurable. See `deploy/aws/apprunner.yaml` for the service config reference. Convert it to JSON for the CLI, or use the AWS Console.
 
 ```bash
-aws apprunner create-service --cli-input-json file://deploy/aws/apprunner.json
+yq -o=json deploy/aws/apprunner.yaml > /tmp/apprunner.json
+aws apprunner create-service --cli-input-json file:///tmp/apprunner.json
 ```
 
 **Note:** App Runner doesn't support multi-container. Deploy backend only; host frontend on S3+CloudFront or Amplify.

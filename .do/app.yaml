@@ -12,8 +12,13 @@ spec:
       instance_count: 1
       instance_size_slug: basic-xxs
       routes:
-        - path: /api
         - path: /health
+        - path: /auth
+        - path: /expenses
+        - path: /bills
+        - path: /reminders
+        - path: /dashboard
+        - path: /insights
       health_check:
         http_path: /health
         initial_delay_seconds: 15
@@ -34,7 +39,7 @@ spec:
         - key: JWT_SECRET
           scope: RUN_TIME
           type: SECRET
-          value: CHANGE_ME
+          value: CHANGE_ME_SET_A_RANDOM_SECRET
         - key: LOG_LEVEL
           scope: RUN_TIME
           value: INFO
