@@ -1,10 +1,64 @@
 import os
 import pytest
+from unittest.mock import MagicMock
 from app import create_app
 from app.config import Settings
 from app.extensions import db
 from app.extensions import redis_client
 from app import models  # noqa: F401 - ensure models are registered
+
+
+class _FakeRedis:
+    """Minimal in-memory Redis stand-in for unit tests."""
+
+    def __init__(self):
+        self._store: dict = {}
+
+    def get(self, key):
+        return self._store.get(key)
+
+    def set(self, key, value):
+        self._store[key] = value
+        return True
+
+    def setex(self, key, ttl, value):
+        self._store[key] = value
+        return True
+
+    def delete(self, *keys):
+        for k in keys:
+            self._store.pop(k, None)
+        return len(keys)
+
+    def scan(self, cursor=0, match=None, count=100):
+        import fnmatch
+        if match:
+            matched = [k for k in self._store if fnmatch.fnmatch(k, match)]
+        else:
+            matched = list(self._store.keys())
+        return (0, matched)
+
+    def flushdb(self):
+        self._store.clear()
+        return True
+
+
+@pytest.fixture(autouse=True)
+def _mock_redis(monkeypatch):
+    """Replace the Redis client with a no-op in-memory stub so tests don't
+    need a live server. The module-level redis_client in extensions.py connects
+    to the Docker service name 'redis' which is not available in local test runs.
+    """
+    fake = _FakeRedis()
+
+    import app.extensions as ext_mod
+    import app.routes.auth as auth_mod
+    import app.services.cache as cache_mod
+
+    monkeypatch.setattr(ext_mod, "redis_client", fake)
+    monkeypatch.setattr(auth_mod, "redis_client", fake)
+    monkeypatch.setattr(cache_mod, "redis_client", fake)
+    return fake
 
 
 class TestSettings(Settings):

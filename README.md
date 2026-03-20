@@ -66,6 +66,68 @@ OpenAPI: `backend/app/openapi.yaml`
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
 - Insights: `/insights/monthly`, `/insights/budget-suggestion`
+- Jobs (monitoring): `/jobs/status`, `/jobs/reminders/stats`, `/jobs/reminders/run`
+
+## Background Jobs & Retry Logic
+
+Reminders are dispatched by a background job running every minute via APScheduler.
+The `dispatch_reminders()` function in `app/services/jobs.py` can also be triggered
+on-demand via the `/jobs/reminders/run` endpoint.
+
+### Retry Schedule (Exponential Backoff)
+
+| Attempt | Delay before next retry |
+|---------|------------------------|
+| 1st failure | 5 minutes |
+| 2nd failure | 15 minutes |
+| 3rd failure | 45 minutes |
+| 4th failure | Permanently failed (`failed=True`) |
+
+### Reminder Retry State Columns
+
+The `reminders` table includes these retry tracking columns:
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `retry_count` | integer | Number of failed send attempts |
+| `last_error` | varchar | Error message from the last failure |
+| `next_retry_at` | timestamp | When the next retry attempt should run |
+| `failed` | boolean | True after all retries are exhausted |
+| `retry_status` | varchar | `pending` / `retrying` / `sent` / `failed` |
+
+### Monitoring Endpoints
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| `GET` | `/jobs/status` | None | APScheduler state and job list |
+| `GET` | `/jobs/reminders/stats` | JWT | Aggregate counts by retry_status |
+| `POST` | `/jobs/reminders/run` | JWT | Trigger dispatch_reminders immediately |
+
+Example `/jobs/reminders/stats` response:
+```json
+{
+  "total": 120,
+  "pending": 45,
+  "sent": 68,
+  "retrying": 4,
+  "failed": 3
+}
+```
+
+Example `/jobs/status` response:
+```json
+{
+  "scheduler": "running",
+  "jobs": [
+    {
+      "id": "dispatch_reminders",
+      "name": "dispatch_reminders",
+      "next_run_time": "2026-03-20T12:01:00+00:00",
+      "trigger": "interval[0:01:00]"
+    }
+  ]
+}
+```
 
 ## MVP UI/UX Plan
 - Auth screens: register/login.
