@@ -10,6 +10,7 @@ from flask_jwt_extended import (
 )
 from ..extensions import db, redis_client
 from ..models import User
+from .devices import record_device_on_login
 import logging
 import time
 
@@ -62,6 +63,10 @@ def login():
     access = create_access_token(identity=str(user.id))
     refresh = create_refresh_token(identity=str(user.id))
     _store_refresh_session(refresh, str(user.id))
+    try:
+        record_device_on_login(user.id)
+    except Exception:
+        logger.exception("Failed to record device for user_id=%s", user.id)
     logger.info("Login success user_id=%s", user.id)
     return jsonify(access_token=access, refresh_token=refresh)
 
