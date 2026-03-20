@@ -32,3 +32,30 @@ export async function getBudgetSuggestion(params?: {
   if (params?.persona) headers['X-Insight-Persona'] = params.persona;
   return api<BudgetSuggestion>(`/insights/budget-suggestion${monthQuery}`, { headers });
 }
+
+export type SavingsOpportunityTrend = Record<string, number | string>;
+
+export type SavingsOpportunity = {
+  type: string;
+  title: string;
+  description: string;
+  potential_savings: number;
+  category: string | null;
+  trend: SavingsOpportunityTrend;
+};
+
+export type SavingsOpportunitiesResponse = {
+  month: string;
+  opportunities: SavingsOpportunity[];
+};
+
+export async function getSavingsOpportunities(
+  params?: { month?: string },
+): Promise<SavingsOpportunitiesResponse> {
+  const monthQuery = params?.month
+    ? `?month=${encodeURIComponent(params.month)}`
+    : '';
+  return api<SavingsOpportunitiesResponse>(
+    `/insights/savings-opportunities${monthQuery}`,
+  );
+}
