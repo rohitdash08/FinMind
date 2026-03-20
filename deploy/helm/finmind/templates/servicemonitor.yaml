@@ -1,0 +1,16 @@
+{{- if .Values.monitoring.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "finmind.fullname" . }}-backend
+  labels:
+    {{- include "finmind.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ include "finmind.fullname" . }}-backend
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: {{ .Values.monitoring.serviceMonitor.interval }}
+{{- end }}

@@ -1,0 +1,32 @@
+# AWS App Runner configuration
+# Convert to JSON for the CLI, for example:
+#   yq -o=json deploy/aws/apprunner.yaml > /tmp/apprunner.json
+#   aws apprunner create-service --cli-input-json file:///tmp/apprunner.json
+#
+# This YAML is a reference. Convert to JSON for the CLI or use the console.
+
+ServiceName: finmind-backend
+SourceConfiguration:
+  ImageRepository:
+    ImageIdentifier: <ECR_IMAGE_URI>
+    ImageRepositoryType: ECR
+    ImageConfiguration:
+      Port: "8000"
+      RuntimeEnvironmentVariables:
+        DATABASE_URL: <your-database-url>
+        REDIS_URL: <your-redis-url>
+        JWT_SECRET: <your-jwt-secret>
+        LOG_LEVEL: INFO
+        GEMINI_MODEL: gemini-1.5-flash
+      StartCommand: "sh -c 'python -m flask --app wsgi:app init-db && gunicorn --workers=2 --threads=4 --bind 0.0.0.0:8000 wsgi:app'"
+  AutoDeploymentsEnabled: true
+InstanceConfiguration:
+  Cpu: "0.25 vCPU"
+  Memory: "0.5 GB"
+HealthCheckConfiguration:
+  Protocol: HTTP
+  Path: /health
+  Interval: 10
+  Timeout: 5
+  HealthyThreshold: 1
+  UnhealthyThreshold: 5

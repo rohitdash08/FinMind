@@ -1,0 +1,100 @@
+backend:
+  image:
+    repository: ghcr.io/rohitdash08/finmind-backend
+    tag: latest
+    pullPolicy: IfNotPresent
+  replicas: 2
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  hpa:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilization: 70
+  env:
+    LOG_LEVEL: INFO
+    GEMINI_MODEL: gemini-1.5-flash
+    REDIS_URL: redis://finmind-redis:6379/0
+
+frontend:
+  image:
+    repository: ghcr.io/rohitdash08/finmind-frontend
+    tag: latest
+    pullPolicy: IfNotPresent
+  replicas: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+postgres:
+  enabled: true
+  image:
+    repository: postgres
+    tag: "16"
+  storage: 10Gi
+  env:
+    POSTGRES_USER: finmind
+    POSTGRES_DB: finmind
+
+redis:
+  enabled: true
+  image:
+    repository: redis
+    tag: "7"
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: finmind.example.com
+      paths:
+        - path: /health
+          pathType: Prefix
+          service: backend
+        - path: /auth
+          pathType: Prefix
+          service: backend
+        - path: /expenses
+          pathType: Prefix
+          service: backend
+        - path: /bills
+          pathType: Prefix
+          service: backend
+        - path: /reminders
+          pathType: Prefix
+          service: backend
+        - path: /dashboard
+          pathType: Prefix
+          service: backend
+        - path: /insights
+          pathType: Prefix
+          service: backend
+        - path: /
+          pathType: Prefix
+          service: frontend
+  tls:
+    - secretName: finmind-tls
+      hosts:
+        - finmind.example.com
+
+secrets:
+  # Set these via --set or a separate values file
+  jwtSecret: ""
+  postgresPassword: ""
+  geminiApiKey: ""
+
+monitoring:
+  serviceMonitor:
+    enabled: false
+    interval: 30s
