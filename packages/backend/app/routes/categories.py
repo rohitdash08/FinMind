@@ -3,6 +3,7 @@ from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..extensions import db
 from ..models import Category
+from ..services.memory_cache import invalidate_user_cache
 
 bp = Blueprint("categories", __name__)
 logger = logging.getLogger("finmind.categories")
@@ -36,6 +37,7 @@ def create_category():
     db.session.add(c)
     db.session.commit()
     logger.info("Created category id=%s user=%s", c.id, uid)
+    invalidate_user_cache(uid)
     return jsonify(id=c.id, name=c.name), 201
 
 
@@ -53,6 +55,7 @@ def update_category(category_id: int):
     c.name = name
     db.session.commit()
     logger.info("Updated category id=%s user=%s", c.id, uid)
+    invalidate_user_cache(uid)
     return jsonify(id=c.id, name=c.name)
 
 
@@ -66,4 +69,5 @@ def delete_category(category_id: int):
     db.session.delete(c)
     db.session.commit()
     logger.info("Deleted category id=%s user=%s", c.id, uid)
+    invalidate_user_cache(uid)
     return jsonify(message="deleted")

@@ -1,11 +1,12 @@
 from datetime import date
 from sqlalchemy import extract, func
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, g
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from ..extensions import db
 from ..models import Bill, Expense, Category
 from ..services.cache import cache_get, cache_set, dashboard_summary_key
+from ..services.memory_cache import memory_cache, DASHBOARD_TTL, _build_cache_key
 
 bp = Blueprint("dashboard", __name__)
 
@@ -17,9 +18,20 @@ def dashboard_summary():
     ym = (request.args.get("month") or date.today().strftime("%Y-%m")).strip()
     if not _is_valid_month(ym):
         return jsonify(error="invalid month, expected YYYY-MM"), 400
+
+    # Check in-memory cache first
+    mem_key = _build_cache_key("dashboard", uid)
+    mem_cached = memory_cache.get(mem_key)
+    if mem_cached is not None:
+        g.cache_hit = True
+        return mem_cached
+
+    g.cache_hit = False
     key = dashboard_summary_key(uid, ym)
     cached = cache_get(key)
     if cached:
+        resp = jsonify(cached)
+        memory_cache.set(mem_key, resp, timeout=DASHBOARD_TTL)
         return jsonify(cached)
 
     payload = {
@@ -165,6 +177,8 @@ def dashboard_summary():
         payload["errors"].append("category_breakdown_unavailable")
 
     cache_set(key, payload, ttl_seconds=300)
+    resp = jsonify(payload)
+    memory_cache.set(mem_key, resp, timeout=DASHBOARD_TTL)
     return jsonify(payload)
 
 

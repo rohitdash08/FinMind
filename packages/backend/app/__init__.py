@@ -9,6 +9,7 @@ from .observability import (
     init_request_context,
 )
 from flask_cors import CORS
+from flask import g
 import click
 import os
 import logging
@@ -48,6 +49,10 @@ def create_app(settings: Settings | None = None) -> Flask:
     # CORS for local dev frontend
     CORS(app, resources={r"*": {"origins": "*"}}, supports_credentials=True)
 
+    # In-memory cache (SimpleCache)
+    from .services.memory_cache import init_memory_cache
+    init_memory_cache(app)
+
     # Redis (already global)
     # Blueprint routes
     register_routes(app)
@@ -62,6 +67,10 @@ def create_app(settings: Settings | None = None) -> Flask:
 
     @app.after_request
     def _after_request(response):
+        # Add X-Cache-Hit header for debugging
+        cache_hit = getattr(g, "cache_hit", None)
+        if cache_hit is not None:
+            response.headers["X-Cache-Hit"] = "true" if cache_hit else "false"
         return finalize_request(response)
 
     @app.get("/health")
