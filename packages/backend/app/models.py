@@ -133,3 +133,16 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+class ReminderDeliveryLog(db.Model):
+    """Tracks every reminder delivery attempt for reliability metrics."""
+    __tablename__ = "reminder_delivery_logs"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    reminder_id = db.Column(db.Integer, db.ForeignKey("reminders.id"), nullable=False)
+    channel = db.Column(db.String(20), nullable=False)  # email, sms, push, webhook
+    status = db.Column(db.String(20), nullable=False)   # delivered, failed, pending
+    latency_ms = db.Column(db.Float, nullable=True)
+    error_code = db.Column(db.String(50), nullable=True)
+    retry_count = db.Column(db.Integer, default=0, nullable=False)
+    attempted_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
