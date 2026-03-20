@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import { getDashboardSummary, type DashboardSummary } from '@/api/dashboard';
 import { useNavigate } from 'react-router-dom';
-import { formatMoney } from '@/lib/currency';
+import { formatMoney, formatDate } from '@/lib/formatting';
 
 function currency(n: number, code?: string) {
   return formatMoney(Number(n || 0), code);
@@ -193,7 +193,7 @@ export function Dashboard() {
                           </div>
                           <div>
                             <div className="font-medium text-foreground">{transaction.description}</div>
-                            <div className="text-sm text-muted-foreground">{new Date(transaction.date).toLocaleDateString()}</div>
+                            <div className="text-sm text-muted-foreground">{formatDate(transaction.date)}</div>
                           </div>
                         </div>
                         <div className={`font-semibold ${isIncome ? 'text-success' : 'text-foreground'}`}>
@@ -231,7 +231,7 @@ export function Dashboard() {
                         </div>
                         <div>
                           <div className="font-medium text-foreground text-sm">{bill.name}</div>
-                          <div className="text-xs text-muted-foreground">Due {new Date(bill.next_due_date).toLocaleDateString()}</div>
+                          <div className="text-xs text-muted-foreground">Due {formatDate(bill.next_due_date)}</div>
                         </div>
                       </div>
                       <div className="text-sm font-semibold text-foreground">

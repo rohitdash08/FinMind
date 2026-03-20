@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { me, updateMe } from '@/api/auth';
-import { setCurrency } from '@/lib/auth';
+import { setCurrency, setLocale } from '@/lib/auth';
 
 const SUPPORTED_CURRENCIES = [
   { code: 'INR', label: 'Indian Rupee (INR)' },
@@ -17,10 +17,27 @@ const SUPPORTED_CURRENCIES = [
   { code: 'JPY', label: 'Japanese Yen (JPY)' },
 ];
 
+const SUPPORTED_LOCALES = [
+  { code: 'en-US', label: 'English (US)' },
+  { code: 'en-GB', label: 'English (UK)' },
+  { code: 'en-IN', label: 'English (India)' },
+  { code: 'en-AU', label: 'English (Australia)' },
+  { code: 'en-CA', label: 'English (Canada)' },
+  { code: 'fr-FR', label: 'French (France)' },
+  { code: 'de-DE', label: 'German (Germany)' },
+  { code: 'ja-JP', label: 'Japanese (Japan)' },
+  { code: 'hi-IN', label: 'Hindi (India)' },
+  { code: 'ar-AE', label: 'Arabic (UAE)' },
+  { code: 'zh-CN', label: 'Chinese (China)' },
+  { code: 'es-ES', label: 'Spanish (Spain)' },
+  { code: 'pt-BR', label: 'Portuguese (Brazil)' },
+];
+
 export default function Account() {
   const { toast } = useToast();
   const [email, setEmail] = useState('');
   const [currency, setCurrencyState] = useState('INR');
+  const [locale, setLocaleState] = useState('en-US');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -31,6 +48,7 @@ export default function Account() {
         const data = await me();
         setEmail(data.email);
         setCurrencyState(data.preferred_currency || 'INR');
+        setLocaleState(data.locale || 'en-US');
       } catch (error: unknown) {
         const message =
           error instanceof Error ? error.message : 'Failed to load account';
@@ -45,11 +63,12 @@ export default function Account() {
   const onSave = async () => {
     setSaving(true);
     try {
-      const updated = await updateMe({ preferred_currency: currency });
+      const updated = await updateMe({ preferred_currency: currency, locale });
       setCurrency(updated.preferred_currency);
+      setLocale(updated.locale);
       toast({
         title: 'Account updated',
-        description: `Default currency set to ${updated.preferred_currency}.`,
+        description: `Currency: ${updated.preferred_currency}, Locale: ${updated.locale}.`,
       });
     } catch (error: unknown) {
       const message =
@@ -66,8 +85,8 @@ export default function Account() {
         <div className="relative">
           <h1 className="page-title">Account Settings</h1>
           <p className="page-subtitle">
-            Manage your profile defaults. Currency stays fixed until you change
-            it again.
+            Manage your profile defaults. Currency and locale settings control
+            how dates, numbers, and amounts are displayed across the app.
           </p>
         </div>
       </div>
@@ -90,6 +109,24 @@ export default function Account() {
                 onChange={(e) => setCurrencyState(e.target.value)}
               >
                 {SUPPORTED_CURRENCIES.map((item) => (
+                  <option key={item.code} value={item.code}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="locale">Display Locale</Label>
+              <p className="text-xs text-muted-foreground">
+                Controls how dates, numbers, and currencies are formatted.
+              </p>
+              <select
+                id="locale"
+                className="input"
+                value={locale}
+                onChange={(e) => setLocaleState(e.target.value)}
+              >
+                {SUPPORTED_LOCALES.map((item) => (
                   <option key={item.code} value={item.code}>
                     {item.label}
                   </option>

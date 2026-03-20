@@ -46,7 +46,7 @@ import {
   type RecurringExpense,
 } from '@/api/expenses';
 import { listCategories, type Category } from '@/api/categories';
-import { formatMoney } from '@/lib/currency';
+import { formatMoney } from '@/lib/formatting';
 
 export default function Expenses() {
   const { toast } = useToast();

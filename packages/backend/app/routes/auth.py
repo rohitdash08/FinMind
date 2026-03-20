@@ -27,6 +27,22 @@ SUPPORTED_CURRENCIES = {
     "JPY",
 }
 
+SUPPORTED_LOCALES = {
+    "en-US",
+    "en-GB",
+    "en-IN",
+    "en-AU",
+    "en-CA",
+    "fr-FR",
+    "de-DE",
+    "ja-JP",
+    "hi-IN",
+    "ar-AE",
+    "zh-CN",
+    "es-ES",
+    "pt-BR",
+}
+
 
 @bp.post("/register")
 def register():
@@ -77,6 +93,7 @@ def me():
         id=user.id,
         email=user.email,
         preferred_currency=user.preferred_currency or "INR",
+        locale=user.locale or "en-US",
     )
 
 
@@ -93,11 +110,17 @@ def update_me():
         if cur not in SUPPORTED_CURRENCIES:
             return jsonify(error="unsupported preferred_currency"), 400
         user.preferred_currency = cur
+    if "locale" in data:
+        loc = str(data.get("locale") or "").strip()
+        if loc not in SUPPORTED_LOCALES:
+            return jsonify(error="unsupported locale"), 400
+        user.locale = loc
     db.session.commit()
     return jsonify(
         id=user.id,
         email=user.email,
         preferred_currency=user.preferred_currency or "INR",
+        locale=user.locale or "en-US",
     )
 
 
