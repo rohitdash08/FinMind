@@ -5,13 +5,131 @@ from decimal import Decimal, InvalidOperation
 from flask import Blueprint, current_app, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..extensions import db
-from ..models import Expense, RecurringCadence, RecurringExpense, User
+from ..models import Category, Expense, RecurringCadence, RecurringExpense, User
 from ..services.cache import cache_delete_patterns, monthly_summary_key
 from ..services import expense_import
 import logging
 
 bp = Blueprint("expenses", __name__)
 logger = logging.getLogger("finmind.expenses")
+
+
+@bp.get("/heatmap")
+@jwt_required()
+def heatmap():
+    uid = int(get_jwt_identity())
+    try:
+        months = max(1, min(24, int(request.args.get("months", "12"))))
+    except ValueError:
+        return jsonify(error="invalid months parameter"), 400
+
+    end = date.today()
+    start = date(end.year, end.month, 1) - timedelta(days=(months - 1) * 30)
+    start = date(start.year, start.month, 1)
+
+    rows = (
+        db.session.query(
+            Expense.spent_at,
+            db.func.sum(Expense.amount),
+        )
+        .filter(
+            Expense.user_id == uid,
+            Expense.spent_at >= start,
+            Expense.spent_at <= end,
+        )
+        .group_by(Expense.spent_at)
+        .all()
+    )
+    data = [
+        {"date": row[0].isoformat(), "amount": float(row[1])}
+        for row in rows
+    ]
+    return jsonify(data)
+
+
+# ---------------------------------------------------------------------------
+# Spending-breakdown classification keywords
+# ---------------------------------------------------------------------------
+_ESSENTIAL_KEYWORDS = frozenset([
+    "rent", "mortgage", "groceries", "grocery", "utilities", "utility",
+    "insurance", "healthcare", "health", "medical", "transport", "fuel",
+    "gas", "water", "electricity", "phone", "internet",
+])
+_DISCRETIONARY_KEYWORDS = frozenset([
+    "dining", "restaurant", "entertainment", "shopping", "travel", "hobby",
+    "subscription", "clothing", "fashion", "bar", "movie", "gaming", "gym",
+    "spa",
+])
+
+
+def _classify_category(name: str) -> str:
+    """Return 'essential', 'discretionary', or 'uncategorized'."""
+    lower = name.lower()
+    for kw in _ESSENTIAL_KEYWORDS:
+        if kw in lower:
+            return "essential"
+    for kw in _DISCRETIONARY_KEYWORDS:
+        if kw in lower:
+            return "discretionary"
+    return "uncategorized"
+
+
+@bp.get("/spending-breakdown")
+@jwt_required()
+def spending_breakdown():
+    uid = int(get_jwt_identity())
+    from_date = request.args.get("from")
+    to_date = request.args.get("to")
+    # period param is informational; filtering relies on from/to
+    q = db.session.query(Expense).filter_by(user_id=uid)
+    try:
+        if from_date:
+            q = q.filter(Expense.spent_at >= date.fromisoformat(from_date))
+        if to_date:
+            q = q.filter(Expense.spent_at <= date.fromisoformat(to_date))
+    except ValueError:
+        return jsonify(error="invalid date filter"), 400
+
+    expenses = q.all()
+
+    # Pre-load user categories in one query
+    cat_ids = {e.category_id for e in expenses if e.category_id is not None}
+    cats: dict[int, str] = {}
+    if cat_ids:
+        rows = db.session.query(Category.id, Category.name).filter(
+            Category.id.in_(cat_ids)
+        ).all()
+        cats = {r.id: r.name for r in rows}
+
+    # Aggregate by classification
+    buckets: dict[str, dict[str, float]] = {
+        "essential": {},
+        "discretionary": {},
+        "uncategorized": {},
+    }
+    for e in expenses:
+        cat_name = cats.get(e.category_id, "Uncategorized") if e.category_id else "Uncategorized"
+        classification = _classify_category(cat_name)
+        bucket = buckets[classification]
+        bucket[cat_name] = bucket.get(cat_name, 0.0) + float(e.amount)
+
+    def _bucket_payload(bucket: dict[str, float]) -> dict:
+        categories = [
+            {"name": name, "amount": round(amount, 2)}
+            for name, amount in sorted(bucket.items(), key=lambda x: -x[1])
+        ]
+        return {
+            "total": round(sum(bucket.values()), 2),
+            "categories": categories,
+        }
+
+    period_total = sum(float(e.amount) for e in expenses)
+    return jsonify(
+        essential=_bucket_payload(buckets["essential"]),
+        discretionary=_bucket_payload(buckets["discretionary"]),
+        uncategorized=_bucket_payload(buckets["uncategorized"]),
+        period_total=round(period_total, 2),
+    )
 
 
 @bp.get("")
