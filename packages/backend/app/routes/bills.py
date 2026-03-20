@@ -4,6 +4,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..extensions import db
 from ..models import Bill, BillCadence, User
 from ..services.cache import cache_delete_patterns
+from ..services.memory_cache import invalidate_user_cache
 import logging
 
 bp = Blueprint("bills", __name__)
@@ -62,6 +63,7 @@ def create_bill():
     cache_delete_patterns(
         [f"user:{uid}:upcoming_bills*", f"user:{uid}:dashboard_summary:*"]
     )
+    invalidate_user_cache(uid)
     return jsonify(id=b.id), 201
 
 
@@ -85,6 +87,7 @@ def mark_paid(bill_id: int):
     cache_delete_patterns(
         [f"user:{uid}:upcoming_bills*", f"user:{uid}:dashboard_summary:*"]
     )
+    invalidate_user_cache(uid)
     logger.info(
         "Marked bill paid id=%s user=%s next_due_date=%s", b.id, uid, b.next_due_date
     )
