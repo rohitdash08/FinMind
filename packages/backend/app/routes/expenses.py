@@ -1,11 +1,13 @@
 import calendar
+import csv
+import io
 from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
 
-from flask import Blueprint, current_app, jsonify, request
+from flask import Blueprint, Response, current_app, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..extensions import db
-from ..models import Expense, RecurringCadence, RecurringExpense, User
+from ..models import Category, Expense, RecurringCadence, RecurringExpense, User
 from ..services.cache import cache_delete_patterns, monthly_summary_key
 from ..services import expense_import
 import logging
@@ -392,4 +394,79 @@ def _invalidate_expense_cache(uid: int, at: str):
             f"insights:{uid}:*",
             f"user:{uid}:dashboard_summary:*",
         ]
+    )
+
+
+# ── Export ──
+
+
+@bp.get("/export")
+@jwt_required()
+def export_expenses():
+    """Export expenses as CSV or JSON with optional date/category filters."""
+    uid = int(get_jwt_identity())
+    fmt = (request.args.get("format") or "csv").lower()
+    if fmt not in ("csv", "json"):
+        return jsonify(error="format must be 'csv' or 'json'"), 400
+
+    q = db.session.query(Expense).filter_by(user_id=uid)
+
+    try:
+        from_date = request.args.get("from")
+        to_date = request.args.get("to")
+        category_id = request.args.get("category_id")
+        if from_date:
+            q = q.filter(Expense.spent_at >= date.fromisoformat(from_date))
+        if to_date:
+            q = q.filter(Expense.spent_at <= date.fromisoformat(to_date))
+        if category_id:
+            q = q.filter(Expense.category_id == int(category_id))
+    except ValueError:
+        return jsonify(error="invalid filter values"), 400
+
+    items = q.order_by(Expense.spent_at.desc()).all()
+
+    # Build category name lookup
+    cat_ids = {e.category_id for e in items if e.category_id}
+    cat_map = {}
+    if cat_ids:
+        cats = db.session.query(Category).filter(Category.id.in_(cat_ids)).all()
+        cat_map = {c.id: c.name for c in cats}
+
+    logger.info("Export expenses user=%s format=%s count=%s", uid, fmt, len(items))
+
+    if fmt == "json":
+        data = [
+            {
+                "date": e.spent_at.isoformat(),
+                "amount": float(e.amount),
+                "currency": e.currency,
+                "category": cat_map.get(e.category_id, ""),
+                "type": e.expense_type,
+                "notes": e.notes or "",
+            }
+            for e in items
+        ]
+        return jsonify(data)
+
+    # CSV
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["date", "amount", "currency", "category", "type", "notes"])
+    for e in items:
+        writer.writerow([
+            e.spent_at.isoformat(),
+            float(e.amount),
+            e.currency,
+            cat_map.get(e.category_id, ""),
+            e.expense_type,
+            e.notes or "",
+        ])
+
+    return Response(
+        output.getvalue(),
+        mimetype="text/csv",
+        headers={
+            "Content-Disposition": "attachment; filename=expenses.csv",
+        },
     )

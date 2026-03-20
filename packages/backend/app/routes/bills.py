@@ -1,5 +1,7 @@
+import csv
+import io
 from datetime import date, timedelta
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, Response, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..extensions import db
 from ..models import Bill, BillCadence, User
@@ -89,3 +91,58 @@ def mark_paid(bill_id: int):
         "Marked bill paid id=%s user=%s next_due_date=%s", b.id, uid, b.next_due_date
     )
     return jsonify(message="updated")
+
+
+@bp.get("/export")
+@jwt_required()
+def export_bills():
+    """Export bills as CSV or JSON."""
+    uid = int(get_jwt_identity())
+    fmt = (request.args.get("format") or "csv").lower()
+    if fmt not in ("csv", "json"):
+        return jsonify(error="format must be 'csv' or 'json'"), 400
+
+    items = (
+        db.session.query(Bill)
+        .filter_by(user_id=uid, active=True)
+        .order_by(Bill.next_due_date)
+        .all()
+    )
+
+    logger.info("Export bills user=%s format=%s count=%s", uid, fmt, len(items))
+
+    if fmt == "json":
+        data = [
+            {
+                "name": b.name,
+                "amount": float(b.amount),
+                "currency": b.currency,
+                "next_due_date": b.next_due_date.isoformat(),
+                "cadence": b.cadence.value,
+                "autopay": b.autopay_enabled,
+            }
+            for b in items
+        ]
+        return jsonify(data)
+
+    # CSV
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["name", "amount", "currency", "next_due_date", "cadence", "autopay"])
+    for b in items:
+        writer.writerow([
+            b.name,
+            float(b.amount),
+            b.currency,
+            b.next_due_date.isoformat(),
+            b.cadence.value,
+            b.autopay_enabled,
+        ])
+
+    return Response(
+        output.getvalue(),
+        mimetype="text/csv",
+        headers={
+            "Content-Disposition": "attachment; filename=bills.csv",
+        },
+    )
