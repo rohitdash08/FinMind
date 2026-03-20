@@ -12,6 +12,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { getBudgetSuggestion, type BudgetSuggestion } from '@/api/insights';
 import { formatMoney } from '@/lib/currency';
+import { SavingsOpportunities } from '@/components/ui/SavingsOpportunities';
 
 const PERSONAS = [
   'Balanced coach',
@@ -193,6 +194,9 @@ export function Analytics() {
           </FinancialCard>
         </div>
       ) : null}
+
+      {/* Savings Opportunity Detection */}
+      <SavingsOpportunities month={month} />
     </div>
   );
 }
