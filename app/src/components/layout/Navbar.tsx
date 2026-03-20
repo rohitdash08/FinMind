@@ -5,6 +5,7 @@ import { Menu, X, TrendingUp, ShieldCheck } from 'lucide-react';
 import { getToken, getRefreshToken, clearToken, clearRefreshToken } from '@/lib/auth';
 import { useToast } from '@/components/ui/use-toast';
 import { logout as logoutApi } from '@/api/auth';
+import { NotificationCenter } from './NotificationCenter';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard' },
@@ -86,6 +87,7 @@ export function Navbar() {
             </div>
             {isAuthed ? (
               <>
+                <NotificationCenter />
                 <Button variant="outline" size="sm" asChild>
                   <Link to="/account">Account</Link>
                 </Button>
