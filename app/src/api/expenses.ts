@@ -137,3 +137,37 @@ export async function generateRecurringExpenses(
     body: { through_date: throughDate },
   });
 }
+
+// ---------------------------------------------------------------------------
+// Spending breakdown (essential vs discretionary)
+// ---------------------------------------------------------------------------
+
+export type SpendingCategoryDetail = {
+  name: string;
+  amount: number;
+};
+
+export type SpendingBucket = {
+  total: number;
+  percentage?: number;
+  categories: SpendingCategoryDetail[];
+};
+
+export type SpendingBreakdownResponse = {
+  period_total: number;
+  essential: SpendingBucket;
+  discretionary: SpendingBucket;
+  uncategorized: SpendingBucket;
+};
+
+export async function getSpendingBreakdown(params?: {
+  period?: string;
+  from?: string;
+  to?: string;
+}): Promise<SpendingBreakdownResponse> {
+  const qs = new URLSearchParams();
+  if (params?.from) qs.set('from', params.from);
+  if (params?.to) qs.set('to', params.to);
+  const query = qs.toString() ? `?${qs.toString()}` : '';
+  return api<SpendingBreakdownResponse>(`/expenses/spending-breakdown${query}`);
+}

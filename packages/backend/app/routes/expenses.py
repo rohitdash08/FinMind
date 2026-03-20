@@ -5,13 +5,106 @@ from decimal import Decimal, InvalidOperation
 from flask import Blueprint, current_app, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..extensions import db
-from ..models import Expense, RecurringCadence, RecurringExpense, User
+from ..models import Category, Expense, RecurringCadence, RecurringExpense, User
 from ..services.cache import cache_delete_patterns, monthly_summary_key
 from ..services import expense_import
 import logging
 
 bp = Blueprint("expenses", __name__)
 logger = logging.getLogger("finmind.expenses")
+
+# ---------------------------------------------------------------------------
+# Spending classification keywords
+# ---------------------------------------------------------------------------
+_ESSENTIAL_KEYWORDS = [
+    "rent", "mortgage", "groceries", "grocery", "utilities", "utility",
+    "insurance", "healthcare", "health care", "medical", "pharmacy",
+    "transportation", "transport", "gas", "fuel", "electricity", "water",
+]
+
+_DISCRETIONARY_KEYWORDS = [
+    "dining", "restaurant", "eating out", "entertainment", "streaming",
+    "shopping", "clothing", "apparel", "subscriptions", "subscription",
+    "travel", "vacation", "hobbies", "hobby", "games", "gaming",
+    "movies", "cinema", "bars", "alcohol", "coffee",
+]
+
+
+def _classify_category(name: str) -> str:
+    """Return 'essential', 'discretionary', or 'uncategorized'."""
+    lower = name.lower()
+    for kw in _ESSENTIAL_KEYWORDS:
+        if kw in lower:
+            return "essential"
+    for kw in _DISCRETIONARY_KEYWORDS:
+        if kw in lower:
+            return "discretionary"
+    return "uncategorized"
+
+
+@bp.get("/spending-breakdown")
+@jwt_required()
+def spending_breakdown():
+    """Return essential vs discretionary spending totals with per-category detail."""
+    uid = int(get_jwt_identity())
+    from_date = request.args.get("from")
+    to_date = request.args.get("to")
+
+    q = db.session.query(Expense).filter_by(user_id=uid)
+    try:
+        if from_date:
+            q = q.filter(Expense.spent_at >= date.fromisoformat(from_date))
+        if to_date:
+            q = q.filter(Expense.spent_at <= date.fromisoformat(to_date))
+    except ValueError:
+        return jsonify(error="invalid date format"), 400
+
+    expenses = q.all()
+
+    # Build a category id -> name lookup
+    cat_ids = {e.category_id for e in expenses if e.category_id is not None}
+    categories_map: dict[int, str] = {}
+    if cat_ids:
+        cats = db.session.query(Category).filter(Category.id.in_(cat_ids)).all()
+        categories_map = {c.id: c.name for c in cats}
+
+    # Aggregate per bucket, per category
+    buckets: dict[str, dict[str, float]] = {
+        "essential": {},
+        "discretionary": {},
+        "uncategorized": {},
+    }
+    period_total = 0.0
+
+    for e in expenses:
+        amount = float(e.amount)
+        period_total += amount
+        if e.category_id and e.category_id in categories_map:
+            cat_name = categories_map[e.category_id]
+            bucket_key = _classify_category(cat_name)
+        else:
+            cat_name = "Uncategorized"
+            bucket_key = "uncategorized"
+        buckets[bucket_key][cat_name] = buckets[bucket_key].get(cat_name, 0.0) + amount
+
+    def _build_bucket(data: dict[str, float]) -> dict:
+        total = round(sum(data.values()), 2)
+        cats = sorted(
+            [{"name": n, "amount": round(a, 2)} for n, a in data.items()],
+            key=lambda c: c["amount"],
+            reverse=True,
+        )
+        pct = round((total / period_total) * 100, 1) if period_total > 0 else 0.0
+        return {"total": total, "percentage": pct, "categories": cats}
+
+    result = {
+        "period_total": round(period_total, 2),
+        "essential": _build_bucket(buckets["essential"]),
+        "discretionary": _build_bucket(buckets["discretionary"]),
+        "uncategorized": _build_bucket(buckets["uncategorized"]),
+    }
+    logger.info("Spending breakdown user=%s period_total=%s", uid, period_total)
+    return jsonify(result)
 
 
 @bp.get("")
