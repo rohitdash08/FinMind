@@ -133,3 +133,88 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+# ─── Bank Sync Models ────────────────────────────────────────────────────────
+SQLAlchemy models for Bank Sync — add to FinMind's models.py
+
+import uuid
+from datetime import datetime
+
+
+class BankAccount(db.Model):
+    __tablename__ = "bank_accounts"
+
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    provider = db.Column(db.String(50), nullable=False)              # "setu", "mock", …
+    account_id = db.Column(db.String(255), nullable=False)           # provider-side ID
+    masked_account_number = db.Column(db.String(50))
+    bank_name = db.Column(db.String(100))
+    ifsc = db.Column(db.String(20))
+    account_type = db.Column(db.String(30), default="SAVINGS")
+    currency = db.Column(db.String(10), default="INR")
+    holder_name = db.Column(db.String(100))
+    consent_handle_id = db.Column(db.String(255))                    # AA handle
+    consent_artefact_id = db.Column(db.String(255))                  # AA artefact/consentId
+    consent_status = db.Column(db.String(20), default="PENDING")     # PENDING/ACTIVE/REVOKED
+    last_synced_at = db.Column(db.Date)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    transactions = db.relationship("BankTransaction", backref="account", lazy="dynamic",
+                                   cascade="all, delete-orphan")
+
+    __table_args__ = (
+        db.UniqueConstraint("user_id", "provider", "account_id", name="uq_bank_account"),
+    )
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "provider": self.provider,
+            "bank_name": self.bank_name,
+            "masked_account_number": self.masked_account_number,
+            "account_type": self.account_type,
+            "currency": self.currency,
+            "consent_status": self.consent_status,
+            "last_synced_at": self.last_synced_at.isoformat() if self.last_synced_at else None,
+        }
+
+
+class BankTransaction(db.Model):
+    __tablename__ = "bank_transactions"
+
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    bank_account_id = db.Column(db.String(36), db.ForeignKey("bank_accounts.id", ondelete="CASCADE"),
+                                nullable=False, index=True)
+    expense_id = db.Column(db.Integer, db.ForeignKey("expenses.id", ondelete="SET NULL"),
+                           nullable=True)                            # linked expense (if imported)
+    transaction_id = db.Column(db.String(255), nullable=False)       # provider-side txn ID
+    amount = db.Column(db.Numeric(12, 2), nullable=False)
+    currency = db.Column(db.String(10), default="INR")
+    transaction_type = db.Column(db.String(10), nullable=False)      # DEBIT / CREDIT
+    description = db.Column(db.Text)
+    date = db.Column(db.Date, nullable=False, index=True)
+    balance = db.Column(db.Numeric(12, 2))
+    category_hint = db.Column(db.String(100))
+    raw = db.Column(db.JSON)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        db.UniqueConstraint("bank_account_id", "transaction_id", name="uq_bank_transaction"),
+    )
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "transaction_id": self.transaction_id,
+            "amount": float(self.amount),
+            "currency": self.currency,
+            "type": self.transaction_type,
+            "description": self.description,
+            "date": self.date.isoformat(),
+            "balance": float(self.balance) if self.balance else None,
+            "category_hint": self.category_hint,
+            "expense_id": self.expense_id,
+        }
