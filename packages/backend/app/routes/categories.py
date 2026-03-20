@@ -3,6 +3,7 @@ from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..extensions import db
 from ..models import Category
+from ..compression import paginate_query, parse_pagination_args
 
 bp = Blueprint("categories", __name__)
 logger = logging.getLogger("finmind.categories")
@@ -12,11 +13,11 @@ logger = logging.getLogger("finmind.categories")
 @jwt_required()
 def list_categories():
     uid = int(get_jwt_identity())
-    items = (
-        db.session.query(Category).filter_by(user_id=uid).order_by(Category.name).all()
-    )
+    page, page_size = parse_pagination_args()
+    q = db.session.query(Category).filter_by(user_id=uid).order_by(Category.name)
+    items, meta = paginate_query(q, page=page, page_size=page_size)
     logger.info("List categories for user=%s count=%s", uid, len(items))
-    return jsonify([{"id": c.id, "name": c.name} for c in items])
+    return jsonify(data=[{"id": c.id, "name": c.name} for c in items], pagination=meta)
 
 
 @bp.post("")

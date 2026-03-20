@@ -2,7 +2,7 @@ def test_categories_crud_flow(client, auth_header):
     # Initially empty
     r = client.get("/categories", headers=auth_header)
     assert r.status_code == 200
-    assert r.get_json() == []
+    assert r.get_json()["data"] == []
 
     # Create
     r = client.post("/categories", json={"name": "Food"}, headers=auth_header)
@@ -17,7 +17,7 @@ def test_categories_crud_flow(client, auth_header):
     # List should have 1
     r = client.get("/categories", headers=auth_header)
     assert r.status_code == 200
-    items = r.get_json()
+    items = r.get_json()["data"]
     assert len(items) == 1
 
     # Update
@@ -35,4 +35,4 @@ def test_categories_crud_flow(client, auth_header):
     # List should be empty again
     r = client.get("/categories", headers=auth_header)
     assert r.status_code == 200
-    assert r.get_json() == []
+    assert r.get_json()["data"] == []

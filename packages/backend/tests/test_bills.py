@@ -5,7 +5,7 @@ def test_bills_crud_and_mark_paid(client, auth_header):
     # Initially empty
     r = client.get("/bills", headers=auth_header)
     assert r.status_code == 200
-    assert r.get_json() == []
+    assert r.get_json()["data"] == []
 
     # Create bill
     payload = {
@@ -24,7 +24,7 @@ def test_bills_crud_and_mark_paid(client, auth_header):
     # List has 1
     r = client.get("/bills", headers=auth_header)
     assert r.status_code == 200
-    items = r.get_json()
+    items = r.get_json()["data"]
     assert any(b["id"] == bill_id for b in items)
 
     # Mark paid
@@ -51,6 +51,6 @@ def test_bill_create_defaults_to_user_preferred_currency(client, auth_header):
 
     r = client.get("/bills", headers=auth_header)
     assert r.status_code == 200
-    created = next((item for item in r.get_json() if item["id"] == bill_id), None)
+    created = next((item for item in r.get_json()["data"] if item["id"] == bill_id), None)
     assert created is not None
     assert created["currency"] == "INR"

@@ -60,7 +60,7 @@ def test_autopay_generates_precheck_and_result_followup_for_both_channels(
 
     r = client.get("/reminders", headers=auth_header)
     assert r.status_code == 200
-    reminders = r.get_json()
+    reminders = r.get_json()["data"]
     autopay_pre = [x for x in reminders if "Autopay check" in x["message"]]
     assert len(autopay_pre) == 2
     assert sorted([x["channel"] for x in autopay_pre]) == ["email", "whatsapp"]
@@ -76,7 +76,7 @@ def test_autopay_generates_precheck_and_result_followup_for_both_channels(
 
     r = client.get("/reminders", headers=auth_header)
     assert r.status_code == 200
-    reminders = r.get_json()
+    reminders = r.get_json()["data"]
     followups = [x for x in reminders if "Autopay succeeded" in x["message"]]
     assert len(followups) == 2
     assert sorted([x["channel"] for x in followups]) == ["email", "whatsapp"]

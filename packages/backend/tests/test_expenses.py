@@ -6,7 +6,7 @@ def _create_category(client, auth_header, name="General"):
     assert r.status_code in (201, 409)
     r = client.get("/categories", headers=auth_header)
     assert r.status_code == 200
-    return r.get_json()[0]["id"]
+    return r.get_json()["data"][0]["id"]
 
 
 def test_expenses_crud_filters_and_canonical_fields(client, auth_header):
@@ -14,7 +14,7 @@ def test_expenses_crud_filters_and_canonical_fields(client, auth_header):
 
     r = client.get("/expenses", headers=auth_header)
     assert r.status_code == 200
-    assert r.get_json() == []
+    assert r.get_json()["data"] == []
 
     payload = {
         "amount": 12.5,
@@ -43,20 +43,20 @@ def test_expenses_crud_filters_and_canonical_fields(client, auth_header):
 
     r = client.get("/expenses?search=milk", headers=auth_header)
     assert r.status_code == 200
-    items = r.get_json()
+    items = r.get_json()["data"]
     assert len(items) == 1
     assert items[0]["id"] == exp_id
 
     r = client.get("/expenses?from=2026-02-01&to=2026-02-28", headers=auth_header)
     assert r.status_code == 200
-    assert len(r.get_json()) == 1
+    assert len(r.get_json()["data"]) == 1
 
     r = client.delete(f"/expenses/{exp_id}", headers=auth_header)
     assert r.status_code == 200
 
     r = client.get("/expenses", headers=auth_header)
     assert r.status_code == 200
-    assert r.get_json() == []
+    assert r.get_json()["data"] == []
 
 
 def test_expense_create_defaults_to_user_preferred_currency(client, auth_header):
@@ -231,7 +231,7 @@ def test_recurring_expense_create_list_and_generate(client, auth_header):
 
     r = client.get("/expenses?search=House%20Rent", headers=auth_header)
     assert r.status_code == 200
-    generated = r.get_json()
+    generated = r.get_json()["data"]
     assert len(generated) == 3
 
 
@@ -258,5 +258,5 @@ def test_recurring_expense_generate_respects_end_date(client, auth_header):
 
     r = client.get("/expenses?search=Gym%20Membership", headers=auth_header)
     assert r.status_code == 200
-    generated = r.get_json()
+    generated = r.get_json()["data"]
     assert len(generated) == 3

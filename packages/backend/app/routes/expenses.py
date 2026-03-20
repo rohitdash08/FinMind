@@ -25,7 +25,7 @@ def list_expenses():
     category_id = request.args.get("category_id")
     try:
         page = max(1, int(request.args.get("page", "1")))
-        page_size = min(200, max(1, int(request.args.get("page_size", "200"))))
+        page_size = min(200, max(1, int(request.args.get("page_size", "50"))))
     except ValueError:
         return jsonify(error="invalid pagination"), 400
 
@@ -41,15 +41,19 @@ def list_expenses():
     if search:
         q = q.filter(Expense.notes.ilike(f"%{search}%"))
 
-    items = (
-        q.order_by(Expense.spent_at.desc())
-        .offset((page - 1) * page_size)
-        .limit(page_size)
-        .all()
-    )
+    ordered = q.order_by(Expense.spent_at.desc())
+    total = ordered.count()
+    items = ordered.offset((page - 1) * page_size).limit(page_size).all()
     logger.info("List expenses user=%s count=%s", uid, len(items))
-    data = [_expense_to_dict(e) for e in items]
-    return jsonify(data)
+    return jsonify(
+        data=[_expense_to_dict(e) for e in items],
+        pagination={
+            "page": page,
+            "page_size": page_size,
+            "total": total,
+            "total_pages": max(1, -(-total // page_size)),
+        },
+    )
 
 
 @bp.post("")

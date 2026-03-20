@@ -4,6 +4,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..extensions import db
 from ..models import Bill, BillCadence, User
 from ..services.cache import cache_delete_patterns
+from ..compression import paginate_query, parse_pagination_args
 import logging
 
 bp = Blueprint("bills", __name__)
@@ -14,15 +15,16 @@ logger = logging.getLogger("finmind.bills")
 @jwt_required()
 def list_bills():
     uid = int(get_jwt_identity())
-    items = (
+    page, page_size = parse_pagination_args()
+    q = (
         db.session.query(Bill)
         .filter_by(user_id=uid, active=True)
         .order_by(Bill.next_due_date)
-        .all()
     )
+    items, meta = paginate_query(q, page=page, page_size=page_size)
     logger.info("List bills user=%s count=%s", uid, len(items))
     return jsonify(
-        [
+        data=[
             {
                 "id": b.id,
                 "name": b.name,
@@ -35,7 +37,8 @@ def list_bills():
                 "channel_email": b.channel_email,
             }
             for b in items
-        ]
+        ],
+        pagination=meta,
     )
 
 
