@@ -8,7 +8,7 @@ import { listBills, createBill, markBillPaid, deleteBill, type Bill } from '@/ap
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dailog';
 import { Link } from 'react-router-dom';
-import { formatMoney } from '@/lib/currency';
+import { formatMoney, formatDate, formatNumber } from '@/lib/formatting';
 
 const upcomingBills = [
   {
@@ -321,7 +321,7 @@ export function Bills() {
             </FinancialCardHeader>
             <FinancialCardContent>
               <div className="metric-value text-foreground mb-1">
-                ${totalUpcoming.toLocaleString()}
+                ${formatNumber(totalUpcoming)}
               </div>
               <div className="text-sm text-muted-foreground">
                 {upcomingBills.length} bills this month
@@ -378,7 +378,7 @@ export function Bills() {
             </FinancialCardHeader>
             <FinancialCardContent>
               <div className="metric-value text-foreground mb-1">
-                ${(totalUpcoming * 0.92).toLocaleString()}
+                ${formatNumber(totalUpcoming * 0.92)}
               </div>
               <div className="text-sm text-muted-foreground">
                 Last 6 months
@@ -433,7 +433,7 @@ export function Bills() {
                             {bill.name}
                           </div>
                           <div className="text-sm text-muted-foreground">
-                            {bill.provider} • Due {new Date(bill.dueDate).toLocaleDateString()}
+                            {bill.provider} • Due {formatDate(bill.dueDate)}
                           </div>
                           <div className="flex items-center space-x-2 mt-1">
                             <Badge variant="outline" className="text-xs">
@@ -522,7 +522,7 @@ export function Bills() {
                             {payment.name}
                           </div>
                           <div className="text-xs text-muted-foreground">
-                            {new Date(payment.paidDate).toLocaleDateString()} • {payment.method}
+                            {formatDate(payment.paidDate)} • {payment.method}
                           </div>
                         </div>
                       </div>

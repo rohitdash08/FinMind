@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { formatDateTime } from '@/lib/formatting';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dailog';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -268,7 +269,7 @@ export function Reminders() {
                 <div key={r.id} className="interactive-row flex items-center justify-between border-b py-2">
                   <div>
                     <div className="font-medium">{r.message}</div>
-                    <div className="text-xs text-muted-foreground">{new Date(r.send_at).toLocaleString()} • {r.channel} • {r.sent ? 'sent' : 'pending'}</div>
+                    <div className="text-xs text-muted-foreground">{formatDateTime(r.send_at)} • {r.channel} • {r.sent ? 'sent' : 'pending'}</div>
                   </div>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>

@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/financial-card';
 import { useToast } from '@/hooks/use-toast';
 import { getBudgetSuggestion, type BudgetSuggestion } from '@/api/insights';
-import { formatMoney } from '@/lib/currency';
+import { formatMoney } from '@/lib/formatting';
 
 const PERSONAS = [
   'Balanced coach',

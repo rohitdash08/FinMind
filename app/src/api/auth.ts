@@ -25,13 +25,14 @@ export async function logout(refresh_token: string): Promise<{ message: string }
   });
 }
 
-export type MeResponse = { id: number; email: string; preferred_currency: string };
+export type MeResponse = { id: number; email: string; preferred_currency: string; locale: string };
 export async function me(): Promise<MeResponse> {
   return api<MeResponse>('/auth/me');
 }
 
 export async function updateMe(payload: {
-  preferred_currency: string;
+  preferred_currency?: string;
+  locale?: string;
 }): Promise<MeResponse> {
   return api<MeResponse>('/auth/me', { method: 'PATCH', body: payload });
 }

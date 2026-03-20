@@ -3,6 +3,7 @@ import { FinancialCard, FinancialCardContent, FinancialCardDescription, Financia
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Calendar, DollarSign, Plus, PieChart, TrendingDown, TrendingUp, Target, AlertCircle, Settings } from 'lucide-react';
+import { formatNumber } from '@/lib/formatting';
 
 const budgetCategories = [
   {
@@ -140,7 +141,7 @@ export function Budgets() {
             </FinancialCardHeader>
             <FinancialCardContent>
               <div className="metric-value text-foreground mb-1">
-                ${totalAllocated.toLocaleString()}
+                ${formatNumber(totalAllocated)}
               </div>
               <div className="text-sm text-muted-foreground">
                 This month's budget
@@ -159,7 +160,7 @@ export function Budgets() {
             </FinancialCardHeader>
             <FinancialCardContent>
               <div className="metric-value text-foreground mb-1">
-                ${totalSpent.toLocaleString()}
+                ${formatNumber(totalSpent)}
               </div>
               <div className="text-sm text-muted-foreground">
                 {((totalSpent / totalAllocated) * 100).toFixed(1)}% of budget used
@@ -182,7 +183,7 @@ export function Budgets() {
             </FinancialCardHeader>
             <FinancialCardContent>
               <div className="metric-value mb-1">
-                ${Math.abs(totalRemaining).toLocaleString()}
+                ${formatNumber(Math.abs(totalRemaining))}
               </div>
               <div className="text-sm opacity-80">
                 {totalRemaining < 0 ? 'Overspent this month' : 'Available to spend'}
@@ -302,7 +303,7 @@ export function Budgets() {
                         <div className="space-y-2">
                           <div className="flex justify-between text-sm">
                             <span className="text-muted-foreground">
-                              ${goal.current.toLocaleString()} / ${goal.target.toLocaleString()}
+                              ${formatNumber(goal.current)} / ${formatNumber(goal.target)}
                             </span>
                             <span className="text-foreground font-medium">
                               {percentage.toFixed(0)}%
