@@ -56,6 +56,15 @@ export type RecurringExpenseCreate = {
   currency?: string;
 };
 
+export type HeatmapEntry = {
+  date: string;
+  amount: number;
+};
+
+export async function getSpendingHeatmap(months = 12): Promise<HeatmapEntry[]> {
+  return api<HeatmapEntry[]>(`/expenses/heatmap?months=${months}`);
+}
+
 export async function listExpenses(params?: {
   from?: string;
   to?: string;
@@ -136,4 +145,39 @@ export async function generateRecurringExpenses(
     method: 'POST',
     body: { through_date: throughDate },
   });
+}
+
+// ---------------------------------------------------------------------------
+// Spending breakdown (essential vs discretionary)
+// ---------------------------------------------------------------------------
+export type SpendingCategory = {
+  name: string;
+  amount: number;
+};
+
+export type SpendingBucket = {
+  total: number;
+  categories: SpendingCategory[];
+};
+
+export type SpendingBreakdownResponse = {
+  essential: SpendingBucket;
+  discretionary: SpendingBucket;
+  uncategorized: SpendingBucket;
+  period_total: number;
+};
+
+export async function getSpendingBreakdown(params?: {
+  period?: string;
+  from?: string;
+  to?: string;
+}): Promise<SpendingBreakdownResponse> {
+  const qs = new URLSearchParams();
+  if (params) {
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== '') qs.set(k, String(v));
+    });
+  }
+  const path = '/expenses/spending-breakdown' + (qs.toString() ? `?${qs.toString()}` : '');
+  return api<SpendingBreakdownResponse>(path);
 }
