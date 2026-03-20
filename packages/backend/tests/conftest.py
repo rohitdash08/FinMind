@@ -1,9 +1,22 @@
 import os
 import pytest
+import fakeredis
+
+# Replace redis_client with fake BEFORE any route/service imports use it
+_fake_redis = fakeredis.FakeRedis(decode_responses=True)
+
+import app.extensions as _ext
+_ext.redis_client = _fake_redis
+
+# Also patch modules that import redis_client at module level
+import app.services.cache as _cache_mod
+_cache_mod.redis_client = _fake_redis
+import app.routes.auth as _auth_mod
+_auth_mod.redis_client = _fake_redis
+
 from app import create_app
 from app.config import Settings
 from app.extensions import db
-from app.extensions import redis_client
 from app import models  # noqa: F401 - ensure models are registered
 
 
@@ -31,18 +44,12 @@ def app_fixture():
     app = create_app(settings)
     app.config.update(TESTING=True)
     _setup_db(app)
-    try:
-        redis_client.flushdb()
-    except Exception:
-        pass
+    _fake_redis.flushdb()
     yield app
     with app.app_context():
         db.session.remove()
         db.drop_all()
-    try:
-        redis_client.flushdb()
-    except Exception:
-        pass
+    _fake_redis.flushdb()
 
 
 @pytest.fixture()
