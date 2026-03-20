@@ -5,6 +5,7 @@ from ..extensions import db
 from ..models import Bill, Reminder
 from ..observability import track_reminder_event
 from ..services.reminders import send_reminder
+from ..compression import paginate_query, parse_pagination_args
 import logging
 
 bp = Blueprint("reminders", __name__)
@@ -15,15 +16,16 @@ logger = logging.getLogger("finmind.reminders")
 @jwt_required()
 def list_reminders():
     uid = int(get_jwt_identity())
-    items = (
+    page, page_size = parse_pagination_args()
+    q = (
         db.session.query(Reminder)
         .filter_by(user_id=uid)
         .order_by(Reminder.send_at)
-        .all()
     )
+    items, meta = paginate_query(q, page=page, page_size=page_size)
     logger.info("List reminders user=%s count=%s", uid, len(items))
     return jsonify(
-        [
+        data=[
             {
                 "id": r.id,
                 "message": r.message,
@@ -32,7 +34,8 @@ def list_reminders():
                 "channel": r.channel,
             }
             for r in items
-        ]
+        ],
+        pagination=meta,
     )
 
 

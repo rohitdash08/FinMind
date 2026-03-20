@@ -8,6 +8,7 @@ from .observability import (
     finalize_request,
     init_request_context,
 )
+from .compression import init_compression, optimize_json_response
 from flask_cors import CORS
 import click
 import os
@@ -48,6 +49,9 @@ def create_app(settings: Settings | None = None) -> Flask:
     # CORS for local dev frontend
     CORS(app, resources={r"*": {"origins": "*"}}, supports_credentials=True)
 
+    # Response compression (gzip / brotli)
+    init_compression(app)
+
     # Redis (already global)
     # Blueprint routes
     register_routes(app)
@@ -62,6 +66,7 @@ def create_app(settings: Settings | None = None) -> Flask:
 
     @app.after_request
     def _after_request(response):
+        response = optimize_json_response(response)
         return finalize_request(response)
 
     @app.get("/health")
