@@ -133,3 +133,35 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class MatchField(str, Enum):
+    NOTES = "notes"
+    AMOUNT = "amount"
+    CATEGORY = "category"
+
+
+class MatchOperator(str, Enum):
+    CONTAINS = "contains"
+    STARTS_WITH = "starts_with"
+    ENDS_WITH = "ends_with"
+    EQUALS = "equals"
+    GT = "gt"
+    LT = "lt"
+    GTE = "gte"
+    LTE = "lte"
+
+
+class TaggingRule(db.Model):
+    __tablename__ = "tagging_rules"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    name = db.Column(db.String(100), nullable=False)
+    match_field = db.Column(db.String(20), nullable=False)
+    match_operator = db.Column(db.String(20), nullable=False)
+    match_value = db.Column(db.String(200), nullable=False)
+    action_set_category_id = db.Column(db.Integer, db.ForeignKey("categories.id"), nullable=True)
+    action_set_notes_tag = db.Column(db.String(100), nullable=True)
+    priority = db.Column(db.Integer, default=0, nullable=False)
+    active = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
