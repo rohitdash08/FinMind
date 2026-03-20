@@ -444,6 +444,43 @@ paths:
                 properties:
                   created: { type: integer }
 
+  /digest/weekly:
+    get:
+      summary: Get weekly financial digest
+      description: >
+        Returns a comprehensive weekly financial summary including income/expense
+        totals, week-over-week trends, category breakdown, daily spending,
+        transactions, upcoming bills, and AI or heuristic-generated insights.
+      tags: [Digest]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: week
+          required: false
+          schema: { type: string, pattern: '^\d{4}-W\d{2}$' }
+          description: ISO week in YYYY-Www format (e.g. 2026-W12). Defaults to current week.
+        - in: header
+          name: X-Gemini-Api-Key
+          required: false
+          schema: { type: string }
+          description: Optional user-supplied Gemini API key for AI insights.
+        - in: header
+          name: X-Insight-Persona
+          required: false
+          schema: { type: string }
+          description: Optional persona override for AI insights.
+      responses:
+        '200':
+          description: Weekly digest
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WeeklyDigest'
+        '400':
+          description: Invalid week format
+        '401':
+          description: Unauthorized
+
   /insights/budget-suggestion:
     get:
       summary: Get monthly budget suggestion
@@ -587,3 +624,57 @@ components:
         message: { type: string }
         send_at: { type: string, format: date-time }
         channel: { type: string, enum: [email, whatsapp], default: email }
+    WeeklyDigest:
+      type: object
+      properties:
+        week: { type: string, example: "2026-W12" }
+        period:
+          type: object
+          properties:
+            start: { type: string, format: date }
+            end: { type: string, format: date }
+        summary:
+          type: object
+          properties:
+            total_income: { type: number, format: float }
+            total_expenses: { type: number, format: float }
+            net_flow: { type: number, format: float }
+            transaction_count: { type: integer }
+        trends:
+          type: object
+          properties:
+            previous_week: { type: string }
+            previous_income: { type: number, format: float }
+            previous_expenses: { type: number, format: float }
+            income_change_pct: { type: number, format: float }
+            expense_change_pct: { type: number, format: float }
+        category_breakdown:
+          type: array
+          items:
+            type: object
+            properties:
+              category_id: { type: integer, nullable: true }
+              category_name: { type: string }
+              amount: { type: number, format: float }
+              share_pct: { type: number, format: float }
+        daily_spending:
+          type: array
+          items:
+            type: object
+            properties:
+              date: { type: string, format: date }
+              amount: { type: number, format: float }
+        transactions:
+          type: array
+          items: { $ref: '#/components/schemas/Expense' }
+        upcoming_bills:
+          type: array
+          items: { $ref: '#/components/schemas/Bill' }
+        insights:
+          type: array
+          items: { type: string }
+        method: { type: string, enum: [heuristic, gemini] }
+        persona: { type: string }
+        warnings:
+          type: array
+          items: { type: string }
