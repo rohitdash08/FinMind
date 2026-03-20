@@ -1,0 +1,5 @@
+webhook:
+  secret_key: ${WEBHOOK_SECRET_KEY}
+  retry_attempts: 3
+  retry_delay: 5
+  failure_handler: log_failure

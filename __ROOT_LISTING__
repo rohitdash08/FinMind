@@ -1,0 +1,7 @@
+[file] .bandit
+[file] .env.example
+[file] .flake8
+[dir] .github
+[file] .gitignore
+[file] .pre-commit-config.yaml
+[file] CONTRIBUTING.md
