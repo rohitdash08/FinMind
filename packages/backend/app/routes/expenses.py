@@ -68,7 +68,7 @@ def create_expense():
     e = Expense(
         user_id=uid,
         amount=amount,
-        currency=(data.get("currency") or (user.preferred_currency if user else "INR")),
+        currency=(data.get("currency") or (user.preferred_currency if user else "USD")),
         expense_type=str(data.get("expense_type") or "EXPENSE").upper(),
         category_id=data.get("category_id"),
         notes=description,
@@ -134,7 +134,7 @@ def create_recurring_expense():
         user_id=uid,
         category_id=data.get("category_id"),
         amount=amount,
-        currency=(data.get("currency") or (user.preferred_currency if user else "INR")),
+        currency=(data.get("currency") or (user.preferred_currency if user else "USD")),
         expense_type=str(data.get("expense_type") or "EXPENSE").upper(),
         notes=description,
         cadence=RecurringCadence(cadence),
@@ -296,7 +296,7 @@ def import_commit():
         expense = Expense(
             user_id=uid,
             amount=t["amount"],
-            currency=t.get("currency") or (user.preferred_currency if user else "INR"),
+            currency=t.get("currency") or (user.preferred_currency if user else "USD"),
             expense_type=str(t.get("expense_type") or "EXPENSE").upper(),
             category_id=t.get("category_id"),
             notes=t["description"],

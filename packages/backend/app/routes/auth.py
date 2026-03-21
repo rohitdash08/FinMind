@@ -42,7 +42,7 @@ def register():
     user = User(
         email=email,
         password_hash=generate_password_hash(password),
-        preferred_currency="INR",
+        preferred_currency="USD",
     )
     db.session.add(user)
     db.session.commit()
@@ -76,7 +76,7 @@ def me():
     return jsonify(
         id=user.id,
         email=user.email,
-        preferred_currency=user.preferred_currency or "INR",
+        preferred_currency=user.preferred_currency or "USD",
     )
 
 
@@ -97,7 +97,7 @@ def update_me():
     return jsonify(
         id=user.id,
         email=user.email,
-        preferred_currency=user.preferred_currency or "INR",
+        preferred_currency=user.preferred_currency or "USD",
     )
 
 

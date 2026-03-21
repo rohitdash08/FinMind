@@ -107,13 +107,41 @@ def _ensure_schema_compatibility(app: Flask) -> None:
             """
             ALTER TABLE users
             ADD COLUMN IF NOT EXISTS preferred_currency VARCHAR(10)
-            NOT NULL DEFAULT 'INR'
+            NOT NULL DEFAULT 'USD'
             """
         )
         conn.commit()
     except Exception:
         app.logger.exception(
             "Schema compatibility patch failed for users.preferred_currency"
+        )
+        conn.rollback()
+    finally:
+        conn.close()
+
+    conn = db.engine.raw_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS financial_accounts (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id),
+                name VARCHAR(200) NOT NULL,
+                account_type VARCHAR(50) NOT NULL,
+                balance NUMERIC(12, 2) NOT NULL DEFAULT 0,
+                currency VARCHAR(10) NOT NULL DEFAULT 'USD',
+                institution VARCHAR(200),
+                is_active BOOLEAN NOT NULL DEFAULT TRUE,
+                created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+            """
+        )
+        conn.commit()
+    except Exception:
+        app.logger.exception(
+            "Schema compatibility patch failed for financial_accounts"
         )
         conn.rollback()
     finally:

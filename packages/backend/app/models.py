@@ -14,7 +14,7 @@ class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(255), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
-    preferred_currency = db.Column(db.String(10), default="INR", nullable=False)
+    preferred_currency = db.Column(db.String(10), default="USD", nullable=False)
     role = db.Column(db.String(20), default=Role.USER.value, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
@@ -33,7 +33,7 @@ class Expense(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     category_id = db.Column(db.Integer, db.ForeignKey("categories.id"), nullable=True)
     amount = db.Column(db.Numeric(12, 2), nullable=False)
-    currency = db.Column(db.String(10), default="INR", nullable=False)
+    currency = db.Column(db.String(10), default="USD", nullable=False)
     expense_type = db.Column(db.String(20), default="EXPENSE", nullable=False)
     notes = db.Column(db.String(500), nullable=True)
     spent_at = db.Column(db.Date, default=date.today, nullable=False)
@@ -56,7 +56,7 @@ class RecurringExpense(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     category_id = db.Column(db.Integer, db.ForeignKey("categories.id"), nullable=True)
     amount = db.Column(db.Numeric(12, 2), nullable=False)
-    currency = db.Column(db.String(10), default="INR", nullable=False)
+    currency = db.Column(db.String(10), default="USD", nullable=False)
     expense_type = db.Column(db.String(20), default="EXPENSE", nullable=False)
     notes = db.Column(db.String(500), nullable=False)
     cadence = db.Column(SAEnum(RecurringCadence), nullable=False)
@@ -79,7 +79,7 @@ class Bill(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     name = db.Column(db.String(200), nullable=False)
     amount = db.Column(db.Numeric(12, 2), nullable=False)
-    currency = db.Column(db.String(10), default="INR", nullable=False)
+    currency = db.Column(db.String(10), default="USD", nullable=False)
     next_due_date = db.Column(db.Date, nullable=False)
     cadence = db.Column(SAEnum(BillCadence), nullable=False)
     autopay_enabled = db.Column(db.Boolean, default=False, nullable=False)
@@ -133,3 +133,27 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class AccountType(str, Enum):
+    CHECKING = "checking"
+    SAVINGS = "savings"
+    CREDIT_CARD = "credit_card"
+    INVESTMENT = "investment"
+    OTHER = "other"
+
+
+class FinancialAccount(db.Model):
+    __tablename__ = "financial_accounts"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    name = db.Column(db.String(200), nullable=False)
+    account_type = db.Column(SAEnum(AccountType), nullable=False)
+    balance = db.Column(db.Numeric(12, 2), nullable=False, default=0)
+    currency = db.Column(db.String(10), default="USD", nullable=False)
+    institution = db.Column(db.String(200), nullable=True)
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(
+        db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+    )
