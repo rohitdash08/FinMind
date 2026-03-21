@@ -32,22 +32,22 @@ def _due_reminders():
     )
 
 
-def dispatch_reminders() -> dict:
-    """Process all due reminders; apply exponential backoff on failure.
+def dispatch_reminders(candidates, sender_func, now) -> dict:
+    """Pure retry/backoff logic — no DB access.
 
-    Must be called within an active Flask application context.
+    Args:
+        candidates: list of reminder objects to process.
+        sender_func: callable(reminder) -> bool that attempts delivery.
+        now: datetime representing the current time (used for scheduling retries).
 
     Returns a dict with counts: processed, sent, retrying, failed.
     """
-    now = datetime.utcnow()
-    reminders = _due_reminders()
-
     counts = {"processed": 0, "sent": 0, "retrying": 0, "failed": 0}
 
-    for r in reminders:
+    for r in candidates:
         counts["processed"] += 1
         try:
-            success = send_reminder(r)
+            success = sender_func(r)
         except Exception as exc:
             success = False
             r.last_error = str(exc)[:500]
@@ -85,8 +85,19 @@ def dispatch_reminders() -> dict:
                     delay,
                 )
 
-    db.session.commit()
     logger.info("dispatch_reminders complete counts=%s", counts)
+    return counts
+
+
+def run_dispatch_cycle() -> dict:
+    """Fetch due reminders from DB, dispatch them, and commit.
+
+    Must be called within an active Flask application context.
+    """
+    now = datetime.utcnow()
+    candidates = _due_reminders()
+    counts = dispatch_reminders(candidates, send_reminder, now)
+    db.session.commit()
     return counts
 
 

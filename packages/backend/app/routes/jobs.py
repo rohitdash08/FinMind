@@ -2,7 +2,7 @@
 from flask import Blueprint, current_app, jsonify
 from flask_jwt_extended import jwt_required
 
-from ..services.jobs import dispatch_reminders, reminder_stats
+from ..services.jobs import run_dispatch_cycle, reminder_stats
 
 bp = Blueprint("jobs", __name__)
 
@@ -38,6 +38,6 @@ def reminders_stats():
 @bp.post("/reminders/run")
 @jwt_required()
 def run_reminders():
-    """Trigger dispatch_reminders immediately and return result counts."""
-    counts = dispatch_reminders()
+    """Trigger run_dispatch_cycle immediately and return result counts."""
+    counts = run_dispatch_cycle()
     return jsonify(counts), 200

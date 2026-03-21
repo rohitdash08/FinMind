@@ -1,5 +1,6 @@
 """Tests for resilient background job dispatch and monitoring endpoints."""
 from datetime import datetime, timedelta
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -10,6 +11,7 @@ from app.services.jobs import (
     MAX_RETRIES,
     RETRY_DELAYS_MINUTES,
     dispatch_reminders,
+    run_dispatch_cycle,
     reminder_stats,
 )
 
@@ -59,24 +61,35 @@ def _register_user(app_fixture):
             db.session.commit()
 
 
+def _mock_reminder(**kwargs):
+    """Create a SimpleNamespace reminder suitable for pure-function tests."""
+    defaults = dict(
+        id=1,
+        channel="email",
+        sent=False,
+        failed=False,
+        retry_count=0,
+        last_error=None,
+        retry_status="pending",
+        next_retry_at=None,
+    )
+    defaults.update(kwargs)
+    return SimpleNamespace(**defaults)
+
+
 # ---------------------------------------------------------------------------
-# dispatch_reminders — success path
+# dispatch_reminders — success path (pure function, no DB needed)
 # ---------------------------------------------------------------------------
 
-def test_dispatch_sends_due_reminder(app_fixture):
-    _register_user(app_fixture)
-    rid = _make_reminder(app_fixture)
-
-    with patch("app.services.jobs.send_reminder", return_value=True):
-        with app_fixture.app_context():
-            result = dispatch_reminders()
+def test_dispatch_sends_due_reminder():
+    r = _mock_reminder()
+    now = datetime.utcnow()
+    result = dispatch_reminders([r], lambda _: True, now)
 
     assert result["sent"] == 1
     assert result["processed"] == 1
     assert result["retrying"] == 0
     assert result["failed"] == 0
-
-    r = _get_reminder(app_fixture, rid)
     assert r.sent is True
     assert r.retry_status == "sent"
 
@@ -87,7 +100,7 @@ def test_dispatch_skips_future_reminder(app_fixture):
 
     with patch("app.services.jobs.send_reminder", return_value=True):
         with app_fixture.app_context():
-            result = dispatch_reminders()
+            result = run_dispatch_cycle()
 
     assert result["processed"] == 0
 
@@ -98,7 +111,7 @@ def test_dispatch_skips_already_sent(app_fixture):
 
     with patch("app.services.jobs.send_reminder", return_value=True):
         with app_fixture.app_context():
-            result = dispatch_reminders()
+            result = run_dispatch_cycle()
 
     assert result["processed"] == 0
 
@@ -109,29 +122,23 @@ def test_dispatch_skips_permanently_failed(app_fixture):
 
     with patch("app.services.jobs.send_reminder", return_value=True):
         with app_fixture.app_context():
-            result = dispatch_reminders()
+            result = run_dispatch_cycle()
 
     assert result["processed"] == 0
 
 
 # ---------------------------------------------------------------------------
-# dispatch_reminders — failure / backoff path
+# dispatch_reminders — failure / backoff path (pure function, no DB needed)
 # ---------------------------------------------------------------------------
 
-def test_dispatch_schedules_first_retry_on_failure(app_fixture):
-    _register_user(app_fixture)
-    rid = _make_reminder(app_fixture)
-
+def test_dispatch_schedules_first_retry_on_failure():
+    r = _mock_reminder()
     before = datetime.utcnow()
-    with patch("app.services.jobs.send_reminder", return_value=False):
-        with app_fixture.app_context():
-            result = dispatch_reminders()
+    result = dispatch_reminders([r], lambda _: False, before)
 
     assert result["retrying"] == 1
     assert result["sent"] == 0
     assert result["failed"] == 0
-
-    r = _get_reminder(app_fixture, rid)
     assert r.retry_count == 1
     assert r.retry_status == "retrying"
     assert r.sent is False
@@ -141,87 +148,47 @@ def test_dispatch_schedules_first_retry_on_failure(app_fixture):
     assert r.last_error is not None
 
 
-def test_dispatch_second_retry_uses_15min_backoff(app_fixture):
-    _register_user(app_fixture)
-    # Simulate first retry already scheduled and now due
-    rid = _make_reminder(
-        app_fixture,
-        retry_count=1,
-        next_retry_at=datetime.utcnow() - timedelta(seconds=1),
-        retry_status="retrying",
-    )
-
+def test_dispatch_second_retry_uses_15min_backoff():
+    r = _mock_reminder(retry_count=1, retry_status="retrying")
     before = datetime.utcnow()
-    with patch("app.services.jobs.send_reminder", return_value=False):
-        with app_fixture.app_context():
-            result = dispatch_reminders()
+    result = dispatch_reminders([r], lambda _: False, before)
 
     assert result["retrying"] == 1
-    r = _get_reminder(app_fixture, rid)
     assert r.retry_count == 2
     expected_delay = RETRY_DELAYS_MINUTES[1]
     assert r.next_retry_at >= before + timedelta(minutes=expected_delay - 1)
 
 
-def test_dispatch_third_retry_uses_45min_backoff(app_fixture):
-    _register_user(app_fixture)
-    rid = _make_reminder(
-        app_fixture,
-        retry_count=2,
-        next_retry_at=datetime.utcnow() - timedelta(seconds=1),
-        retry_status="retrying",
-    )
-
+def test_dispatch_third_retry_uses_45min_backoff():
+    r = _mock_reminder(retry_count=2, retry_status="retrying")
     before = datetime.utcnow()
-    with patch("app.services.jobs.send_reminder", return_value=False):
-        with app_fixture.app_context():
-            result = dispatch_reminders()
+    result = dispatch_reminders([r], lambda _: False, before)
 
     assert result["retrying"] == 1
-    r = _get_reminder(app_fixture, rid)
     assert r.retry_count == 3
     expected_delay = RETRY_DELAYS_MINUTES[2]
     assert r.next_retry_at >= before + timedelta(minutes=expected_delay - 1)
 
 
-def test_dispatch_marks_failed_after_max_retries(app_fixture):
-    _register_user(app_fixture)
-    rid = _make_reminder(
-        app_fixture,
-        retry_count=MAX_RETRIES,
-        next_retry_at=datetime.utcnow() - timedelta(seconds=1),
-        retry_status="retrying",
-    )
-
-    with patch("app.services.jobs.send_reminder", return_value=False):
-        with app_fixture.app_context():
-            result = dispatch_reminders()
+def test_dispatch_marks_failed_after_max_retries():
+    r = _mock_reminder(retry_count=MAX_RETRIES, retry_status="retrying")
+    now = datetime.utcnow()
+    result = dispatch_reminders([r], lambda _: False, now)
 
     assert result["failed"] == 1
     assert result["retrying"] == 0
-
-    r = _get_reminder(app_fixture, rid)
     assert r.failed is True
     assert r.retry_status == "failed"
     assert r.sent is False
 
 
-def test_dispatch_retry_due_is_processed(app_fixture):
+def test_dispatch_retry_due_is_processed():
     """A retrying reminder whose next_retry_at is in the past must be picked up."""
-    _register_user(app_fixture)
-    rid = _make_reminder(
-        app_fixture,
-        retry_count=1,
-        next_retry_at=datetime.utcnow() - timedelta(minutes=10),
-        retry_status="retrying",
-    )
-
-    with patch("app.services.jobs.send_reminder", return_value=True):
-        with app_fixture.app_context():
-            result = dispatch_reminders()
+    r = _mock_reminder(retry_count=1, retry_status="retrying")
+    now = datetime.utcnow()
+    result = dispatch_reminders([r], lambda _: True, now)
 
     assert result["sent"] == 1
-    r = _get_reminder(app_fixture, rid)
     assert r.sent is True
     assert r.retry_status == "sent"
 
@@ -238,33 +205,29 @@ def test_dispatch_retry_not_yet_due_is_skipped(app_fixture):
 
     with patch("app.services.jobs.send_reminder", return_value=True):
         with app_fixture.app_context():
-            result = dispatch_reminders()
+            result = run_dispatch_cycle()
 
     assert result["processed"] == 0
 
 
-def test_dispatch_captures_exception_as_error(app_fixture):
+def test_dispatch_captures_exception_as_error():
     """send_reminder raising an exception is treated as a failure."""
-    _register_user(app_fixture)
-    rid = _make_reminder(app_fixture)
+    r = _mock_reminder()
+    now = datetime.utcnow()
 
-    with patch("app.services.jobs.send_reminder", side_effect=RuntimeError("SMTP timeout")):
-        with app_fixture.app_context():
-            result = dispatch_reminders()
+    def boom(_):
+        raise RuntimeError("SMTP timeout")
+
+    result = dispatch_reminders([r], boom, now)
 
     assert result["retrying"] == 1
-    r = _get_reminder(app_fixture, rid)
     assert "SMTP timeout" in r.last_error
 
 
-def test_dispatch_processes_multiple_reminders(app_fixture):
-    _register_user(app_fixture)
-    for _ in range(3):
-        _make_reminder(app_fixture)
-
-    with patch("app.services.jobs.send_reminder", return_value=True):
-        with app_fixture.app_context():
-            result = dispatch_reminders()
+def test_dispatch_processes_multiple_reminders():
+    reminders = [_mock_reminder(id=i) for i in range(3)]
+    now = datetime.utcnow()
+    result = dispatch_reminders(reminders, lambda _: True, now)
 
     assert result["sent"] == 3
     assert result["processed"] == 3
