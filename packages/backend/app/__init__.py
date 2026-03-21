@@ -14,6 +14,13 @@ import os
 import logging
 from datetime import timedelta
 
+try:
+    from apscheduler.schedulers.background import BackgroundScheduler
+
+    _apscheduler_available = True
+except ImportError:  # pragma: no cover
+    _apscheduler_available = False
+
 
 def create_app(settings: Settings | None = None) -> Flask:
     app = Flask(__name__)
@@ -51,6 +58,13 @@ def create_app(settings: Settings | None = None) -> Flask:
     # Redis (already global)
     # Blueprint routes
     register_routes(app)
+
+    # Background scheduler (skip in testing to avoid thread/timing issues).
+    # Check FLASK_ENV because app.config["TESTING"] may be set after create_app returns.
+    _is_testing = app.config.get("TESTING") or os.environ.get("FLASK_ENV", "").lower() == "testing"
+    if not _is_testing and _apscheduler_available:
+        scheduler = _start_scheduler(app)
+        app.extensions["scheduler"] = scheduler
 
     # Backward-compatible schema patch for existing databases.
     with app.app_context():
@@ -110,11 +124,37 @@ def _ensure_schema_compatibility(app: Flask) -> None:
             NOT NULL DEFAULT 'INR'
             """
         )
+        # Retry state columns on reminders
+        for stmt in [
+            "ALTER TABLE reminders ADD COLUMN IF NOT EXISTS retry_count INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE reminders ADD COLUMN IF NOT EXISTS last_error VARCHAR(500)",
+            "ALTER TABLE reminders ADD COLUMN IF NOT EXISTS next_retry_at TIMESTAMP",
+            "ALTER TABLE reminders ADD COLUMN IF NOT EXISTS failed BOOLEAN NOT NULL DEFAULT FALSE",
+            "ALTER TABLE reminders ADD COLUMN IF NOT EXISTS retry_status VARCHAR(20) NOT NULL DEFAULT 'pending'",
+        ]:
+            cur.execute(stmt)
         conn.commit()
     except Exception:
-        app.logger.exception(
-            "Schema compatibility patch failed for users.preferred_currency"
-        )
+        app.logger.exception("Schema compatibility patch failed")
         conn.rollback()
     finally:
         conn.close()
+
+
+def _start_scheduler(app: Flask) -> "BackgroundScheduler":
+    """Start APScheduler with a 1-minute dispatch_reminders job."""
+    from .services.jobs import dispatch_reminders
+
+    scheduler = BackgroundScheduler()
+
+    def _job():
+        with app.app_context():
+            try:
+                dispatch_reminders()
+            except Exception:
+                app.logger.exception("dispatch_reminders job raised an exception")
+
+    scheduler.add_job(_job, "interval", minutes=1, id="dispatch_reminders", name="dispatch_reminders")
+    scheduler.start()
+    app.logger.info("APScheduler started with dispatch_reminders job")
+    return scheduler
