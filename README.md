@@ -48,6 +48,7 @@ See `backend/app/db/schema.sql`. Key tables:
 - users, categories, expenses, bills, reminders
 - ad_impressions, subscription_plans, user_subscriptions
 - refresh_tokens (optional if rotating), audit_logs
+- savings_goals
 
 ## Redis Caching Policy
 - Keys
@@ -66,6 +67,23 @@ OpenAPI: `backend/app/openapi.yaml`
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
 - Insights: `/insights/monthly`, `/insights/budget-suggestion`
+- Savings Goals: CRUD `/savings-goals`, progress `/savings-goals/{id}/progress`
+
+### Savings Goals
+Goal-based savings tracking with automatic milestone detection.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/savings-goals` | Create a new savings goal |
+| `GET` | `/savings-goals` | List all goals (optional `?status=active\|completed\|cancelled`) |
+| `GET` | `/savings-goals/{id}` | Get a single goal |
+| `PUT` | `/savings-goals/{id}` | Update goal fields |
+| `DELETE` | `/savings-goals/{id}` | Delete a goal |
+| `GET` | `/savings-goals/{id}/progress` | Detailed progress: % complete, remaining, days left, on-track |
+
+**Goal fields:** `name`, `target_amount`, `current_amount` (default 0), `deadline` (optional date), `currency` (default USD), `status` (active/completed/cancelled).
+
+**Milestones:** Every response includes `achieved_milestones` — a list of percentage thresholds (25, 50, 75, 100) that `current_amount` has reached relative to `target_amount`. Status auto-advances to `completed` when `current_amount >= target_amount`.
 
 ## MVP UI/UX Plan
 - Auth screens: register/login.

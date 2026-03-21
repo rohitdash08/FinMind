@@ -4,6 +4,12 @@ from sqlalchemy import Enum as SAEnum
 from .extensions import db
 
 
+class SavingsGoalStatus(str, Enum):
+    ACTIVE = "active"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
+
+
 class Role(str, Enum):
     USER = "USER"
     ADMIN = "ADMIN"
@@ -133,3 +139,33 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class SavingsGoal(db.Model):
+    __tablename__ = "savings_goals"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    name = db.Column(db.String(200), nullable=False)
+    target_amount = db.Column(db.Numeric(12, 2), nullable=False)
+    current_amount = db.Column(db.Numeric(12, 2), nullable=False, default=0)
+    deadline = db.Column(db.Date, nullable=True)
+    currency = db.Column(db.String(10), nullable=False, default="USD")
+    status = db.Column(
+        SAEnum(SavingsGoalStatus, values_callable=lambda obj: [e.value for e in obj]),
+        nullable=False,
+        default=SavingsGoalStatus.ACTIVE.value,
+    )
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(
+        db.DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+        nullable=False,
+    )
+
+    def achieved_milestones(self) -> list[int]:
+        """Return list of milestone percentages (25/50/75/100) that have been reached."""
+        if not self.target_amount or float(self.target_amount) == 0:
+            return []
+        pct = float(self.current_amount) / float(self.target_amount) * 100
+        return [m for m in (25, 50, 75, 100) if pct >= m]
