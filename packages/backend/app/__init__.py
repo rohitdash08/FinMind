@@ -107,7 +107,7 @@ def _ensure_schema_compatibility(app: Flask) -> None:
             """
             ALTER TABLE users
             ADD COLUMN IF NOT EXISTS preferred_currency VARCHAR(10)
-            NOT NULL DEFAULT 'INR'
+            NOT NULL DEFAULT 'USD'
             """
         )
         conn.commit()

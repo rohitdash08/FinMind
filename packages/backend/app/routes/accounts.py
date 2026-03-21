@@ -46,7 +46,7 @@ def create_account():
         name=name,
         account_type=account_type,
         balance=balance,
-        currency=(data.get("currency") or "INR")[:10],
+        currency=(data.get("currency") or "USD")[:10],
         institution=(data.get("institution") or "").strip() or None,
         is_active=bool(data.get("is_active", True)),
     )
@@ -95,7 +95,7 @@ def update_account(account_id: int):
         account.balance = balance
 
     if "currency" in data:
-        account.currency = (data.get("currency") or "INR")[:10]
+        account.currency = (data.get("currency") or "USD")[:10]
 
     if "institution" in data:
         account.institution = (data.get("institution") or "").strip() or None

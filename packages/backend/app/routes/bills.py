@@ -49,7 +49,7 @@ def create_bill():
         user_id=uid,
         name=data["name"],
         amount=data["amount"],
-        currency=data.get("currency") or (user.preferred_currency if user else "INR"),
+        currency=data.get("currency") or (user.preferred_currency if user else "USD"),
         next_due_date=date.fromisoformat(data["next_due_date"]),
         cadence=BillCadence(data.get("cadence", "MONTHLY")),
         autopay_enabled=bool(data.get("autopay_enabled", False)),

@@ -57,7 +57,7 @@ def test_auth_me_and_update_preferred_currency(client):
     assert r.status_code == 200
     me = r.get_json()
     assert me["email"] == email
-    assert me["preferred_currency"] == "INR"
+    assert me["preferred_currency"] == "USD"
 
     r = client.patch("/auth/me", json={"preferred_currency": "inr"}, headers=auth)
     assert r.status_code == 200

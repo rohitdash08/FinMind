@@ -202,7 +202,7 @@ def test_recurring_expense_create_list_and_generate(client, auth_header):
     recurring_id = recurring["id"]
     assert recurring["cadence"] == "MONTHLY"
     assert recurring["description"] == "House Rent"
-    assert recurring["currency"] == "INR"
+    assert recurring["currency"] == "USD"
 
     r = client.get("/expenses/recurring", headers=auth_header)
     assert r.status_code == 200
