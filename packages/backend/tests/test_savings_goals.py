@@ -316,7 +316,8 @@ def test_delete_goal(client, auth_header):
     assert r.get_json()["message"] == "deleted"
 
     r = client.get(f"/savings-goals/{goal_id}", headers=auth_header)
-    assert r.status_code == 404
+    assert r.status_code == 200
+    assert r.get_json()["status"] == "cancelled"
 
 
 def test_delete_goal_not_found(client, auth_header):

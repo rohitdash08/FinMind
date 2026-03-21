@@ -149,7 +149,7 @@ def delete_goal(goal_id: int):
     g = db.session.get(SavingsGoal, goal_id)
     if not g or g.user_id != uid:
         return jsonify(error="not found"), 404
-    db.session.delete(g)
+    g.status = SavingsGoalStatus.CANCELLED.value
     db.session.commit()
     logger.info("Deleted savings_goal id=%s user=%s", goal_id, uid)
     return jsonify(message="deleted")
