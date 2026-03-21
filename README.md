@@ -95,6 +95,21 @@ The `reminders` table includes these retry tracking columns:
 | `failed` | boolean | True after all retries are exhausted |
 | `retry_status` | varchar | `pending` / `retrying` / `sent` / `failed` |
 
+### Configuration
+
+The retry behavior can be tuned via environment variables:
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `JOB_MAX_RETRIES` | integer | `3` | Maximum retry attempts before marking a reminder as permanently failed |
+| `JOB_RETRY_DELAYS` | comma-separated minutes | `5,15,45` | Backoff intervals (in minutes) between successive retry attempts |
+
+Example `.env` entries:
+```
+JOB_MAX_RETRIES=3
+JOB_RETRY_DELAYS=5,15,45
+```
+
 ### Monitoring Endpoints
 
 | Method | Path | Auth | Description |
