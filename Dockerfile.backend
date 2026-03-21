@@ -1,0 +1,43 @@
+FROM python:3.11-slim AS base
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user
+RUN groupadd -r finmind && useradd -r -g finmind finmind
+
+FROM base AS deps
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir --user -r requirements.txt
+
+FROM base AS runtime
+
+# Copy installed packages from deps stage
+COPY --from=deps /root/.local /home/finmind/.local
+
+# Copy application code
+COPY app/ ./app/
+COPY *.py ./
+
+# Set ownership and switch to non-root user
+RUN chown -R finmind:finmind /app
+USER finmind
+
+# Update PATH to include user local bin
+ENV PATH="/home/finmind/.local/bin:$PATH"
+ENV PYTHONPATH="/app"
+ENV PYTHONUNBUFFERED=1
+
+EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD python -c "import requests; requests.get('http://localhost:8000/health', timeout=5)" || exit 1
+
+CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
