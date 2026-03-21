@@ -66,6 +66,40 @@ OpenAPI: `backend/app/openapi.yaml`
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
 - Insights: `/insights/monthly`, `/insights/budget-suggestion`
+- Accounts: CRUD `/accounts`, consolidated view `/accounts/overview`
+
+### Financial Accounts API (`/accounts`)
+All endpoints require JWT authentication (`Authorization: Bearer <token>`).
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/accounts` | List active accounts. Pass `?include_inactive=true` to include inactive. |
+| `POST` | `/accounts` | Create a new financial account. |
+| `GET` | `/accounts/<id>` | Retrieve a single account. |
+| `PUT` | `/accounts/<id>` | Update an account (partial updates supported). |
+| `DELETE` | `/accounts/<id>` | Delete an account. |
+| `GET` | `/accounts/overview` | Multi-account consolidated view with totals by currency and by account type. |
+
+**Account fields:**
+- `name` (string, required)
+- `account_type` (string, required): `checking`, `savings`, `credit_card`, `investment`, `other`
+- `balance` (number, default `0`)
+- `currency` (string, default `"INR"`)
+- `institution` (string, optional)
+- `is_active` (boolean, default `true`)
+
+**Overview response structure:**
+```json
+{
+  "total_accounts": 3,
+  "totals_by_currency": {"USD": 4500.00, "EUR": 800.00},
+  "by_type": [
+    {"account_type": "checking", "count": 2, "balances": {"USD": 2500.00}},
+    {"account_type": "savings",  "count": 1, "balances": {"EUR": 800.00}}
+  ],
+  "accounts": [...]
+}
+```
 
 ## MVP UI/UX Plan
 - Auth screens: register/login.
