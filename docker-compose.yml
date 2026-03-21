@@ -1,145 +1,128 @@
+version: '3.8'
+
 services:
   postgres:
-    image: postgres:16
+    image: postgres:15
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-finmind}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-finmind}
-      POSTGRES_DB: ${POSTGRES_DB:-finmind}
-    ports: ["5432:5432"]
-    volumes: ["pgdata:/var/lib/postgresql/data"]
+      POSTGRES_DB: finmind
+      POSTGRES_USER: finmind_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-finmind_secure_pass}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-finmind} -d ${POSTGRES_DB:-finmind}"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
+      test: ["CMD-SHELL", "pg_isready -U finmind_user -d finmind"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - finmind-network
 
   redis:
-    image: redis:7
-    ports: ["6379:6379"]
+    image: redis:7-alpine
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis_secure_pass}
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "--no-auth-warning", "-a", "${REDIS_PASSWORD:-redis_secure_pass}", "ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    networks:
+      - finmind-network
 
   backend:
-    build: ./packages/backend
-    env_file:
-      - .env
+    build:
+      context: ./packages/backend
+      dockerfile: Dockerfile
+    environment:
+      - DATABASE_URL=postgresql://finmind_user:${POSTGRES_PASSWORD:-finmind_secure_pass}@postgres:5432/finmind
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-redis_secure_pass}@redis:6379/0
+      - SECRET_KEY=${SECRET_KEY:-your-super-secret-key-change-in-production}
+      - DEBUG=false
+      - ALLOWED_HOSTS=localhost,127.0.0.1,frontend
+      - CORS_ALLOWED_ORIGINS=http://localhost:3000,http://frontend:3000
+      - DJANGO_SETTINGS_MODULE=app.settings.production
+    ports:
+      - "8000:8000"
     depends_on:
       postgres:
         condition: service_healthy
       redis:
-        condition: service_started
-    ports: ["8000:8000"]
-    volumes:
-      - ./packages/backend/app:/app/app
-      - ./packages/backend/wsgi.py:/app/wsgi.py
-      - ./packages/backend/tests:/app/tests
-      - ./.flake8:/app/.flake8:ro
-      - ./.bandit:/app/.bandit:ro
-    command: sh -c "python -m flask --app wsgi:app init-db && export PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus_multiproc && rm -rf $$PROMETHEUS_MULTIPROC_DIR && mkdir -p $$PROMETHEUS_MULTIPROC_DIR && gunicorn --reload --workers=2 --threads=4 --bind 0.0.0.0:8000 wsgi:app"
-    restart: unless-stopped
-
-  nginx:
-    image: nginx:1.27-alpine
-    depends_on: [backend]
-    ports: ["8080:80"]
-    volumes:
-      - ./monitoring/nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
-    restart: unless-stopped
-
-  frontend-dev:
-    image: node:20-alpine
-    working_dir: /app
-    env_file:
-      - .env
-    environment:
-      - CHOKIDAR_USEPOLLING=true
-      - WATCHPACK_POLLING=true
-    volumes:
-      - ./app:/app
-      - /app/node_modules
-    ports: ["5173:5173"]
-    depends_on: [backend]
-    command: sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 5173"
-    restart: unless-stopped
-
-  prometheus:
-    image: prom/prometheus:v2.54.1
-    command:
-      - --config.file=/etc/prometheus/prometheus.yml
-      - --storage.tsdb.retention.time=14d
-      - --storage.tsdb.retention.size=1GB
-    volumes:
-      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - prometheus-data:/prometheus
-    ports: ["9090:9090"]
-    restart: unless-stopped
-
-  loki:
-    image: grafana/loki:2.9.10
-    command: -config.file=/etc/loki/config.yml
-    volumes:
-      - ./monitoring/loki/config.yml:/etc/loki/config.yml:ro
-      - loki-data:/loki
-    ports: ["3100:3100"]
-    restart: unless-stopped
-
-  promtail:
-    image: grafana/promtail:3.0.0
-    command: -config.file=/etc/promtail/config.yml
-    volumes:
-      - ./monitoring/promtail/config.yml:/etc/promtail/config.yml:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    depends_on: [loki]
-    restart: unless-stopped
-
-  grafana:
-    image: grafana/grafana-oss:11.1.5
-    depends_on: [prometheus, loki]
-    environment:
-      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-finmind_admin}
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-change-this-admin-password}
-      GF_USERS_ALLOW_SIGN_UP: "false"
-    volumes:
-      - ./monitoring/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
-      - ./monitoring/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
-      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
-      - grafana-data:/var/lib/grafana
-    ports: ["3000:3000"]
-    restart: unless-stopped
-
-  node-exporter:
-    image: quay.io/prometheus/node-exporter:v1.8.2
-    command:
-      - --path.rootfs=/host
-    volumes:
-      - /:/host:ro
-    restart: unless-stopped
-
-  postgres-exporter:
-    image: quay.io/prometheuscommunity/postgres-exporter:v0.16.0
-    environment:
-      DATA_SOURCE_NAME: postgresql://${POSTGRES_USER:-finmind}:${POSTGRES_PASSWORD:-finmind}@postgres:5432/${POSTGRES_DB:-finmind}?sslmode=disable
-    depends_on:
-      postgres:
         condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    volumes:
+      - ./packages/backend/static:/app/static
+      - ./packages/backend/media:/app/media
+    networks:
+      - finmind-network
 
-  redis-exporter:
-    image: oliver006/redis_exporter:v1.63.0
+  frontend:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+      args:
+        - REACT_APP_API_URL=${REACT_APP_API_URL:-http://localhost:8000}
     environment:
-      REDIS_ADDR: redis://redis:6379
-    depends_on: [redis]
+      - NODE_ENV=production
+      - REACT_APP_API_URL=${REACT_APP_API_URL:-http://localhost:8000}
+    ports:
+      - "3000:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 45s
+    networks:
+      - finmind-network
 
-  nginx-exporter:
-    image: nginx/nginx-prometheus-exporter:1.3.0
-    command:
-      - -nginx.scrape-uri=http://nginx/nginx_status
-    depends_on: [nginx]
+  nginx:
+    image: nginx:1.25-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+      - ./packages/backend/static:/var/www/static:ro
+    depends_on:
+      - backend
+      - frontend
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks:
+      - finmind-network
 
 volumes:
-  pgdata:
-  prometheus-data:
-  loki-data:
-  grafana-data:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  finmind-network:
+    driver: bridge
