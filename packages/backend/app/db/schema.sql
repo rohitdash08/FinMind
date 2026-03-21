@@ -117,6 +117,31 @@ CREATE TABLE IF NOT EXISTS user_subscriptions (
   started_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS background_jobs (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(200) NOT NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+  attempts INT NOT NULL DEFAULT 0,
+  max_retries INT NOT NULL DEFAULT 3,
+  last_error TEXT,
+  result TEXT,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  started_at TIMESTAMP,
+  completed_at TIMESTAMP,
+  next_retry_at TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_background_jobs_status ON background_jobs(status);
+
+CREATE TABLE IF NOT EXISTS job_history (
+  id SERIAL PRIMARY KEY,
+  job_id INT NOT NULL REFERENCES background_jobs(id) ON DELETE CASCADE,
+  attempt INT NOT NULL,
+  status VARCHAR(20) NOT NULL,
+  error TEXT,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_job_history_job ON job_history(job_id, attempt);
+
 CREATE TABLE IF NOT EXISTS audit_logs (
   id SERIAL PRIMARY KEY,
   user_id INT REFERENCES users(id) ON DELETE SET NULL,
