@@ -46,6 +46,20 @@ def app_fixture():
 
 
 @pytest.fixture()
+def app(app_fixture):
+    """Alias for app_fixture for consistency with other tests."""
+    return app_fixture
+
+
+@pytest.fixture()
+def db_session(app_fixture):
+    """Provide a database session for tests."""
+    with app_fixture.app_context():
+        yield db.session
+        db.session.rollback()
+
+
+@pytest.fixture()
 def client(app_fixture):
     return app_fixture.test_client()
 

@@ -1,0 +1,205 @@
+"""
+Docker Compose configuration for FinMind with Celery workers.
+"""
+
+version: "3.8"
+
+services:
+  # Flask backend API
+  backend:
+    build:
+      context: ./packages/backend
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    environment:
+      - DATABASE_URL=postgresql://finmind:finmind@postgres:5432/finmind
+      - REDIS_URL=redis://redis:6379/0
+      - JWT_SECRET=${JWT_SECRET:-your-secret-key}
+      - LOG_LEVEL=INFO
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./packages/backend/app:/app/app
+    command: gunicorn -w 4 -b 0.0.0.0:5000 "app:create_app()"
+    networks:
+      - finmind-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Celery worker - default queue
+  celery-worker-default:
+    build:
+      context: ./packages/backend
+      dockerfile: Dockerfile
+    environment:
+      - DATABASE_URL=postgresql://finmind:finmind@postgres:5432/finmind
+      - REDIS_URL=redis://redis:6379/0
+      - JWT_SECRET=${JWT_SECRET:-your-secret-key}
+      - LOG_LEVEL=INFO
+      - C_FORCE_ROOT=true
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - ./packages/backend/app:/app/app
+    command: celery -A app.celery_config.celery_app worker -Q default -l info -c 4 -n worker-default@%h
+    networks:
+      - finmind-network
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # Celery worker - high priority queue
+  celery-worker-high:
+    build:
+      context: ./packages/backend
+      dockerfile: Dockerfile
+    environment:
+      - DATABASE_URL=postgresql://finmind:finmind@postgres:5432/finmind
+      - REDIS_URL=redis://redis:6379/0
+      - JWT_SECRET=${JWT_SECRET:-your-secret-key}
+      - LOG_LEVEL=INFO
+      - C_FORCE_ROOT=true
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - ./packages/backend/app:/app/app
+    command: celery -A app.celery_config.celery_app worker -Q high_priority -l info -c 2 -n worker-high@%h
+    networks:
+      - finmind-network
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  # Celery worker - low priority queue
+  celery-worker-low:
+    build:
+      context: ./packages/backend
+      dockerfile: Dockerfile
+    environment:
+      - DATABASE_URL=postgresql://finmind:finmind@postgres:5432/finmind
+      - REDIS_URL=redis://redis:6379/0
+      - JWT_SECRET=${JWT_SECRET:-your-secret-key}
+      - LOG_LEVEL=INFO
+      - C_FORCE_ROOT=true
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - ./packages/backend/app:/app/app
+    command: celery -A app.celery_config.celery_app worker -Q low_priority -l info -c 2 -n worker-low@%h
+    networks:
+      - finmind-network
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  # Celery beat scheduler
+  celery-beat:
+    build:
+      context: ./packages/backend
+      dockerfile: Dockerfile
+    environment:
+      - DATABASE_URL=postgresql://finmind:finmind@postgres:5432/finmind
+      - REDIS_URL=redis://redis:6379/0
+      - JWT_SECRET=${JWT_SECRET:-your-secret-key}
+      - LOG_LEVEL=INFO
+      - C_FORCE_ROOT=true
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - ./packages/backend/app:/app/app
+      - celery-beat-data:/app/celerybeat-schedule
+    command: celery -A app.celery_config.celery_app beat -l info --scheduler celery.beat.PersistentScheduler
+    networks:
+      - finmind-network
+
+  # Celery flower monitoring UI
+  flower:
+    build:
+      context: ./packages/backend
+      dockerfile: Dockerfile
+    ports:
+      - "5555:5555"
+    environment:
+      - DATABASE_URL=postgresql://finmind:finmind@postgres:5432/finmind
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - redis
+    command: celery -A app.celery_config.celery_app flower --port=5555 --broker=redis://redis:6379/0
+    networks:
+      - finmind-network
+
+  # PostgreSQL database
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=finmind
+      - POSTGRES_PASSWORD=finmind
+      - POSTGRES_DB=finmind
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - finmind-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U finmind"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Redis for caching and Celery broker
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - finmind-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Frontend (Vite/React)
+  frontend:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_API_URL=http://localhost:5000
+    volumes:
+      - ./app:/app
+      - /app/node_modules
+    command: npm run dev -- --host
+    networks:
+      - finmind-network
+
+volumes:
+  postgres-data:
+  redis-data:
+  celery-beat-data:
+
+networks:
+  finmind-network:
+    driver: bridge

@@ -19,7 +19,8 @@ flowchart LR
     API[Flask + Gunicorn]
     JWT[PyJWT]
     AI[Insights Service]
-    SCH[Scheduler/APScheduler]
+    CEL[Celery Workers]
+    BEAT[Celery Beat]
   end
 
   subgraph Data
@@ -37,10 +38,32 @@ flowchart LR
   API -->|ORM| PG
   API -->|Cache| RD
   API -->|JWT verify| JWT
-  API -->|reminder jobs| SCH
-  SCH --> TW
-  SCH --> SMTP
+  API -->|queue tasks| CEL
+  BEAT -->|schedule| CEL
+  CEL --> TW
+  CEL --> SMTP
   AI --> OAI
+```
+
+## Background Job System
+
+FinMind uses **Celery** with **Redis** for resilient background job processing:
+
+- **Automatic retries** with exponential backoff
+- **Dead letter queue** for failed tasks
+- **Priority queues** (high/default/low)
+- **Comprehensive monitoring** via Flower UI and Prometheus metrics
+
+See [`docs/BACKGROUND_JOBS.md`](docs/BACKGROUND_JOBS.md) for detailed documentation.
+
+### Quick Start with Celery
+
+```bash
+# Start full stack with Celery workers
+docker-compose -f docker-compose.celery.yml up -d
+
+# Access monitoring UI
+open http://localhost:5555  # Flower
 ```
 
 ## PostgreSQL Schema (DDL)
