@@ -1,6 +1,7 @@
 """Background job dispatch logic with exponential backoff retry."""
 from datetime import datetime, timedelta
 import logging
+import os
 
 from ..extensions import db
 from ..models import Reminder
@@ -8,8 +9,10 @@ from .reminders import send_reminder
 
 logger = logging.getLogger("finmind.jobs")
 
-RETRY_DELAYS_MINUTES = [5, 15, 45]  # delay before each retry attempt
-MAX_RETRIES = 3
+MAX_RETRIES = int(os.environ.get("JOB_MAX_RETRIES", 3))
+RETRY_DELAYS_MINUTES = [
+    int(x) for x in os.environ.get("JOB_RETRY_DELAYS", "5,15,45").split(",")
+]
 
 
 def _due_reminders():
