@@ -115,7 +115,7 @@ def delete_account(account_id: int):
     account = _get_owned(account_id, uid)
     if account is None:
         return jsonify(error="not found"), 404
-    db.session.delete(account)
+    account.is_active = False
     db.session.commit()
     return jsonify(message="deleted")
 
@@ -161,7 +161,7 @@ def accounts_overview():
 
 def _get_owned(account_id: int, uid: int) -> FinancialAccount | None:
     a = db.session.get(FinancialAccount, account_id)
-    if a is None or a.user_id != uid:
+    if a is None or a.user_id != uid or not a.is_active:
         return None
     return a
 

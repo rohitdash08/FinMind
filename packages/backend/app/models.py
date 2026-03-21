@@ -150,7 +150,7 @@ class FinancialAccount(db.Model):
     name = db.Column(db.String(200), nullable=False)
     account_type = db.Column(SAEnum(AccountType), nullable=False)
     balance = db.Column(db.Numeric(12, 2), nullable=False, default=0)
-    currency = db.Column(db.String(10), default="INR", nullable=False)
+    currency = db.Column(db.String(10), default="USD", nullable=False)
     institution = db.Column(db.String(200), nullable=True)
     is_active = db.Column(db.Boolean, default=True, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
