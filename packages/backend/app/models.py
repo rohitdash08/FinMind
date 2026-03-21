@@ -36,10 +36,14 @@ class Expense(db.Model):
     currency = db.Column(db.String(10), default="INR", nullable=False)
     expense_type = db.Column(db.String(20), default="EXPENSE", nullable=False)
     notes = db.Column(db.String(500), nullable=True)
+    description = db.Column(db.String(500), nullable=True)
+    date = db.Column(db.Date, default=date.today, nullable=False)
     spent_at = db.Column(db.Date, default=date.today, nullable=False)
     source_recurring_id = db.Column(
         db.Integer, db.ForeignKey("recurring_expenses.id"), nullable=True
     )
+    receipt_processed = db.Column(db.Boolean, default=False, nullable=False)
+    receipt_data = db.Column(db.JSON, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
 
 
@@ -97,7 +101,23 @@ class Reminder(db.Model):
     message = db.Column(db.String(500), nullable=False)
     send_at = db.Column(db.DateTime, nullable=False)
     sent = db.Column(db.Boolean, default=False, nullable=False)
-    channel = db.Column(db.String(20), default="email", nullable=False)
+    sent_at = db.Column(db.DateTime, nullable=True)
+    channel = db.Column(db.String(50), default="email", nullable=False)
+    is_sent = db.Column(db.Boolean, default=False, nullable=False)
+
+
+class NotificationLog(db.Model):
+    """Log of notification delivery attempts for monitoring and debugging."""
+    __tablename__ = "notification_logs"
+    id = db.Column(db.Integer, primary_key=True)
+    reminder_id = db.Column(db.Integer, db.ForeignKey("reminders.id"), nullable=False)
+    channel = db.Column(db.String(20), nullable=False)  # email, whatsapp
+    status = db.Column(db.String(20), nullable=False)  # delivered, failed
+    sent_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    duration_ms = db.Column(db.Integer, nullable=True)
+    retry_count = db.Column(db.Integer, default=0, nullable=False)
+    error_message = db.Column(db.String(500), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
 
 class AdImpression(db.Model):
