@@ -1,9 +1,9 @@
 import os
 import pytest
+from unittest.mock import MagicMock
 from app import create_app
 from app.config import Settings
 from app.extensions import db
-from app.extensions import redis_client
 from app import models  # noqa: F401 - ensure models are registered
 
 
@@ -28,21 +28,30 @@ def app_fixture():
         redis_url="redis://localhost:6379/15",
         jwt_secret="test-secret-with-32-plus-chars-1234567890",
     )
+
+    # Mock Redis before creating the app so auth routes don't try to connect
+    import app.extensions as ext
+    mock_redis = MagicMock()
+    mock_redis.get.return_value = None
+    mock_redis.setex.return_value = True
+    mock_redis.delete.return_value = True
+    mock_redis.flushdb.return_value = True
+    mock_redis.scan.return_value = (0, [])
+    ext.redis_client = mock_redis
+
+    # Patch redis_client in all modules that import it at module level
+    import app.routes.auth as auth_module
+    auth_module.redis_client = mock_redis
+    import app.services.cache as cache_module
+    cache_module.redis_client = mock_redis
+
     app = create_app(settings)
     app.config.update(TESTING=True)
     _setup_db(app)
-    try:
-        redis_client.flushdb()
-    except Exception:
-        pass
     yield app
     with app.app_context():
         db.session.remove()
         db.drop_all()
-    try:
-        redis_client.flushdb()
-    except Exception:
-        pass
 
 
 @pytest.fixture()

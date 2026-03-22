@@ -110,11 +110,29 @@ def _ensure_schema_compatibility(app: Flask) -> None:
             NOT NULL DEFAULT 'INR'
             """
         )
+        # Retry & monitoring columns for background job resilience
+        cur.execute(
+            """
+            ALTER TABLE reminders
+            ADD COLUMN IF NOT EXISTS retry_count INT NOT NULL DEFAULT 0
+            """
+        )
+        cur.execute(
+            """
+            ALTER TABLE reminders
+            ADD COLUMN IF NOT EXISTS last_error VARCHAR(500)
+            """
+        )
+        cur.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_reminders_retry
+            ON reminders(sent, retry_count, send_at)
+            WHERE sent = FALSE
+            """
+        )
         conn.commit()
     except Exception:
-        app.logger.exception(
-            "Schema compatibility patch failed for users.preferred_currency"
-        )
+        app.logger.exception("Schema compatibility patch failed")
         conn.rollback()
     finally:
         conn.close()

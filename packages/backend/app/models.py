@@ -89,6 +89,10 @@ class Bill(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
 
+MAX_RETRIES = 3
+RETRY_BACKOFF_BASE = 60  # seconds — 1 min, 5 min, 25 min
+
+
 class Reminder(db.Model):
     __tablename__ = "reminders"
     id = db.Column(db.Integer, primary_key=True)
@@ -98,6 +102,22 @@ class Reminder(db.Model):
     send_at = db.Column(db.DateTime, nullable=False)
     sent = db.Column(db.Boolean, default=False, nullable=False)
     channel = db.Column(db.String(20), default="email", nullable=False)
+    retry_count = db.Column(db.Integer, default=0, nullable=False)
+    last_error = db.Column(db.String(500), nullable=True)
+
+    @property
+    def next_retry_at(self):
+        """Calculate next retry time using exponential backoff."""
+        from datetime import timedelta
+        if self.sent or self.retry_count >= MAX_RETRIES:
+            return None
+        backoff_seconds = RETRY_BACKOFF_BASE * (5 ** self.retry_count)
+        return self.send_at + timedelta(seconds=backoff_seconds)
+
+    @property
+    def exhausted(self):
+        """True if max retries reached and still not sent."""
+        return not self.sent and self.retry_count >= MAX_RETRIES
 
 
 class AdImpression(db.Model):

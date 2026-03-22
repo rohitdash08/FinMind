@@ -49,6 +49,67 @@ See `backend/app/db/schema.sql`. Key tables:
 - ad_impressions, subscription_plans, user_subscriptions
 - refresh_tokens (optional if rotating), audit_logs
 
+## Background Job Retry & Monitoring
+
+FinMind's reminder delivery system includes resilient retry logic with exponential backoff and monitoring.
+
+### Retry Mechanism
+
+When a reminder fails to send (email/WhatsApp), the system automatically retries with exponential backoff:
+
+| Attempt | Wait Before Retry |
+|---------|-------------------|
+| 1st failure | 1 minute |
+| 2nd failure | 5 minutes |
+| 3rd failure | 25 minutes |
+
+After `MAX_RETRIES` (3) failures, the reminder is marked **exhausted** (`sent=False`, `retry_count >= 3`).
+
+**Key behaviors:**
+- Reminders are only marked `sent=True` on successful delivery
+- Failed attempts record the error in `last_error` column
+- Backoff prevents flooding providers with rapid retries
+- Exhausted reminders can be manually reset via `POST /reminders/:id/retry`
+
+### Monitoring Endpoint
+
+```
+GET /reminders/stats
+Authorization: Bearer <token>
+```
+
+Returns:
+```json
+{
+  "total": 10,
+  "sent": 7,
+  "pending": 2,
+  "exhausted": 1,
+  "retrying": 2,
+  "channels": {
+    "email": {"sent": 5, "failed_or_pending": 2},
+    "whatsapp": {"sent": 2, "failed_or_pending": 1}
+  },
+  "next_due_at": "2026-03-22T10:00:00",
+  "max_retries": 3
+}
+```
+
+### Manual Retry
+
+Reset an exhausted reminder for another attempt:
+```
+POST /reminders/:id/retry
+Authorization: Bearer <token>
+```
+
+### Prometheus Metrics
+
+Reminder events are tracked via `finmind_reminder_events_total` counter with labels:
+- `event`: `created`, `scheduled`, `sent`, `retry`, `exhausted`, `manual_retry`
+- `channel`: `email`, `whatsapp`
+- `status`: `ok`, `error`
+
 ## Redis Caching Policy
 - Keys
   - `user:{id}:monthly_summary:{yyyy-mm}` — 30 min TTL
