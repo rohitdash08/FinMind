@@ -55,15 +55,43 @@ def login():
     data = request.get_json() or {}
     email = data.get("email")
     password = data.get("password")
+    ip_address = request.headers.get("X-Forwarded-For", request.remote_addr) or "unknown"
+    user_agent = request.headers.get("User-Agent")
+
     user = db.session.query(User).filter_by(email=email).first()
     if not user or not check_password_hash(user.password_hash, password):
+        # Record failed login attempt for anomaly detection
+        if user:
+            from ..services.login_anomaly import analyse_login
+            analyse_login(
+                user_id=user.id,
+                ip_address=ip_address,
+                user_agent=user_agent,
+                success=False,
+            )
+            db.session.commit()
         logger.warning("Login failed for email=%s", email)
         return jsonify(error="invalid credentials"), 401
+
+    # Analyse login for anomalies
+    from ..services.login_anomaly import analyse_login
+    score, reasons, _event = analyse_login(
+        user_id=user.id,
+        ip_address=ip_address,
+        user_agent=user_agent,
+        success=True,
+    )
+
     access = create_access_token(identity=str(user.id))
     refresh = create_refresh_token(identity=str(user.id))
     _store_refresh_session(refresh, str(user.id))
-    logger.info("Login success user_id=%s", user.id)
-    return jsonify(access_token=access, refresh_token=refresh)
+    db.session.commit()
+    logger.info("Login success user_id=%s anomaly_score=%.2f", user.id, score)
+
+    resp = {"access_token": access, "refresh_token": refresh}
+    if reasons:
+        resp["security_warnings"] = reasons
+    return jsonify(resp)
 
 
 @bp.get("/me")
@@ -123,6 +151,72 @@ def logout():
     if jti:
         redis_client.delete(_refresh_key(jti))
     return jsonify(message="logged out"), 200
+
+
+@bp.get("/login-history")
+@jwt_required()
+def login_history():
+    """Return the authenticated user's recent login events."""
+    uid = int(get_jwt_identity())
+    from ..services.login_anomaly import get_login_history
+    import json as _json
+
+    events = get_login_history(uid)
+    return jsonify(
+        [
+            {
+                "id": e.id,
+                "ip_address": e.ip_address,
+                "user_agent": e.user_agent,
+                "country": e.country,
+                "city": e.city,
+                "success": e.success,
+                "anomaly_score": e.anomaly_score,
+                "anomaly_reasons": _json.loads(e.anomaly_reasons)
+                if e.anomaly_reasons
+                else [],
+                "created_at": e.created_at.isoformat(),
+            }
+            for e in events
+        ]
+    )
+
+
+@bp.get("/alerts")
+@jwt_required()
+def alerts():
+    """Return the authenticated user's security alerts."""
+    uid = int(get_jwt_identity())
+    from ..services.login_anomaly import get_user_alerts
+
+    unack = request.args.get("unacknowledged", "").lower() in ("1", "true", "yes")
+    items = get_user_alerts(uid, unacknowledged_only=unack)
+    return jsonify(
+        [
+            {
+                "id": a.id,
+                "alert_type": a.alert_type,
+                "message": a.message,
+                "acknowledged": a.acknowledged,
+                "created_at": a.created_at.isoformat(),
+            }
+            for a in items
+        ]
+    )
+
+
+@bp.post("/alerts/<int:alert_id>/acknowledge")
+@jwt_required()
+def acknowledge(alert_id: int):
+    """Acknowledge a security alert."""
+    uid = int(get_jwt_identity())
+    from ..services.login_anomaly import acknowledge_alert
+
+    alert = acknowledge_alert(alert_id, uid)
+    if not alert:
+        return jsonify(error="alert not found"), 404
+    db.session.commit()
+    return jsonify(message="acknowledged")
 
 
 def _refresh_key(jti: str) -> str:
