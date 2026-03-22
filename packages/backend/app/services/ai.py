@@ -109,16 +109,27 @@ def _heuristic_budget(
 
 
 def _extract_json_object(raw: str) -> dict:
+    """
+    [NÂNG CẤP V101.3] Trích xuất JSON thông minh, chống nhiễu văn bản thừa.
+    Học hỏi từ kinh nghiệm xử lý lỗi AI của Quân sư LinhChu.
+    """
+    import re
     text = (raw or "").strip()
-    if text.startswith("```"):
-        text = text.strip("`")
-        if text.lower().startswith("json"):
-            text = text[4:].strip()
-    start = text.find("{")
-    end = text.rfind("}")
-    if start == -1 or end == -1 or end <= start:
-        raise ValueError("model did not return JSON object")
-    return json.loads(text[start : end + 1])
+    
+    # 1. Loại bỏ các khối Markdown Code Block
+    text = re.sub(r'```(?:json)?\s*([\s\S]*?)\s*```', r'\1', text)
+    
+    # 2. Tìm khối ngoặc nhọn { ... } xa nhất
+    match = re.search(r'(\{[\s\S]*\})', text)
+    if not match:
+        raise ValueError("AI Engine did not return a valid JSON object")
+    
+    clean_json = match.group(1)
+    
+    try:
+        return json.loads(clean_json)
+    except json.JSONDecodeError as e:
+        raise ValueError(f"AI JSON Parsing failed: {str(e)}")
 
 
 def _gemini_budget_suggestion(

@@ -133,3 +133,27 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class WebhookSubscription(db.Model):
+    __tablename__ = "webhook_subscriptions"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    target_url = db.Column(db.String(500), nullable=False)
+    secret_key = db.Column(db.String(100), nullable=False)  # For HMAC
+    event_types = db.Column(db.JSON, nullable=False)  # List of strings: ["expense.created", etc]
+    active = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class WebhookDeliveryLog(db.Model):
+    __tablename__ = "webhook_delivery_logs"
+    id = db.Column(db.Integer, primary_key=True)
+    subscription_id = db.Column(db.Integer, db.ForeignKey("webhook_subscriptions.id"), nullable=False)
+    event_type = db.Column(db.String(100), nullable=False)
+    payload = db.Column(db.JSON, nullable=False)
+    response_status = db.Column(db.Integer, nullable=True)
+    response_body = db.Column(db.Text, nullable=True)
+    success = db.Column(db.Boolean, default=False, nullable=False)
+    attempt_count = db.Column(db.Integer, default=1, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)

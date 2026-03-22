@@ -123,3 +123,25 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   action VARCHAR(100) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS webhook_subscriptions (
+  id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  target_url VARCHAR(500) NOT NULL,
+  secret_key VARCHAR(100) NOT NULL,
+  event_types JSON NOT NULL,
+  active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS webhook_delivery_logs (
+  id SERIAL PRIMARY KEY,
+  subscription_id INT NOT NULL REFERENCES webhook_subscriptions(id) ON DELETE CASCADE,
+  event_type VARCHAR(100) NOT NULL,
+  payload JSON NOT NULL,
+  response_status INT,
+  response_body TEXT,
+  success BOOLEAN NOT NULL DEFAULT FALSE,
+  attempt_count INT NOT NULL DEFAULT 1,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
