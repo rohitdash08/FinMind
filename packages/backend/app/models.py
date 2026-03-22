@@ -127,6 +127,37 @@ class UserSubscription(db.Model):
     started_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
 
+class LoginEvent(db.Model):
+    """Tracks every login attempt for anomaly detection."""
+
+    __tablename__ = "login_events"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    ip_address = db.Column(db.String(45), nullable=False)
+    user_agent = db.Column(db.String(500), nullable=True)
+    country = db.Column(db.String(10), nullable=True)
+    city = db.Column(db.String(100), nullable=True)
+    success = db.Column(db.Boolean, nullable=False, default=True)
+    anomaly_score = db.Column(db.Float, nullable=False, default=0.0)
+    anomaly_reasons = db.Column(db.Text, nullable=True)  # JSON list of reasons
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class LoginAlert(db.Model):
+    """Alerts generated when suspicious login activity is detected."""
+
+    __tablename__ = "login_alerts"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    login_event_id = db.Column(
+        db.Integer, db.ForeignKey("login_events.id"), nullable=False
+    )
+    alert_type = db.Column(db.String(50), nullable=False)  # e.g. NEW_IP, RAPID_LOGIN, NEW_COUNTRY
+    message = db.Column(db.String(500), nullable=False)
+    acknowledged = db.Column(db.Boolean, default=False, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
 class AuditLog(db.Model):
     __tablename__ = "audit_logs"
     id = db.Column(db.Integer, primary_key=True)
