@@ -133,3 +133,26 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class BankConnection(db.Model):
+    """Stores a user's connection to a bank via a connector provider."""
+
+    __tablename__ = "bank_connections"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    provider_id = db.Column(db.String(50), nullable=False)
+    account_id = db.Column(db.String(200), nullable=False)
+    account_name = db.Column(db.String(200), nullable=False)
+    account_type = db.Column(db.String(50), nullable=False)
+    institution_name = db.Column(db.String(200), nullable=False)
+    masked_account_number = db.Column(db.String(50), nullable=True)
+    currency = db.Column(db.String(10), default="INR", nullable=False)
+    # Encrypted / serialised credentials – store as JSON text.
+    # In production use envelope encryption; for now stored as-is.
+    credentials_json = db.Column(db.Text, nullable=False, default="{}")
+    # Opaque cursor tracking the last successful sync position
+    sync_cursor = db.Column(db.String(500), nullable=True)
+    last_synced_at = db.Column(db.DateTime, nullable=True)
+    active = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
