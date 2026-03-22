@@ -1,0 +1,10 @@
+build:
+  docker:
+    web:
+      dockerfile: packages/backend/Dockerfile
+      target: production
+    frontend:
+      dockerfile: app/Dockerfile
+run:
+  web: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+  frontend: nginx -g "daemon off;"
