@@ -1,0 +1,44 @@
+openapi: 3.0.0
+info:
+  title: FinMind API
+  version: 1.0.0
+paths:
+  /auth/register:
+    post:
+      summary: Register a new user
+  /auth/login:
+    post:
+      summary: Login a user
+  /auth/refresh:
+    post:
+      summary: Refresh JWT token
+  /expenses:
+    get:
+      summary: List expenses
+    post:
+      summary: Create an expense
+  /bills:
+    get:
+      summary: List bills
+    post:
+      summary: Create a bill
+  /bills/{id}/pay:
+    post:
+      summary: Mark a bill as paid
+  /reminders:
+    get:
+      summary: List reminders
+    post:
+      summary: Create a reminder
+  /reminders/run:
+    post:
+      summary: Trigger reminders
+  /insights/monthly:
+    get:
+      summary: Get monthly insights
+  /insights/budget-suggestion:
+    get:
+      summary: Get budget suggestion
+  /insights/weekly:
+    get:
+      summary: Get weekly financial summary

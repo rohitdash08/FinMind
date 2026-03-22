@@ -1,0 +1,12 @@
+[file] .bandit
+[file] .env.example
+[file] .flake8
+[dir] .github
+[file] .gitignore
+[file] .pre-commit-config.yaml
+[file] CONTRIBUTING.md
+[file] backend/app/config.py
+[file] backend/app/extensions.py
+[file] LICENSE
+[file] README.md
+[dir] app

@@ -42,12 +42,16 @@ flowchart LR
   SCH --> SMTP
   AI --> OAI
 ```
+- Auth: `/auth/register`, `/auth/login`, `/auth/refresh`
+- Expenses: CRUD `/expenses`
+- Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
+- Reminders: CRUD `/reminders`, trigger `/reminders/run`
+- Insights: `/insights/monthly`, `/insights/budget-suggestion`
+- Weekly Summary: `/insights/weekly`
 
-## PostgreSQL Schema (DDL)
-See `backend/app/db/schema.sql`. Key tables:
-- users, categories, expenses, bills, reminders
-- ad_impressions, subscription_plans, user_subscriptions
-- refresh_tokens (optional if rotating), audit_logs
+## MVP UI/UX Plan
+- Auth screens: register/login.
+- Dashboard:
 
 ## Redis Caching Policy
 - Keys
