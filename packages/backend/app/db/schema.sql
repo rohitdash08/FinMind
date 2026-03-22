@@ -123,3 +123,31 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   action VARCHAR(100) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+
+-- ── Issue #133: Goal-based savings tracking & milestones ─────────────────────
+CREATE TABLE IF NOT EXISTS savings_goals (
+  id             SERIAL PRIMARY KEY,
+  user_id        INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name           VARCHAR(120) NOT NULL,
+  description    TEXT NOT NULL DEFAULT '',
+  icon           VARCHAR(10) NOT NULL DEFAULT '🎯',
+  target_amount  NUMERIC(12,2) NOT NULL,
+  current_amount NUMERIC(12,2) NOT NULL DEFAULT 0,
+  currency       CHAR(3) NOT NULL DEFAULT 'INR',
+  deadline       DATE,
+  deleted        BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_savings_goals_user ON savings_goals(user_id);
+CREATE INDEX IF NOT EXISTS idx_savings_goals_del  ON savings_goals(deleted);
+
+CREATE TABLE IF NOT EXISTS savings_milestones (
+  id               SERIAL PRIMARY KEY,
+  goal_id          INT NOT NULL REFERENCES savings_goals(id) ON DELETE CASCADE,
+  percentage       SMALLINT NOT NULL CHECK (percentage IN (25,50,75,100)),
+  threshold_amount NUMERIC(12,2) NOT NULL,
+  reached_at       TIMESTAMPTZ
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uidx_ms_goal_pct ON savings_milestones(goal_id, percentage);
