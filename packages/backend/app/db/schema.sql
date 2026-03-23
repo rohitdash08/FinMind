@@ -123,3 +123,34 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   action VARCHAR(100) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+-- Goal-based savings tracking — issue #133
+CREATE TABLE IF NOT EXISTS savings_goals (
+  id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name VARCHAR(200) NOT NULL,
+  description VARCHAR(500),
+  target_amount NUMERIC(14, 2) NOT NULL,
+  current_amount NUMERIC(14, 2) NOT NULL DEFAULT 0.00,
+  currency VARCHAR(10) NOT NULL DEFAULT 'INR',
+  deadline DATE,
+  status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS savings_milestones (
+  id SERIAL PRIMARY KEY,
+  goal_id INT NOT NULL REFERENCES savings_goals(id) ON DELETE CASCADE,
+  label VARCHAR(200) NOT NULL,
+  target_pct NUMERIC(5, 2) NOT NULL,
+  reached BOOLEAN NOT NULL DEFAULT FALSE,
+  reached_at TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS savings_deposits (
+  id SERIAL PRIMARY KEY,
+  goal_id INT NOT NULL REFERENCES savings_goals(id) ON DELETE CASCADE,
+  amount NUMERIC(14, 2) NOT NULL,
+  note VARCHAR(300),
+  deposited_at DATE NOT NULL DEFAULT CURRENT_DATE
+);
