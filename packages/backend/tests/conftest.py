@@ -1,9 +1,10 @@
 import os
 import pytest
+import fakeredis
+import app.extensions as _ext
 from app import create_app
 from app.config import Settings
 from app.extensions import db
-from app.extensions import redis_client
 from app import models  # noqa: F401 - ensure models are registered
 
 
@@ -19,8 +20,24 @@ def _setup_db(app):
         db.create_all()
 
 
+@pytest.fixture(autouse=True)
+def _fake_redis(monkeypatch):
+    """Replace the global redis_client with an in-process fake for all tests."""
+    fake = fakeredis.FakeRedis(decode_responses=True)
+    monkeypatch.setattr(_ext, "redis_client", fake)
+    # Also patch the imported name in every routes module that imported it.
+    import app.routes.auth as _auth
+    import app.routes.dashboard as _dashboard
+    import app.services.cache as _cache
+    monkeypatch.setattr(_auth, "redis_client", fake)
+    monkeypatch.setattr(_cache, "redis_client", fake)
+    # dashboard uses cache module indirectly – patching cache is sufficient
+    yield fake
+    fake.flushall()
+
+
 @pytest.fixture()
-def app_fixture():
+def app_fixture(_fake_redis):
     # Ensure a clean env for tests
     os.environ.setdefault("FLASK_ENV", "testing")
     settings = TestSettings(
@@ -31,18 +48,12 @@ def app_fixture():
     app = create_app(settings)
     app.config.update(TESTING=True)
     _setup_db(app)
-    try:
-        redis_client.flushdb()
-    except Exception:
-        pass
+    _fake_redis.flushall()
     yield app
     with app.app_context():
         db.session.remove()
         db.drop_all()
-    try:
-        redis_client.flushdb()
-    except Exception:
-        pass
+    _fake_redis.flushall()
 
 
 @pytest.fixture()
