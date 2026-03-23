@@ -15,6 +15,7 @@ export type SavingsGoal = {
   status: 'ACTIVE' | 'COMPLETED' | 'CANCELLED';
   progress: number;
   milestones: Milestone[];
+  created_at: string | null;
 };
 
 export type SavingsGoalCreate = {
@@ -30,7 +31,7 @@ export type SavingsGoalUpdate = Partial<SavingsGoalCreate> & {
 };
 
 export async function listSavingsGoals(status?: string): Promise<SavingsGoal[]> {
-  const qs = status ? `?status=${status}` : '';
+  const qs = status ? `?status=${encodeURIComponent(status)}` : '';
   return api<SavingsGoal[]>(`/savings-goals${qs}`);
 }
 
@@ -54,6 +55,16 @@ export async function depositToGoal(
   amount: number,
 ): Promise<SavingsGoal> {
   return api<SavingsGoal>(`/savings-goals/${id}/deposit`, {
+    method: 'POST',
+    body: { amount },
+  });
+}
+
+export async function withdrawFromGoal(
+  id: number,
+  amount: number,
+): Promise<SavingsGoal> {
+  return api<SavingsGoal>(`/savings-goals/${id}/withdraw`, {
     method: 'POST',
     body: { amount },
   });

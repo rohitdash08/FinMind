@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   FinancialCard,
@@ -20,34 +20,42 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { Target, Plus, Trash2, PiggyBank, Trophy, Calendar } from 'lucide-react';
+import { Target, Plus, Trash2, PiggyBank, Trophy, Calendar, ArrowDownLeft } from 'lucide-react';
 import {
   listSavingsGoals,
   createSavingsGoal,
   updateSavingsGoal,
   depositToGoal,
+  withdrawFromGoal,
   deleteSavingsGoal,
   type SavingsGoal,
   type SavingsGoalCreate,
 } from '@/api/savingsGoals';
+
+type TransactionType = 'deposit' | 'withdraw';
 
 export default function SavingsGoals() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [createOpen, setCreateOpen] = useState(false);
-  const [depositOpen, setDepositOpen] = useState<number | null>(null);
-  const [depositAmount, setDepositAmount] = useState('');
+  const [transactionGoal, setTransactionGoal] = useState<{ id: number; type: TransactionType } | null>(null);
+  const [transactionAmount, setTransactionAmount] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
 
   const { data: goals = [], isLoading } = useQuery({
     queryKey: ['savings-goals', statusFilter],
     queryFn: () => listSavingsGoals(statusFilter || undefined),
   });
 
+  const invalidateGoals = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['savings-goals'] });
+  }, [queryClient]);
+
   const createMutation = useMutation({
     mutationFn: (payload: SavingsGoalCreate) => createSavingsGoal(payload),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['savings-goals'] });
+      invalidateGoals();
       setCreateOpen(false);
       toast({ title: 'Goal created', description: 'Your savings goal has been created.' });
     },
@@ -58,30 +66,53 @@ export default function SavingsGoals() {
 
   const depositMutation = useMutation({
     mutationFn: ({ id, amount }: { id: number; amount: number }) => depositToGoal(id, amount),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['savings-goals'] });
-      setDepositOpen(null);
-      setDepositAmount('');
-      toast({ title: 'Deposit added', description: 'Amount has been added to your goal.' });
+    onSuccess: (data) => {
+      invalidateGoals();
+      setTransactionGoal(null);
+      setTransactionAmount('');
+      const msg = data.status === 'COMPLETED'
+        ? 'Congratulations! You have reached your savings goal!'
+        : 'Amount has been added to your goal.';
+      toast({ title: 'Deposit added', description: msg });
     },
     onError: (err: Error) => {
-      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+      toast({ title: 'Deposit failed', description: err.message, variant: 'destructive' });
+    },
+  });
+
+  const withdrawMutation = useMutation({
+    mutationFn: ({ id, amount }: { id: number; amount: number }) => withdrawFromGoal(id, amount),
+    onSuccess: () => {
+      invalidateGoals();
+      setTransactionGoal(null);
+      setTransactionAmount('');
+      toast({ title: 'Withdrawal complete', description: 'Amount has been withdrawn from your goal.' });
+    },
+    onError: (err: Error) => {
+      toast({ title: 'Withdrawal failed', description: err.message, variant: 'destructive' });
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => deleteSavingsGoal(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['savings-goals'] });
+      invalidateGoals();
+      setConfirmDelete(null);
       toast({ title: 'Goal deleted' });
+    },
+    onError: (err: Error) => {
+      toast({ title: 'Delete failed', description: err.message, variant: 'destructive' });
     },
   });
 
   const cancelMutation = useMutation({
     mutationFn: (id: number) => updateSavingsGoal(id, { status: 'CANCELLED' }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['savings-goals'] });
+      invalidateGoals();
       toast({ title: 'Goal cancelled' });
+    },
+    onError: (err: Error) => {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
     },
   });
 
@@ -89,25 +120,55 @@ export default function SavingsGoals() {
     e.preventDefault();
     const form = new FormData(e.currentTarget);
     const payload: SavingsGoalCreate = {
-      name: form.get('name') as string,
+      name: (form.get('name') as string).trim(),
       target_amount: Number(form.get('target_amount')),
       current_amount: Number(form.get('current_amount') || 0),
       currency: (form.get('currency') as string) || undefined,
       deadline: (form.get('deadline') as string) || undefined,
     };
+    if (!payload.name) return;
+    if (!payload.target_amount || payload.target_amount <= 0) return;
     createMutation.mutate(payload);
   };
 
-  const handleDeposit = (goalId: number) => {
-    const amount = parseFloat(depositAmount);
+  const handleTransaction = () => {
+    if (!transactionGoal) return;
+    const amount = parseFloat(transactionAmount);
     if (!amount || amount <= 0) return;
-    depositMutation.mutate({ id: goalId, amount });
+    if (transactionGoal.type === 'deposit') {
+      depositMutation.mutate({ id: transactionGoal.id, amount });
+    } else {
+      withdrawMutation.mutate({ id: transactionGoal.id, amount });
+    }
   };
+
+  const isTransacting = depositMutation.isPending || withdrawMutation.isPending;
 
   const activeGoals = goals.filter((g) => g.status === 'ACTIVE');
   const completedGoals = goals.filter((g) => g.status === 'COMPLETED');
   const totalSaved = goals.reduce((sum, g) => sum + g.current_amount, 0);
   const totalTarget = goals.reduce((sum, g) => sum + g.target_amount, 0);
+
+  // Use the most common currency among goals, or a generic label
+  const primaryCurrency = goals.length > 0 ? goals[0].currency : '';
+
+  const formatAmount = (amount: number, currency?: string) => {
+    const cur = currency || primaryCurrency;
+    try {
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: cur || 'USD',
+        minimumFractionDigits: 2,
+      }).format(amount);
+    } catch {
+      // Fallback if Intl doesn't recognize the currency
+      return `${cur} ${amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+    }
+  };
+
+  // Check if all goals share the same currency (only show summary totals if so)
+  const currencies = new Set(goals.map((g) => g.currency));
+  const isMixedCurrency = currencies.size > 1;
 
   return (
     <div className="container-financial py-8 space-y-8">
@@ -136,7 +197,13 @@ export default function SavingsGoals() {
             <form onSubmit={handleCreate} className="space-y-4">
               <div>
                 <Label htmlFor="name">Goal Name</Label>
-                <Input id="name" name="name" placeholder="e.g. Emergency Fund" required />
+                <Input
+                  id="name"
+                  name="name"
+                  placeholder="e.g. Emergency Fund"
+                  maxLength={200}
+                  required
+                />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -166,7 +233,7 @@ export default function SavingsGoals() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="currency">Currency</Label>
-                  <Input id="currency" name="currency" placeholder="USD" />
+                  <Input id="currency" name="currency" placeholder="USD" maxLength={10} />
                 </div>
                 <div>
                   <Label htmlFor="deadline">Deadline</Label>
@@ -187,7 +254,9 @@ export default function SavingsGoals() {
           <FinancialCardHeader>
             <FinancialCardDescription>Total Saved</FinancialCardDescription>
             <FinancialCardTitle className="text-2xl">
-              ${totalSaved.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              {isMixedCurrency
+                ? `${totalSaved.toLocaleString('en-US', { minimumFractionDigits: 2 })} (mixed)`
+                : formatAmount(totalSaved)}
             </FinancialCardTitle>
           </FinancialCardHeader>
         </FinancialCard>
@@ -195,7 +264,9 @@ export default function SavingsGoals() {
           <FinancialCardHeader>
             <FinancialCardDescription>Total Target</FinancialCardDescription>
             <FinancialCardTitle className="text-2xl">
-              ${totalTarget.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              {isMixedCurrency
+                ? `${totalTarget.toLocaleString('en-US', { minimumFractionDigits: 2 })} (mixed)`
+                : formatAmount(totalTarget)}
             </FinancialCardTitle>
           </FinancialCardHeader>
         </FinancialCard>
@@ -231,7 +302,9 @@ export default function SavingsGoals() {
           <FinancialCardContent>
             <PiggyBank className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
             <p className="text-muted-foreground">
-              No savings goals yet. Create your first goal to start tracking!
+              {statusFilter
+                ? `No ${statusFilter.toLowerCase()} goals found.`
+                : 'No savings goals yet. Create your first goal to start tracking!'}
             </p>
           </FinancialCardContent>
         </FinancialCard>
@@ -241,39 +314,87 @@ export default function SavingsGoals() {
             <GoalCard
               key={goal.id}
               goal={goal}
-              onDeposit={() => setDepositOpen(goal.id)}
-              onCancel={() => cancelMutation.mutate(goal.id)}
-              onDelete={() => deleteMutation.mutate(goal.id)}
+              formatAmount={formatAmount}
+              onDeposit={() => setTransactionGoal({ id: goal.id, type: 'deposit' })}
+              onWithdraw={() => setTransactionGoal({ id: goal.id, type: 'withdraw' })}
+              onCancel={() => {
+                if (window.confirm(`Cancel the goal "${goal.name}"? You can still view it later.`)) {
+                  cancelMutation.mutate(goal.id);
+                }
+              }}
+              onDelete={() => setConfirmDelete(goal.id)}
+              isCancelling={cancelMutation.isPending}
             />
           ))}
         </div>
       )}
 
-      {/* Deposit Dialog */}
-      <Dialog open={depositOpen !== null} onOpenChange={() => { setDepositOpen(null); setDepositAmount(''); }}>
+      {/* Deposit / Withdraw Dialog */}
+      <Dialog
+        open={transactionGoal !== null}
+        onOpenChange={() => {
+          setTransactionGoal(null);
+          setTransactionAmount('');
+        }}
+      >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Add Deposit</DialogTitle>
+            <DialogTitle>
+              {transactionGoal?.type === 'deposit' ? 'Add Deposit' : 'Withdraw Funds'}
+            </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label htmlFor="deposit_amount">Amount</Label>
+              <Label htmlFor="transaction_amount">Amount</Label>
               <Input
-                id="deposit_amount"
+                id="transaction_amount"
                 type="number"
                 step="0.01"
                 min="0.01"
-                value={depositAmount}
-                onChange={(e) => setDepositAmount(e.target.value)}
+                value={transactionAmount}
+                onChange={(e) => setTransactionAmount(e.target.value)}
                 placeholder="100.00"
+                autoFocus
               />
             </div>
             <Button
               className="w-full"
-              onClick={() => depositOpen && handleDeposit(depositOpen)}
-              disabled={depositMutation.isPending}
+              onClick={handleTransaction}
+              disabled={isTransacting || !transactionAmount || parseFloat(transactionAmount) <= 0}
             >
-              {depositMutation.isPending ? 'Adding...' : 'Add Deposit'}
+              {isTransacting
+                ? 'Processing...'
+                : transactionGoal?.type === 'deposit'
+                  ? 'Add Deposit'
+                  : 'Withdraw'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={confirmDelete !== null} onOpenChange={() => setConfirmDelete(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Goal</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Are you sure you want to permanently delete this savings goal? This action cannot be undone.
+          </p>
+          <div className="flex gap-2 justify-end pt-4">
+            <Button variant="outline" onClick={() => setConfirmDelete(null)}>
+              Keep
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (confirmDelete !== null) {
+                  deleteMutation.mutate(confirmDelete);
+                }
+              }}
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending ? 'Deleting...' : 'Delete'}
             </Button>
           </div>
         </DialogContent>
@@ -284,20 +405,31 @@ export default function SavingsGoals() {
 
 function GoalCard({
   goal,
+  formatAmount,
   onDeposit,
+  onWithdraw,
   onCancel,
   onDelete,
+  isCancelling,
 }: {
   goal: SavingsGoal;
+  formatAmount: (amount: number, currency?: string) => string;
   onDeposit: () => void;
+  onWithdraw: () => void;
   onCancel: () => void;
   onDelete: () => void;
+  isCancelling: boolean;
 }) {
   const statusBadge = {
     ACTIVE: <Badge variant="default">Active</Badge>,
     COMPLETED: <Badge className="bg-green-100 text-green-800">Completed</Badge>,
     CANCELLED: <Badge variant="secondary">Cancelled</Badge>,
   };
+
+  const isOverdue =
+    goal.deadline &&
+    goal.status === 'ACTIVE' &&
+    new Date(goal.deadline) < new Date();
 
   return (
     <FinancialCard variant="financial">
@@ -306,8 +438,8 @@ function GoalCard({
           <div>
             <FinancialCardTitle className="text-lg">{goal.name}</FinancialCardTitle>
             <FinancialCardDescription className="mt-1">
-              {goal.currency} {goal.current_amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}{' '}
-              / {goal.target_amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              {formatAmount(goal.current_amount, goal.currency)}{' '}
+              / {formatAmount(goal.target_amount, goal.currency)}
             </FinancialCardDescription>
           </div>
           {statusBadge[goal.status]}
@@ -339,9 +471,10 @@ function GoalCard({
 
         {/* Deadline */}
         {goal.deadline && (
-          <div className="flex items-center gap-1 text-sm text-muted-foreground">
+          <div className={`flex items-center gap-1 text-sm ${isOverdue ? 'text-destructive font-medium' : 'text-muted-foreground'}`}>
             <Calendar className="h-3.5 w-3.5" />
-            Deadline: {new Date(goal.deadline).toLocaleDateString()}
+            {isOverdue ? 'Overdue: ' : 'Deadline: '}
+            {new Date(goal.deadline).toLocaleDateString()}
           </div>
         )}
 
@@ -353,10 +486,22 @@ function GoalCard({
                 <PiggyBank className="h-3.5 w-3.5 mr-1" />
                 Deposit
               </Button>
-              <Button size="sm" variant="outline" onClick={onCancel}>
+              {goal.current_amount > 0 && (
+                <Button size="sm" variant="outline" onClick={onWithdraw}>
+                  <ArrowDownLeft className="h-3.5 w-3.5 mr-1" />
+                  Withdraw
+                </Button>
+              )}
+              <Button size="sm" variant="outline" onClick={onCancel} disabled={isCancelling}>
                 Cancel
               </Button>
             </>
+          )}
+          {goal.status === 'COMPLETED' && goal.current_amount > 0 && (
+            <Button size="sm" variant="outline" onClick={onWithdraw}>
+              <ArrowDownLeft className="h-3.5 w-3.5 mr-1" />
+              Withdraw
+            </Button>
           )}
           <Button size="sm" variant="ghost" className="text-destructive ml-auto" onClick={onDelete}>
             <Trash2 className="h-3.5 w-3.5" />
