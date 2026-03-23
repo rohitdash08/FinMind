@@ -133,3 +133,62 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+# ---------------------------------------------------------------------------
+# Goal-based savings tracking — issue #133
+# ---------------------------------------------------------------------------
+
+class SavingsGoal(db.Model):
+    __tablename__ = "savings_goals"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    name = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.String(500), nullable=True)
+    target_amount = db.Column(db.Numeric(14, 2), nullable=False)
+    current_amount = db.Column(db.Numeric(14, 2), default=0, nullable=False)
+    currency = db.Column(db.String(10), default="INR", nullable=False)
+    deadline = db.Column(db.Date, nullable=True)
+    # ACTIVE | PAUSED | COMPLETED | CANCELLED
+    status = db.Column(db.String(20), default="ACTIVE", nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    milestones = db.relationship(
+        "SavingsMilestone",
+        backref="goal",
+        lazy="select",
+        cascade="all, delete-orphan",
+        order_by="SavingsMilestone.target_pct",
+    )
+    deposits = db.relationship(
+        "SavingsDeposit",
+        backref="goal",
+        lazy="select",
+        cascade="all, delete-orphan",
+    )
+
+
+class SavingsMilestone(db.Model):
+    __tablename__ = "savings_milestones"
+    id = db.Column(db.Integer, primary_key=True)
+    goal_id = db.Column(
+        db.Integer, db.ForeignKey("savings_goals.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    label = db.Column(db.String(200), nullable=False)
+    # Percentage of target_amount (0–100)
+    target_pct = db.Column(db.Numeric(5, 2), nullable=False)
+    reached = db.Column(db.Boolean, default=False, nullable=False)
+    reached_at = db.Column(db.DateTime, nullable=True)
+
+
+class SavingsDeposit(db.Model):
+    __tablename__ = "savings_deposits"
+    id = db.Column(db.Integer, primary_key=True)
+    goal_id = db.Column(
+        db.Integer, db.ForeignKey("savings_goals.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    amount = db.Column(db.Numeric(14, 2), nullable=False)
+    note = db.Column(db.String(300), nullable=True)
+    deposited_at = db.Column(db.Date, default=date.today, nullable=False)
