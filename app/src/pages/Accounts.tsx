@@ -8,7 +8,6 @@ import {
   FinancialCardDescription,
 } from '@/components/ui/financial-card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
@@ -19,13 +18,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import {
   Wallet,
   Plus,
@@ -38,6 +30,8 @@ import {
   MoreHorizontal,
   Receipt,
   CalendarClock,
+  EyeOff,
+  AlertTriangle,
 } from 'lucide-react';
 import {
   getAccountsOverview,
@@ -46,10 +40,11 @@ import {
   deleteAccount,
   type FinancialAccount,
   type AccountCreate,
+  type AccountType,
   type AccountsOverview,
 } from '@/api/accounts';
 
-const ACCOUNT_TYPE_LABELS: Record<string, string> = {
+const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
   CHECKING: 'Checking',
   SAVINGS: 'Savings',
   CREDIT_CARD: 'Credit Card',
@@ -58,7 +53,7 @@ const ACCOUNT_TYPE_LABELS: Record<string, string> = {
   OTHER: 'Other',
 };
 
-const ACCOUNT_TYPE_ICONS: Record<string, typeof Wallet> = {
+const ACCOUNT_TYPE_ICONS: Record<AccountType, typeof Wallet> = {
   CHECKING: Wallet,
   SAVINGS: PiggyBank,
   CREDIT_CARD: CreditCard,
@@ -67,12 +62,26 @@ const ACCOUNT_TYPE_ICONS: Record<string, typeof Wallet> = {
   OTHER: MoreHorizontal,
 };
 
+function formatCurrency(amount: number, currency: string): string {
+  try {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency,
+      minimumFractionDigits: 2,
+    }).format(amount);
+  } catch {
+    // Fallback for unknown currency codes
+    return `${currency} ${amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+  }
+}
+
 export default function Accounts() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
 
-  const { data: overview, isLoading } = useQuery<AccountsOverview>({
+  const { data: overview, isLoading, isError } = useQuery<AccountsOverview>({
     queryKey: ['accounts-overview'],
     queryFn: getAccountsOverview,
   });
@@ -93,7 +102,12 @@ export default function Accounts() {
     mutationFn: (id: number) => deleteAccount(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['accounts-overview'] });
-      toast({ title: 'Account deleted' });
+      setDeleteConfirmId(null);
+      toast({ title: 'Account removed' });
+    },
+    onError: (err: Error) => {
+      setDeleteConfirmId(null);
+      toast({ title: 'Delete failed', description: err.message, variant: 'destructive' });
     },
   });
 
@@ -101,25 +115,34 @@ export default function Accounts() {
     mutationFn: (id: number) => updateAccount(id, { active: false }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['accounts-overview'] });
-      toast({ title: 'Account deactivated' });
+      toast({ title: 'Account deactivated', description: 'The account has been hidden from your overview.' });
+    },
+    onError: (err: Error) => {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
     },
   });
 
   const handleCreate = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const form = new FormData(e.currentTarget);
+    const name = (form.get('name') as string || '').trim();
+    if (!name) {
+      toast({ title: 'Validation error', description: 'Account name is required.', variant: 'destructive' });
+      return;
+    }
     const payload: AccountCreate = {
-      name: form.get('name') as string,
-      account_type: (form.get('account_type') as string) || 'CHECKING',
+      name,
+      account_type: ((form.get('account_type') as string) || 'CHECKING') as AccountType,
       balance: Number(form.get('balance') || 0),
-      currency: (form.get('currency') as string) || undefined,
-      institution: (form.get('institution') as string) || undefined,
+      currency: (form.get('currency') as string || '').trim().toUpperCase() || undefined,
+      institution: (form.get('institution') as string || '').trim() || undefined,
     };
     createMutation.mutate(payload);
   };
 
   const accounts = overview?.accounts ?? [];
-  const totalBalance = overview?.total_balance ?? 0;
+  const totalsByurrency = overview?.totals_by_currency ?? {};
+  const currencyKeys = Object.keys(totalsByurrency);
   const recentExpenses = overview?.recent_expenses ?? [];
   const upcomingBills = overview?.upcoming_bills ?? [];
 
@@ -150,7 +173,13 @@ export default function Accounts() {
             <form onSubmit={handleCreate} className="space-y-4">
               <div>
                 <Label htmlFor="name">Account Name</Label>
-                <Input id="name" name="name" placeholder="e.g. Main Checking" required />
+                <Input
+                  id="name"
+                  name="name"
+                  placeholder="e.g. Main Checking"
+                  required
+                  maxLength={200}
+                />
               </div>
               <div>
                 <Label htmlFor="account_type">Account Type</Label>
@@ -160,9 +189,13 @@ export default function Accounts() {
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   defaultValue="CHECKING"
                 >
-                  {Object.entries(ACCOUNT_TYPE_LABELS).map(([value, label]) => (
-                    <option key={value} value={value}>{label}</option>
-                  ))}
+                  {(Object.entries(ACCOUNT_TYPE_LABELS) as [AccountType, string][]).map(
+                    ([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ),
+                  )}
                 </select>
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -173,17 +206,29 @@ export default function Accounts() {
                     name="balance"
                     type="number"
                     step="0.01"
+                    min="0"
+                    max="9999999999.99"
                     placeholder="0.00"
                   />
                 </div>
                 <div>
                   <Label htmlFor="currency">Currency</Label>
-                  <Input id="currency" name="currency" placeholder="USD" />
+                  <Input
+                    id="currency"
+                    name="currency"
+                    placeholder="USD"
+                    maxLength={10}
+                  />
                 </div>
               </div>
               <div>
                 <Label htmlFor="institution">Institution (optional)</Label>
-                <Input id="institution" name="institution" placeholder="e.g. Chase Bank" />
+                <Input
+                  id="institution"
+                  name="institution"
+                  placeholder="e.g. Chase Bank"
+                  maxLength={200}
+                />
               </div>
               <Button type="submit" className="w-full" disabled={createMutation.isPending}>
                 {createMutation.isPending ? 'Adding...' : 'Add Account'}
@@ -199,7 +244,11 @@ export default function Accounts() {
           <FinancialCardHeader>
             <FinancialCardDescription>Total Balance</FinancialCardDescription>
             <FinancialCardTitle className="text-2xl">
-              ${totalBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              {currencyKeys.length === 1
+                ? formatCurrency(totalsByurrency[currencyKeys[0]], currencyKeys[0])
+                : currencyKeys.length > 1
+                  ? currencyKeys.map((c) => formatCurrency(totalsByurrency[c], c)).join(' + ')
+                  : formatCurrency(0, 'USD')}
             </FinancialCardTitle>
           </FinancialCardHeader>
         </FinancialCard>
@@ -221,7 +270,16 @@ export default function Accounts() {
         </FinancialCard>
       </div>
 
-      {isLoading ? (
+      {isError ? (
+        <FinancialCard variant="financial" className="text-center py-12">
+          <FinancialCardContent>
+            <AlertTriangle className="h-12 w-12 mx-auto text-destructive mb-4" />
+            <p className="text-muted-foreground">
+              Failed to load accounts. Please try again later.
+            </p>
+          </FinancialCardContent>
+        </FinancialCard>
+      ) : isLoading ? (
         <p className="text-muted-foreground text-center py-12">Loading accounts...</p>
       ) : accounts.length === 0 ? (
         <FinancialCard variant="financial" className="text-center py-12">
@@ -243,7 +301,8 @@ export default function Accounts() {
                   key={account.id}
                   account={account}
                   onDeactivate={() => deactivateMutation.mutate(account.id)}
-                  onDelete={() => deleteMutation.mutate(account.id)}
+                  onDelete={() => setDeleteConfirmId(account.id)}
+                  isDeactivating={deactivateMutation.isPending}
                 />
               ))}
             </div>
@@ -271,7 +330,7 @@ export default function Accounts() {
                           <p className="text-xs text-muted-foreground">{expense.date}</p>
                         </div>
                         <span className="font-semibold text-destructive">
-                          -{expense.currency} {expense.amount.toFixed(2)}
+                          -{formatCurrency(expense.amount, expense.currency)}
                         </span>
                       </div>
                     ))}
@@ -300,7 +359,7 @@ export default function Accounts() {
                           <p className="text-xs text-muted-foreground">Due: {bill.next_due_date}</p>
                         </div>
                         <span className="font-semibold">
-                          {bill.currency} {bill.amount.toFixed(2)}
+                          {formatCurrency(bill.amount, bill.currency)}
                         </span>
                       </div>
                     ))}
@@ -311,6 +370,30 @@ export default function Accounts() {
           </div>
         </div>
       )}
+
+      {/* Delete confirmation dialog */}
+      <Dialog open={deleteConfirmId !== null} onOpenChange={(open) => !open && setDeleteConfirmId(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Account</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Are you sure you want to remove this account? It will be deactivated and hidden from your overview.
+          </p>
+          <div className="flex justify-end gap-2 pt-4">
+            <Button variant="outline" onClick={() => setDeleteConfirmId(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={deleteMutation.isPending}
+              onClick={() => deleteConfirmId !== null && deleteMutation.mutate(deleteConfirmId)}
+            >
+              {deleteMutation.isPending ? 'Deleting...' : 'Delete'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -319,10 +402,12 @@ function AccountCard({
   account,
   onDeactivate,
   onDelete,
+  isDeactivating,
 }: {
   account: FinancialAccount;
   onDeactivate: () => void;
   onDelete: () => void;
+  isDeactivating: boolean;
 }) {
   const Icon = ACCOUNT_TYPE_ICONS[account.account_type] || Wallet;
 
@@ -337,7 +422,7 @@ function AccountCard({
             <div>
               <FinancialCardTitle className="text-base">{account.name}</FinancialCardTitle>
               <FinancialCardDescription>
-                {ACCOUNT_TYPE_LABELS[account.account_type]}
+                {ACCOUNT_TYPE_LABELS[account.account_type] ?? account.account_type}
               </FinancialCardDescription>
             </div>
           </div>
@@ -346,7 +431,7 @@ function AccountCard({
       <FinancialCardContent className="space-y-3">
         <div>
           <p className="text-2xl font-bold">
-            {account.currency} {account.balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            {formatCurrency(account.balance, account.currency)}
           </p>
         </div>
         {account.institution && (
@@ -356,10 +441,23 @@ function AccountCard({
           </p>
         )}
         <div className="flex gap-2 pt-2">
-          <Button size="sm" variant="outline" onClick={onDeactivate}>
-            Deactivate
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={onDeactivate}
+            disabled={isDeactivating}
+            title="Hide this account from your overview"
+          >
+            <EyeOff className="h-3.5 w-3.5 mr-1" />
+            Hide
           </Button>
-          <Button size="sm" variant="ghost" className="text-destructive ml-auto" onClick={onDelete}>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="text-destructive ml-auto"
+            onClick={onDelete}
+            title="Delete this account"
+          >
             <Trash2 className="h-3.5 w-3.5" />
           </Button>
         </div>

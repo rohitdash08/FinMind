@@ -1,18 +1,21 @@
 import { api } from './client';
 
+export type AccountType = 'CHECKING' | 'SAVINGS' | 'CREDIT_CARD' | 'CASH' | 'INVESTMENT' | 'OTHER';
+
 export type FinancialAccount = {
   id: number;
   name: string;
-  account_type: 'CHECKING' | 'SAVINGS' | 'CREDIT_CARD' | 'CASH' | 'INVESTMENT' | 'OTHER';
+  account_type: AccountType;
   balance: number;
   currency: string;
   institution: string | null;
   active: boolean;
+  created_at: string | null;
 };
 
 export type AccountCreate = {
   name: string;
-  account_type?: string;
+  account_type?: AccountType;
   balance?: number;
   currency?: string;
   institution?: string;
@@ -25,6 +28,7 @@ export type AccountUpdate = Partial<AccountCreate> & {
 export type AccountsOverview = {
   accounts: FinancialAccount[];
   total_balance: number;
+  totals_by_currency: Record<string, number>;
   account_count: number;
   recent_expenses: {
     id: number;
