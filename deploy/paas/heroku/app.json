@@ -1,0 +1,58 @@
+{
+  "name": "finmind",
+  "description": "FinMind — AI-Powered Budget & Bill Tracking",
+  "repository": "https://github.com/rohitdash08/FinMind",
+  "keywords": ["finance", "budgeting", "flask", "react"],
+  "stack": "container",
+  "formation": {
+    "web": {
+      "quantity": 1,
+      "size": "basic"
+    }
+  },
+  "addons": [
+    {
+      "plan": "heroku-postgresql:essential-0",
+      "as": "DATABASE"
+    },
+    {
+      "plan": "heroku-redis:mini",
+      "as": "REDIS"
+    }
+  ],
+  "env": {
+    "JWT_SECRET": {
+      "description": "Secret key for JWT token signing",
+      "generator": "secret"
+    },
+    "DATABASE_URL": {
+      "description": "PostgreSQL connection URL (auto-set by Heroku Postgres addon)",
+      "required": true
+    },
+    "REDIS_URL": {
+      "description": "Redis connection URL (auto-set by Heroku Redis addon)",
+      "required": true
+    },
+    "GEMINI_API_KEY": {
+      "description": "Google Gemini API key for AI insights (optional)",
+      "required": false
+    },
+    "OPENAI_API_KEY": {
+      "description": "OpenAI API key for AI insights (optional)",
+      "required": false
+    },
+    "LOG_LEVEL": {
+      "description": "Application log level",
+      "value": "INFO"
+    }
+  },
+  "buildpacks": [],
+  "environments": {
+    "review": {
+      "addons": [
+        "heroku-postgresql:essential-0",
+        "heroku-redis:mini"
+      ]
+    }
+  }
+}

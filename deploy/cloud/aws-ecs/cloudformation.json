@@ -1,0 +1,364 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "FinMind — ECS Fargate deployment with ALB, RDS PostgreSQL, and ElastiCache Redis",
+  "Parameters": {
+    "VpcId": {
+      "Type": "AWS::EC2::VPC::Id",
+      "Description": "VPC to deploy into"
+    },
+    "SubnetIds": {
+      "Type": "List<AWS::EC2::Subnet::Id>",
+      "Description": "At least 2 subnets in different AZs"
+    },
+    "BackendImage": {
+      "Type": "String",
+      "Default": "ghcr.io/rohitdash08/finmind-backend:latest",
+      "Description": "Backend container image URI"
+    },
+    "FrontendImage": {
+      "Type": "String",
+      "Default": "ghcr.io/rohitdash08/finmind-frontend:latest",
+      "Description": "Frontend container image URI"
+    },
+    "JwtSecret": {
+      "Type": "String",
+      "NoEcho": true,
+      "Description": "JWT signing secret"
+    },
+    "DbPassword": {
+      "Type": "String",
+      "NoEcho": true,
+      "MinLength": 8,
+      "Description": "RDS master password"
+    }
+  },
+  "Resources": {
+    "ECSCluster": {
+      "Type": "AWS::ECS::Cluster",
+      "Properties": {
+        "ClusterName": "finmind",
+        "CapacityProviders": ["FARGATE"],
+        "ClusterSettings": [
+          { "Name": "containerInsights", "Value": "enabled" }
+        ]
+      }
+    },
+    "ExecutionRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": { "Service": "ecs-tasks.amazonaws.com" },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "ManagedPolicyArns": [
+          "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+        ]
+      }
+    },
+    "TaskRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": { "Service": "ecs-tasks.amazonaws.com" },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        }
+      }
+    },
+    "LogGroup": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": "/ecs/finmind",
+        "RetentionInDays": 14
+      }
+    },
+    "ALBSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "ALB security group",
+        "VpcId": { "Ref": "VpcId" },
+        "SecurityGroupIngress": [
+          { "IpProtocol": "tcp", "FromPort": 80, "ToPort": 80, "CidrIp": "0.0.0.0/0" },
+          { "IpProtocol": "tcp", "FromPort": 443, "ToPort": 443, "CidrIp": "0.0.0.0/0" }
+        ]
+      }
+    },
+    "ServiceSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "ECS tasks security group",
+        "VpcId": { "Ref": "VpcId" },
+        "SecurityGroupIngress": [
+          {
+            "IpProtocol": "tcp",
+            "FromPort": 8000,
+            "ToPort": 8000,
+            "SourceSecurityGroupId": { "Ref": "ALBSecurityGroup" }
+          },
+          {
+            "IpProtocol": "tcp",
+            "FromPort": 80,
+            "ToPort": 80,
+            "SourceSecurityGroupId": { "Ref": "ALBSecurityGroup" }
+          }
+        ]
+      }
+    },
+    "ALB": {
+      "Type": "AWS::ElasticLoadBalancingV2::LoadBalancer",
+      "Properties": {
+        "Name": "finmind-alb",
+        "Subnets": { "Ref": "SubnetIds" },
+        "SecurityGroups": [{ "Ref": "ALBSecurityGroup" }],
+        "Scheme": "internet-facing"
+      }
+    },
+    "BackendTargetGroup": {
+      "Type": "AWS::ElasticLoadBalancingV2::TargetGroup",
+      "Properties": {
+        "Name": "finmind-backend-tg",
+        "Port": 8000,
+        "Protocol": "HTTP",
+        "VpcId": { "Ref": "VpcId" },
+        "TargetType": "ip",
+        "HealthCheckPath": "/health",
+        "HealthCheckIntervalSeconds": 30,
+        "HealthyThresholdCount": 2,
+        "UnhealthyThresholdCount": 3
+      }
+    },
+    "FrontendTargetGroup": {
+      "Type": "AWS::ElasticLoadBalancingV2::TargetGroup",
+      "Properties": {
+        "Name": "finmind-frontend-tg",
+        "Port": 80,
+        "Protocol": "HTTP",
+        "VpcId": { "Ref": "VpcId" },
+        "TargetType": "ip",
+        "HealthCheckPath": "/",
+        "HealthCheckIntervalSeconds": 30
+      }
+    },
+    "ALBListener": {
+      "Type": "AWS::ElasticLoadBalancingV2::Listener",
+      "Properties": {
+        "LoadBalancerArn": { "Ref": "ALB" },
+        "Port": 80,
+        "Protocol": "HTTP",
+        "DefaultActions": [
+          {
+            "Type": "forward",
+            "TargetGroupArn": { "Ref": "FrontendTargetGroup" }
+          }
+        ]
+      }
+    },
+    "BackendListenerRule": {
+      "Type": "AWS::ElasticLoadBalancingV2::ListenerRule",
+      "Properties": {
+        "ListenerArn": { "Ref": "ALBListener" },
+        "Priority": 10,
+        "Conditions": [
+          {
+            "Field": "path-pattern",
+            "Values": ["/api/*", "/health", "/metrics", "/auth/*", "/expenses/*", "/bills/*", "/reminders/*", "/insights/*", "/categories/*"]
+          }
+        ],
+        "Actions": [
+          {
+            "Type": "forward",
+            "TargetGroupArn": { "Ref": "BackendTargetGroup" }
+          }
+        ]
+      }
+    },
+    "BackendTaskDefinition": {
+      "Type": "AWS::ECS::TaskDefinition",
+      "Properties": {
+        "Family": "finmind-backend",
+        "Cpu": "256",
+        "Memory": "512",
+        "NetworkMode": "awsvpc",
+        "RequiresCompatibilities": ["FARGATE"],
+        "ExecutionRoleArn": { "Fn::GetAtt": ["ExecutionRole", "Arn"] },
+        "TaskRoleArn": { "Fn::GetAtt": ["TaskRole", "Arn"] },
+        "ContainerDefinitions": [
+          {
+            "Name": "backend",
+            "Image": { "Ref": "BackendImage" },
+            "Essential": true,
+            "PortMappings": [{ "ContainerPort": 8000 }],
+            "Environment": [
+              { "Name": "LOG_LEVEL", "Value": "INFO" },
+              { "Name": "GEMINI_MODEL", "Value": "gemini-1.5-flash" },
+              { "Name": "PROMETHEUS_MULTIPROC_DIR", "Value": "/tmp/prometheus_multiproc" }
+            ],
+            "Secrets": [
+              {
+                "Name": "DATABASE_URL",
+                "ValueFrom": { "Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/finmind/DATABASE_URL" }
+              },
+              {
+                "Name": "REDIS_URL",
+                "ValueFrom": { "Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/finmind/REDIS_URL" }
+              },
+              {
+                "Name": "JWT_SECRET",
+                "ValueFrom": { "Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/finmind/JWT_SECRET" }
+              }
+            ],
+            "Command": [
+              "sh", "-c",
+              "python -m flask --app wsgi:app init-db && rm -rf /tmp/prometheus_multiproc && mkdir -p /tmp/prometheus_multiproc && gunicorn --workers=2 --threads=4 --bind 0.0.0.0:8000 wsgi:app"
+            ],
+            "HealthCheck": {
+              "Command": ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"],
+              "Interval": 30,
+              "Timeout": 5,
+              "Retries": 3,
+              "StartPeriod": 30
+            },
+            "LogConfiguration": {
+              "LogDriver": "awslogs",
+              "Options": {
+                "awslogs-group": { "Ref": "LogGroup" },
+                "awslogs-region": { "Ref": "AWS::Region" },
+                "awslogs-stream-prefix": "backend"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "FrontendTaskDefinition": {
+      "Type": "AWS::ECS::TaskDefinition",
+      "Properties": {
+        "Family": "finmind-frontend",
+        "Cpu": "256",
+        "Memory": "512",
+        "NetworkMode": "awsvpc",
+        "RequiresCompatibilities": ["FARGATE"],
+        "ExecutionRoleArn": { "Fn::GetAtt": ["ExecutionRole", "Arn"] },
+        "ContainerDefinitions": [
+          {
+            "Name": "frontend",
+            "Image": { "Ref": "FrontendImage" },
+            "Essential": true,
+            "PortMappings": [{ "ContainerPort": 80 }],
+            "HealthCheck": {
+              "Command": ["CMD-SHELL", "curl -f http://localhost/ || exit 1"],
+              "Interval": 30,
+              "Timeout": 5,
+              "Retries": 3
+            },
+            "LogConfiguration": {
+              "LogDriver": "awslogs",
+              "Options": {
+                "awslogs-group": { "Ref": "LogGroup" },
+                "awslogs-region": { "Ref": "AWS::Region" },
+                "awslogs-stream-prefix": "frontend"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "BackendService": {
+      "Type": "AWS::ECS::Service",
+      "DependsOn": "BackendListenerRule",
+      "Properties": {
+        "ServiceName": "finmind-backend",
+        "Cluster": { "Ref": "ECSCluster" },
+        "TaskDefinition": { "Ref": "BackendTaskDefinition" },
+        "DesiredCount": 2,
+        "LaunchType": "FARGATE",
+        "NetworkConfiguration": {
+          "AwsvpcConfiguration": {
+            "AssignPublicIp": "ENABLED",
+            "Subnets": { "Ref": "SubnetIds" },
+            "SecurityGroups": [{ "Ref": "ServiceSecurityGroup" }]
+          }
+        },
+        "LoadBalancers": [
+          {
+            "ContainerName": "backend",
+            "ContainerPort": 8000,
+            "TargetGroupArn": { "Ref": "BackendTargetGroup" }
+          }
+        ]
+      }
+    },
+    "FrontendService": {
+      "Type": "AWS::ECS::Service",
+      "DependsOn": "ALBListener",
+      "Properties": {
+        "ServiceName": "finmind-frontend",
+        "Cluster": { "Ref": "ECSCluster" },
+        "TaskDefinition": { "Ref": "FrontendTaskDefinition" },
+        "DesiredCount": 2,
+        "LaunchType": "FARGATE",
+        "NetworkConfiguration": {
+          "AwsvpcConfiguration": {
+            "AssignPublicIp": "ENABLED",
+            "Subnets": { "Ref": "SubnetIds" },
+            "SecurityGroups": [{ "Ref": "ServiceSecurityGroup" }]
+          }
+        },
+        "LoadBalancers": [
+          {
+            "ContainerName": "frontend",
+            "ContainerPort": 80,
+            "TargetGroupArn": { "Ref": "FrontendTargetGroup" }
+          }
+        ]
+      }
+    },
+    "BackendAutoScaling": {
+      "Type": "AWS::ApplicationAutoScaling::ScalableTarget",
+      "Properties": {
+        "MaxCapacity": 10,
+        "MinCapacity": 2,
+        "ResourceId": { "Fn::Sub": "service/${ECSCluster}/${BackendService.Name}" },
+        "ScalableDimension": "ecs:service:DesiredCount",
+        "ServiceNamespace": "ecs"
+      }
+    },
+    "BackendCPUScalingPolicy": {
+      "Type": "AWS::ApplicationAutoScaling::ScalingPolicy",
+      "Properties": {
+        "PolicyName": "finmind-backend-cpu-scaling",
+        "PolicyType": "TargetTrackingScaling",
+        "ScalingTargetId": { "Ref": "BackendAutoScaling" },
+        "TargetTrackingScalingPolicyConfiguration": {
+          "PredefinedMetricSpecification": {
+            "PredefinedMetricType": "ECSServiceAverageCPUUtilization"
+          },
+          "TargetValue": 70.0,
+          "ScaleInCooldown": 300,
+          "ScaleOutCooldown": 60
+        }
+      }
+    }
+  },
+  "Outputs": {
+    "ALBDnsName": {
+      "Description": "Application Load Balancer DNS name",
+      "Value": { "Fn::GetAtt": ["ALB", "DNSName"] }
+    },
+    "ClusterName": {
+      "Description": "ECS Cluster name",
+      "Value": { "Ref": "ECSCluster" }
+    }
+  }
+}

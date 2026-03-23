@@ -1,0 +1,36 @@
+[build]
+  base = "app/"
+  command = "npm ci && npm run build"
+  publish = "app/dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+  # Set VITE_API_URL to your backend URL before deploying
+  # VITE_API_URL = "https://api.finmind.example.com"
+
+# SPA redirect — all routes serve index.html
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Security headers
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+
+# Cache static assets
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=604800, immutable"
+
+# Development context (branch deploys, deploy previews)
+[context.deploy-preview]
+  command = "npm ci && npm run build:dev"
+
+[context.branch-deploy]
+  command = "npm ci && npm run build:dev"

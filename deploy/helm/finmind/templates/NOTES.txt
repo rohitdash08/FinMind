@@ -1,0 +1,38 @@
+🎉 FinMind has been deployed!
+
+Release:   {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+
+Components:
+  ✅ Backend  (Flask/Gunicorn) — {{ .Values.backend.replicaCount }} replica(s)
+  ✅ Frontend (Vite/React)     — {{ .Values.frontend.replicaCount }} replica(s)
+{{- if .Values.postgres.enabled }}
+  ✅ PostgreSQL 16
+{{- end }}
+{{- if .Values.redis.enabled }}
+  ✅ Redis 7
+{{- end }}
+
+{{- if .Values.ingress.enabled }}
+Ingress:
+  {{- range .Values.ingress.hosts }}
+  🌐 http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}
+  {{- end }}
+{{- else }}
+
+To access FinMind locally, run:
+  kubectl port-forward svc/{{ .Release.Name }}-frontend 8080:{{ .Values.frontend.service.port }} -n {{ .Release.Namespace }}
+  kubectl port-forward svc/{{ .Release.Name }}-backend  8000:{{ .Values.backend.service.port }}  -n {{ .Release.Namespace }}
+
+Then open http://localhost:8080
+{{- end }}
+
+{{- if .Values.backend.autoscaling.enabled }}
+
+Autoscaling (Backend):
+  Min: {{ .Values.backend.autoscaling.minReplicas }} → Max: {{ .Values.backend.autoscaling.maxReplicas }}
+  CPU target: {{ .Values.backend.autoscaling.targetCPUUtilizationPercentage }}%
+{{- end }}
+
+⚠️  Remember to update the secrets in values.yaml before going to production!
+    Current secret values are placeholders.
