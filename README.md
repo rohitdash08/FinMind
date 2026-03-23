@@ -51,12 +51,18 @@ See `backend/app/db/schema.sql`. Key tables:
 
 ## Redis Caching Policy
 - Keys
-  - `user:{id}:monthly_summary:{yyyy-mm}` — 30 min TTL
-  - `user:{id}:categories` — 24h TTL
-  - `user:{id}:upcoming_bills` — 15 min TTL
-  - `insights:{id}` — 24h TTL (invalidate on new expense/bill)
-- Invalidation
-  - On expense/bill create/update/delete -> delete affected monthly_summary, upcoming_bills, insights
+- Insights: `/insights/monthly`, `/insights/budget-suggestion`
+
+## MVP UI/UX Plan
+- Auth screens: register/login.
+- Dashboard:
+  - Monthly spend chart, category breakdown donut.
+  - Upcoming bills list with due dates and pay status.
+  - AI budget suggestion card.
+- Savings Goals: track savings goals and milestones.
+- Expenses page: add expense (amount, category, notes, date), list & filter.
+- Bills page: create bill (name, amount, cadence, due date, channel), toggle WhatsApp/email.
+- Settings: profile, categories, reminders default channel, export (premium).
 - Rate limiting (optional): `rl:{userId}:{endpoint}:{minute}` with short TTL
 
 ## API Endpoints
