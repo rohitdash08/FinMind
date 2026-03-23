@@ -28,14 +28,27 @@ def budget_suggestion():
     return jsonify(suggestion)
 
 
+def _parse_ref_date() -> date | None:
+    """Parse optional ``date`` query-param, returning *None* when absent."""
+    raw = request.args.get("date")
+    if not raw:
+        return None
+    try:
+        return date.fromisoformat(raw)
+    except ValueError:
+        return None
+
+
 @bp.get("/weekly-digest")
 @jwt_required()
 def weekly_digest():
     uid = int(get_jwt_identity())
-    ref = request.args.get("date")
-    ref_date = date.fromisoformat(ref) if ref else None
+    ref_date = _parse_ref_date()
+    # Guard against clearly invalid / future dates
+    if ref_date and ref_date > date.today():
+        return jsonify(error="date cannot be in the future"), 400
     digest = generate_weekly_digest(uid, ref_date)
-    logger.info("Weekly digest served user=%s", uid)
+    logger.info("Weekly digest served user=%s date=%s", uid, ref_date)
     return jsonify(digest)
 
 
@@ -46,7 +59,9 @@ def send_digest_email():
     user = db.session.get(User, uid)
     if not user:
         return jsonify(error="user not found"), 404
-    ref = request.args.get("date")
-    ref_date = date.fromisoformat(ref) if ref else None
+    ref_date = _parse_ref_date()
+    if ref_date and ref_date > date.today():
+        return jsonify(error="date cannot be in the future"), 400
     sent = send_weekly_digest_email(uid, user.email, ref_date)
+    logger.info("Digest email sent=%s user=%s", sent, uid)
     return jsonify(sent=sent)

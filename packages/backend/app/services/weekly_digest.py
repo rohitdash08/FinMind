@@ -1,5 +1,5 @@
 from datetime import date, timedelta
-from sqlalchemy import func, extract
+from sqlalchemy import func
 from ..extensions import db
 from ..models import Expense, Category, Bill
 from ..services.cache import cache_get, cache_set
@@ -61,7 +61,8 @@ def generate_weekly_digest(user_id: int, ref_date: date | None = None) -> dict:
 
     # Insights
     insights = _generate_insights(
-        current_total, prev_total, wow_change_pct, trend, top_categories, current_income
+        current_total, prev_total, wow_change_pct, trend, top_categories, current_income,
+        daily_spending,
     )
 
     digest = {
@@ -239,9 +240,11 @@ def _generate_insights(
     trend: str,
     top_categories: list[dict],
     current_income: float,
+    daily_spending: list[dict] | None = None,
 ) -> list[str]:
     insights = []
 
+    # Trend insight
     if trend == "up" and abs(wow_pct) > 10:
         insights.append(
             f"Your spending increased by {wow_pct:.1f}% compared to last week. "
@@ -254,20 +257,37 @@ def _generate_insights(
     elif trend == "stable":
         insights.append("Your spending is consistent with last week.")
 
+    # Income vs. expenses
     if current_income > 0 and current_total > current_income:
         insights.append(
             f"You spent ${current_total - current_income:.2f} more than you earned this week."
         )
     elif current_income > 0 and current_total < current_income:
         savings = current_income - current_total
-        insights.append(f"You saved ${savings:.2f} this week. Keep it up!")
+        savings_rate = round((savings / current_income) * 100, 1)
+        insights.append(
+            f"You saved ${savings:.2f} this week ({savings_rate}% savings rate). Keep it up!"
+        )
 
+    # Dominant category warning
     if top_categories:
         top = top_categories[0]
         if top["share_pct"] > 50:
             insights.append(
                 f"{top['category_name']} accounts for {top['share_pct']:.0f}% of your spending. "
                 "Consider diversifying or reducing this category."
+            )
+
+    # Average daily spend & peak day
+    if daily_spending:
+        amounts = [d["amount"] for d in daily_spending]
+        nonzero = [a for a in amounts if a > 0]
+        if nonzero:
+            avg_daily = sum(nonzero) / len(nonzero)
+            peak = max(daily_spending, key=lambda d: d["amount"])
+            insights.append(
+                f"Your average daily spend was ${avg_daily:.2f}. "
+                f"Peak spending day: {peak['date']} (${peak['amount']:.2f})."
             )
 
     return insights
