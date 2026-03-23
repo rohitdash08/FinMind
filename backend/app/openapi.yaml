@@ -1,0 +1,35 @@
+openapi: 3.0.0
+info:
+  title: FinMind API
+  version: 1.0.0
+paths:
+  /api/dashboard/overview:
+    get:
+      summary: Get financial overview for multiple accounts
+      security:
+        - jwt: []
+      responses:
+        '200':
+          description: A JSON object containing the financial overview
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    type: string
+                  total_expenses:
+                    type: number
+                  total_bills:
+                    type: number
+                  accounts:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        expenses:
+                          type: number
+                        bills:
+                          type: number
