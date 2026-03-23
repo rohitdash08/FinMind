@@ -1,0 +1,52 @@
+# Fly.io configuration for FinMind backend
+# Docs: https://fly.io/docs/reference/configuration/
+
+app = "finmind-backend"
+primary_region = "iad"
+kill_signal = "SIGTERM"
+kill_timeout = "10s"
+
+[build]
+  dockerfile = "packages/backend/Dockerfile"
+
+[deploy]
+  strategy = "rolling"
+  release_command = "python -m flask --app wsgi:app init-db"
+
+[env]
+  LOG_LEVEL = "INFO"
+  GEMINI_MODEL = "gemini-1.5-flash"
+  PORT = "8000"
+  PROMETHEUS_MULTIPROC_DIR = "/tmp/prometheus_multiproc"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+  [http_service.concurrency]
+    type = "requests"
+    soft_limit = 200
+    hard_limit = 250
+
+  [[http_service.checks]]
+    interval = "15s"
+    timeout = "5s"
+    grace_period = "20s"
+    method = "GET"
+    path = "/health"
+
+[[vm]]
+  memory = "512mb"
+  cpu_kind = "shared"
+  cpus = 1
+
+[metrics]
+  port = 8000
+  path = "/metrics"
+
+[processes]
+  app = "sh -c 'rm -rf /tmp/prometheus_multiproc && mkdir -p /tmp/prometheus_multiproc && gunicorn --workers=2 --threads=4 --bind 0.0.0.0:8000 wsgi:app'"

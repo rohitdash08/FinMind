@@ -1,0 +1,234 @@
+# -- Global overrides
+global:
+  # -- Container image registry prefix (e.g. ghcr.io/rohitdash08)
+  imageRegistry: ""
+
+# ──────────────────────────────────────────────
+# Backend (Flask / Gunicorn)
+# ──────────────────────────────────────────────
+backend:
+  replicaCount: 2
+  image:
+    repository: ghcr.io/rohitdash08/finmind-backend
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8000
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: http
+    initialDelaySeconds: 20
+    periodSeconds: 20
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: http
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  env:
+    LOG_LEVEL: "INFO"
+    GEMINI_MODEL: "gemini-1.5-flash"
+  # -- Extra environment variables from secrets/configmaps
+  envFrom: []
+  # -- Pod annotations (Prometheus scraping, etc.)
+  podAnnotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8000"
+    prometheus.io/path: "/metrics"
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# ──────────────────────────────────────────────
+# Frontend (Vite/React → Nginx)
+# ──────────────────────────────────────────────
+frontend:
+  replicaCount: 2
+  image:
+    repository: ghcr.io/rohitdash08/finmind-frontend
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 80
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 8
+    targetCPUUtilizationPercentage: 75
+  livenessProbe:
+    httpGet:
+      path: /
+      port: http
+    initialDelaySeconds: 10
+    periodSeconds: 15
+  readinessProbe:
+    httpGet:
+      path: /
+      port: http
+    initialDelaySeconds: 5
+    periodSeconds: 10
+  podAnnotations: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# ──────────────────────────────────────────────
+# PostgreSQL
+# ──────────────────────────────────────────────
+postgres:
+  enabled: true
+  image:
+    repository: postgres
+    tag: "16"
+    pullPolicy: IfNotPresent
+  service:
+    port: 5432
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClass: ""
+    accessMode: ReadWriteOnce
+  livenessProbe:
+    exec:
+      command:
+        - pg_isready
+        - -U
+        - $(POSTGRES_USER)
+    initialDelaySeconds: 30
+    periodSeconds: 15
+  readinessProbe:
+    exec:
+      command:
+        - pg_isready
+        - -U
+        - $(POSTGRES_USER)
+    initialDelaySeconds: 5
+    periodSeconds: 10
+
+# ──────────────────────────────────────────────
+# Redis
+# ──────────────────────────────────────────────
+redis:
+  enabled: true
+  image:
+    repository: redis
+    tag: "7"
+    pullPolicy: IfNotPresent
+  service:
+    port: 6379
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+  livenessProbe:
+    exec:
+      command:
+        - redis-cli
+        - ping
+    initialDelaySeconds: 15
+    periodSeconds: 15
+  readinessProbe:
+    exec:
+      command:
+        - redis-cli
+        - ping
+    initialDelaySeconds: 5
+    periodSeconds: 10
+
+# ──────────────────────────────────────────────
+# Secrets (stored in Kubernetes Secret)
+# ──────────────────────────────────────────────
+secrets:
+  # -- Set to false if you manage secrets externally (e.g. External Secrets Operator)
+  create: true
+  postgresUser: finmind
+  postgresPassword: changeme-postgres-password
+  postgresDb: finmind
+  jwtSecret: changeme-jwt-secret
+  geminiApiKey: ""
+  openaiApiKey: ""
+  twilioAccountSid: ""
+  twilioAuthToken: ""
+  twilioWhatsappFrom: ""
+  emailFrom: ""
+  smtpUrl: ""
+
+# ──────────────────────────────────────────────
+# Ingress
+# ──────────────────────────────────────────────
+ingress:
+  enabled: false
+  className: nginx
+  annotations:
+    # cert-manager cluster issuer for automatic TLS
+    # cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+  hosts:
+    - host: finmind.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+          service: frontend
+        - path: /api
+          pathType: Prefix
+          service: backend
+        - path: /health
+          pathType: Exact
+          service: backend
+        - path: /metrics
+          pathType: Exact
+          service: backend
+  tls: []
+  #  - secretName: finmind-tls
+  #    hosts:
+  #      - finmind.example.com
+
+# ──────────────────────────────────────────────
+# Service Account
+# ──────────────────────────────────────────────
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+# ──────────────────────────────────────────────
+# Namespace
+# ──────────────────────────────────────────────
+namespace: finmind

@@ -140,10 +140,78 @@ finmind/
 ```
 
 ## Deployment
-- Backend: Dockerized Flask to Railway/Render free tier (Postgres & Redis managed or via Compose locally).
-- Frontend: Vercel.
-- Secrets: use environment variables (.env locally, platform secrets in cloud).
-- Kubernetes manifests for full stack deployment are available in `deploy/k8s/`.
+
+FinMind supports deployment to 14+ platforms. All configurations live in `deploy/`.
+
+### Quick Start (Docker Compose — Recommended for Local Dev)
+```bash
+cp .env.example .env    # edit secrets
+docker compose up --build
+# Frontend: http://localhost:5173  |  Backend: http://localhost:8000
+```
+
+### Kubernetes (Helm Chart)
+Full-stack Helm chart with HPA autoscaling, TLS-ready ingress, health probes, and Prometheus annotations.
+```bash
+# Install
+helm install finmind deploy/helm/finmind/ \
+  --namespace finmind --create-namespace \
+  --set secrets.postgresPassword=<password> \
+  --set secrets.jwtSecret=<secret> \
+  --set ingress.enabled=true \
+  --set ingress.hosts[0].host=finmind.example.com
+
+# Upgrade
+helm upgrade finmind deploy/helm/finmind/ --namespace finmind
+
+# Uninstall
+helm uninstall finmind --namespace finmind
+```
+
+### Kubernetes (Tilt — Local K8s Dev)
+```bash
+# Prerequisites: Tilt, kind/minikube/Docker Desktop K8s
+tilt up
+# Opens Tilt dashboard with live-reload for backend and frontend
+```
+
+### Platform-as-a-Service (One-Click Deploys)
+
+| Platform | Guide | Free Tier |
+|----------|-------|-----------|
+| **Railway** | [deploy/paas/railway/](deploy/paas/railway/) | ✅ |
+| **Heroku** | [deploy/paas/heroku/](deploy/paas/heroku/) | ✅ |
+| **DigitalOcean** | [deploy/paas/digitalocean/](deploy/paas/digitalocean/) | — |
+| **Render** | [deploy/paas/render/](deploy/paas/render/) | ✅ |
+| **Fly.io** | [deploy/paas/flyio/](deploy/paas/flyio/) | ✅ |
+| **Netlify** | [deploy/paas/netlify/](deploy/paas/netlify/) (frontend) | ✅ |
+| **Vercel** | [deploy/paas/vercel/](deploy/paas/vercel/) (frontend) | ✅ |
+
+### Cloud Providers
+
+| Provider | Guide |
+|----------|-------|
+| **AWS ECS Fargate** | [deploy/cloud/aws-ecs/](deploy/cloud/aws-ecs/) — CloudFormation template |
+| **GCP Cloud Run** | [deploy/cloud/gcp-cloudrun/](deploy/cloud/gcp-cloudrun/) — deploy script |
+| **Azure Container Apps** | [deploy/cloud/azure-container-apps/](deploy/cloud/azure-container-apps/) — deploy script |
+
+### Environment Variables
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `DATABASE_URL` | ✅ | `postgresql+psycopg2://finmind:finmind@postgres:5432/finmind` | PostgreSQL connection |
+| `REDIS_URL` | ✅ | `redis://redis:6379/0` | Redis connection |
+| `JWT_SECRET` | ✅ | `dev-secret-change` | JWT signing key |
+| `POSTGRES_USER` | ✅ | `finmind` | PostgreSQL username |
+| `POSTGRES_PASSWORD` | ✅ | `finmind` | PostgreSQL password |
+| `POSTGRES_DB` | ✅ | `finmind` | PostgreSQL database name |
+| `VITE_API_URL` | Frontend | `http://localhost:8000` | Backend API URL |
+| `LOG_LEVEL` | — | `INFO` | Logging level |
+| `GEMINI_API_KEY` | — | — | Google Gemini API key |
+| `OPENAI_API_KEY` | — | — | OpenAI API key |
+| `GEMINI_MODEL` | — | `gemini-1.5-flash` | Gemini model name |
+
+See each platform's README for platform-specific setup instructions.
 
 ## Local Development
 1) Prereqs: Docker, Docker Compose, Node 20+, Python 3.11+
