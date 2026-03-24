@@ -271,3 +271,133 @@ def analyze_login():
         "risk_factors": risk_factors,
         "recommendation": "allow" if risk_score < 0.5 else "review" if risk_score < 0.7 else "block"
     })
+
+
+# ============================================================================
+# Device Trust Management Endpoints
+# ============================================================================
+
+from ..services.login_anomaly import (
+    get_trusted_devices,
+    trust_device,
+    remove_device_trust,
+    is_device_trusted,
+    update_device_last_used,
+    get_device_by_id,
+)
+
+
+@bp.get("/devices")
+@jwt_required()
+def list_devices():
+    """
+    Get all trusted devices for the current user.
+    """
+    uid = int(get_jwt_identity())
+    devices = get_trusted_devices(uid)
+    
+    return jsonify({
+        "devices": devices,
+        "count": len(devices)
+    })
+
+
+@bp.post("/devices/trust")
+@jwt_required()
+def trust_device_route():
+    """
+    Trust the current device or a specified device.
+    
+    Request body:
+    - device_fingerprint (optional): Device fingerprint (defaults to current)
+    - device_name (optional): Friendly name for the device
+    """
+    uid = int(get_jwt_identity())
+    
+    data = request.get_json() or {}
+    device_fp = data.get("device_fingerprint") or get_device_fingerprint()
+    
+    if not device_fp:
+        return jsonify(error="device_fingerprint required"), 400
+    
+    device = trust_device(
+        user_id=uid,
+        device_fingerprint=device_fp,
+        device_name=data.get("device_name"),
+        user_agent=get_user_agent(),
+        ip_address=get_client_ip()
+    )
+    
+    return jsonify({
+        "message": "device trusted",
+        "device": device.to_dict()
+    }), 201
+
+
+@bp.delete("/devices/<int:device_id>")
+@jwt_required()
+def remove_trust_route(device_id: int):
+    """
+    Remove trust from a device.
+    """
+    uid = int(get_jwt_identity())
+    
+    success = remove_device_trust(uid, device_id)
+    
+    if not success:
+        return jsonify(error="device not found"), 404
+    
+    return jsonify({
+        "message": "device trust removed"
+    })
+
+
+@bp.get("/devices/status")
+@jwt_required()
+def device_status():
+    """
+    Check if the current device is trusted.
+    """
+    uid = int(get_jwt_identity())
+    device_fp = get_device_fingerprint()
+    
+    if not device_fp:
+        return jsonify({
+            "trusted": False,
+            "device_fingerprint": None
+        })
+    
+    trusted = is_device_trusted(uid, device_fp)
+    
+    return jsonify({
+        "trusted": trusted,
+        "device_fingerprint": device_fp[:16] + "..." if device_fp else None
+    })
+
+
+@bp.patch("/devices/<int:device_id>")
+@jwt_required()
+def update_device(device_id: int):
+    """
+    Update a trusted device's name.
+    """
+    uid = int(get_jwt_identity())
+    
+    data = request.get_json() or {}
+    device_name = data.get("device_name")
+    
+    if not device_name:
+        return jsonify(error="device_name required"), 400
+    
+    device = get_device_by_id(uid, device_id)
+    
+    if not device:
+        return jsonify(error="device not found"), 404
+    
+    device.device_name = device_name
+    db.session.commit()
+    
+    return jsonify({
+        "message": "device updated",
+        "device": device.to_dict()
+    })

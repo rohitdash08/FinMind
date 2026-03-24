@@ -366,4 +366,143 @@ pytest tests/test_security.py -v
 - [ ] Geographic location using GeoIP database
 - [ ] Two-factor authentication integration
 - [ ] Session management and remote logout
-- [ ] Device trust management UI
+
+---
+
+# Device Trust Management
+
+Users can view and manage their trusted devices for enhanced security.
+
+## Features
+
+- **List Trusted Devices**: View all devices marked as trusted
+- **Trust Device**: Mark current or specified device as trusted
+- **Remove Trust**: Revoke trust from devices
+- **Device Status**: Check if current device is trusted
+
+## API Endpoints
+
+### List Trusted Devices
+
+```http
+GET /security/devices
+Authorization: Bearer <token>
+```
+
+Response:
+```json
+{
+    "devices": [
+        {
+            "id": 1,
+            "device_name": "My Laptop",
+            "user_agent": "Mozilla/5.0...",
+            "ip_address": "192.168.1.1",
+            "last_used_at": "2026-03-24T10:00:00Z",
+            "trusted_at": "2026-03-20T08:00:00Z",
+            "is_active": true
+        }
+    ],
+    "count": 1
+}
+```
+
+### Trust Device
+
+```http
+POST /security/devices/trust
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+    "device_name": "My Laptop"
+}
+```
+
+Response:
+```json
+{
+    "message": "device trusted",
+    "device": {
+        "id": 1,
+        "device_name": "My Laptop",
+        ...
+    }
+}
+```
+
+### Remove Device Trust
+
+```http
+DELETE /security/devices/1
+Authorization: Bearer <token>
+```
+
+Response:
+```json
+{
+    "message": "device trust removed"
+}
+```
+
+### Check Device Status
+
+```http
+GET /security/devices/status
+Authorization: Bearer <token>
+```
+
+Response:
+```json
+{
+    "trusted": true,
+    "device_fingerprint": "abc123..."
+}
+```
+
+### Update Device Name
+
+```http
+PATCH /security/devices/1
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+    "device_name": "Work Laptop"
+}
+```
+
+## Database Schema
+
+### trusted_devices Table
+
+```sql
+CREATE TABLE trusted_devices (
+    id SERIAL PRIMARY KEY,
+    user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    device_fingerprint VARCHAR(128) NOT NULL,
+    device_name VARCHAR(100),
+    user_agent VARCHAR(500),
+    ip_address VARCHAR(45),
+    last_used_at TIMESTAMP DEFAULT NOW(),
+    trusted_at TIMESTAMP DEFAULT NOW(),
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+```
+
+## Integration with Login
+
+When a user logs in, the system checks if the device is trusted:
+
+1. If trusted: Lower risk score, smoother login
+2. If not trusted: Standard risk assessment
+
+## Testing
+
+Run the device trust tests:
+
+```bash
+cd packages/backend
+pytest tests/test_device_trust.py -v
+```

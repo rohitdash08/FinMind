@@ -635,3 +635,140 @@ def process_login(
         db.session.commit()
     
     return event, alert, False
+
+
+# ============================================================================
+# Device Trust Management
+# ============================================================================
+
+from ..models import TrustedDevice
+
+
+def get_trusted_devices(user_id: int) -> List[Dict[str, Any]]:
+    """
+    Get all trusted devices for a user.
+    """
+    devices = db.session.query(TrustedDevice).filter(
+        TrustedDevice.user_id == user_id,
+        TrustedDevice.is_active == True
+    ).order_by(desc(TrustedDevice.last_used_at)).all()
+    
+    return [d.to_dict() for d in devices]
+
+
+def trust_device(
+    user_id: int,
+    device_fingerprint: str,
+    device_name: Optional[str] = None,
+    user_agent: Optional[str] = None,
+    ip_address: Optional[str] = None
+) -> TrustedDevice:
+    """
+    Mark a device as trusted for a user.
+    """
+    # Check if already trusted
+    existing = db.session.query(TrustedDevice).filter(
+        TrustedDevice.user_id == user_id,
+        TrustedDevice.device_fingerprint == device_fingerprint
+    ).first()
+    
+    if existing:
+        # Update existing
+        existing.is_active = True
+        existing.last_used_at = datetime.utcnow()
+        existing.device_name = device_name or existing.device_name
+        existing.ip_address = ip_address or existing.ip_address
+        db.session.commit()
+        logger.info(f"Updated trusted device: user_id={user_id}, device={device_fingerprint[:16]}")
+        return existing
+    
+    # Create new trusted device
+    device = TrustedDevice(
+        user_id=user_id,
+        device_fingerprint=device_fingerprint,
+        device_name=device_name,
+        user_agent=user_agent,
+        ip_address=ip_address
+    )
+    db.session.add(device)
+    db.session.commit()
+    
+    logger.info(f"Created trusted device: user_id={user_id}, device={device_fingerprint[:16]}")
+    return device
+
+
+def remove_device_trust(user_id: int, device_id: int) -> bool:
+    """
+    Remove trust from a device.
+    """
+    device = db.session.query(TrustedDevice).filter(
+        TrustedDevice.id == device_id,
+        TrustedDevice.user_id == user_id
+    ).first()
+    
+    if not device:
+        return False
+    
+    device.is_active = False
+    db.session.commit()
+    
+    logger.info(f"Removed device trust: user_id={user_id}, device_id={device_id}")
+    return True
+
+
+def remove_trust_by_fingerprint(user_id: int, device_fingerprint: str) -> bool:
+    """
+    Remove trust from a device by fingerprint.
+    """
+    device = db.session.query(TrustedDevice).filter(
+        TrustedDevice.user_id == user_id,
+        TrustedDevice.device_fingerprint == device_fingerprint
+    ).first()
+    
+    if not device:
+        return False
+    
+    device.is_active = False
+    db.session.commit()
+    
+    logger.info(f"Removed device trust by fingerprint: user_id={user_id}")
+    return True
+
+
+def is_device_trusted(user_id: int, device_fingerprint: str) -> bool:
+    """
+    Check if a device is trusted for a user.
+    """
+    device = db.session.query(TrustedDevice).filter(
+        TrustedDevice.user_id == user_id,
+        TrustedDevice.device_fingerprint == device_fingerprint,
+        TrustedDevice.is_active == True
+    ).first()
+    
+    return device is not None
+
+
+def update_device_last_used(user_id: int, device_fingerprint: str) -> None:
+    """
+    Update the last used timestamp for a trusted device.
+    """
+    device = db.session.query(TrustedDevice).filter(
+        TrustedDevice.user_id == user_id,
+        TrustedDevice.device_fingerprint == device_fingerprint,
+        TrustedDevice.is_active == True
+    ).first()
+    
+    if device:
+        device.last_used_at = datetime.utcnow()
+        device.ip_address = get_client_ip()
+        db.session.commit()
+
+
+def get_device_by_id(user_id: int, device_id: int) -> Optional[TrustedDevice]:
+    """
+    Get a specific trusted device by ID.
+    """
+    return db.session.query(TrustedDevice).filter(
+        TrustedDevice.id == device_id,
+        TrustedDevice.user_id == user_id
+    ).first()

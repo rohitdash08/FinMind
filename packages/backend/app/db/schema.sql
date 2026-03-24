@@ -180,3 +180,23 @@ CREATE INDEX IF NOT EXISTS idx_security_alerts_type
 
 CREATE INDEX IF NOT EXISTS idx_security_alerts_severity 
   ON security_alerts(severity, created_at DESC);
+
+-- Trusted Devices Table
+CREATE TABLE IF NOT EXISTS trusted_devices (
+  id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  device_fingerprint VARCHAR(128) NOT NULL,
+  device_name VARCHAR(100),
+  user_agent VARCHAR(500),
+  ip_address VARCHAR(45),
+  last_used_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  trusted_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_trusted_devices_user 
+  ON trusted_devices(user_id, is_active, last_used_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_trusted_devices_fingerprint 
+  ON trusted_devices(device_fingerprint, user_id);

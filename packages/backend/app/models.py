@@ -223,3 +223,32 @@ class SecurityAlert(db.Model):
             "acknowledged_by": self.acknowledged_by,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
+
+
+class TrustedDevice(db.Model):
+    """Manage trusted devices for users."""
+    __tablename__ = "trusted_devices"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    device_fingerprint = db.Column(db.String(128), nullable=False)
+    device_name = db.Column(db.String(100), nullable=True)
+    user_agent = db.Column(db.String(500), nullable=True)
+    ip_address = db.Column(db.String(45), nullable=True)
+    last_used_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    trusted_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "device_fingerprint": self.device_fingerprint[:16] + "..." if self.device_fingerprint else None,
+            "device_name": self.device_name,
+            "user_agent": self.user_agent,
+            "ip_address": self.ip_address,
+            "last_used_at": self.last_used_at.isoformat() if self.last_used_at else None,
+            "trusted_at": self.trusted_at.isoformat() if self.trusted_at else None,
+            "is_active": self.is_active,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
