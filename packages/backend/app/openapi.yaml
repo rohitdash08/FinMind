@@ -480,6 +480,95 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
+  /insights/weekly-digest:
+    get:
+      summary: Get weekly financial digest
+      description: |
+        Returns a weekly financial summary including total income, total expenses,
+        net flow, week-over-week change, top spending categories, a day-by-day
+        breakdown, and actionable insights (heuristic or AI-powered via Gemini).
+      tags: [Insights]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: week
+          required: false
+          description: Any ISO date (YYYY-MM-DD) within the desired week. Defaults to the current week.
+          schema: { type: string, format: date }
+        - in: header
+          name: X-Gemini-Api-Key
+          required: false
+          description: Optional user-supplied Gemini API key for AI-enhanced insights.
+          schema: { type: string }
+        - in: header
+          name: X-Insight-Persona
+          required: false
+          description: Custom system persona for the AI model.
+          schema: { type: string }
+      responses:
+        '200':
+          description: Weekly digest
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  week_start: { type: string, format: date }
+                  week_end: { type: string, format: date }
+                  total_expenses: { type: number }
+                  total_income: { type: number }
+                  net_flow: { type: number }
+                  week_over_week_change_pct: { type: number }
+                  previous_week_expenses: { type: number }
+                  top_categories:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        category: { type: string }
+                        amount: { type: number }
+                  daily_breakdown:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        date: { type: string, format: date }
+                        amount: { type: number }
+                  insights:
+                    type: array
+                    items: { type: string }
+                  method: { type: string, enum: [heuristic, gemini] }
+                  warnings:
+                    type: array
+                    items: { type: string }
+              example:
+                week_start: "2025-08-11"
+                week_end: "2025-08-17"
+                total_expenses: 340.50
+                total_income: 500.00
+                net_flow: 159.50
+                week_over_week_change_pct: -12.3
+                previous_week_expenses: 388.00
+                top_categories:
+                  - { category: "Groceries", amount: 120.00 }
+                  - { category: "Transport", amount: 80.50 }
+                daily_breakdown:
+                  - { date: "2025-08-11", amount: 45.00 }
+                  - { date: "2025-08-12", amount: 110.50 }
+                insights:
+                  - "Great job! You spent 12.3% less than last week. Keep it up."
+                  - "Your top spend category this week: Groceries (120.0)."
+                method: heuristic
+        '400':
+          description: Invalid week format
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
 
 components:
   securitySchemes:
