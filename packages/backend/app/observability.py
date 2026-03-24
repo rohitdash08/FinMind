@@ -60,6 +60,12 @@ class Observability:
             ["event", "channel", "status"],
             registry=self.registry,
         )
+        self.job_events_total = Counter(
+            "finmind_job_events_total",
+            "Background job lifecycle events.",
+            ["event", "job_type", "status"],
+            registry=self.registry,
+        )
 
     def observe_http_request(
         self, method: str, endpoint: str, status_code: int, duration_seconds: float
@@ -77,6 +83,13 @@ class Observability:
     ) -> None:
         self.reminder_events_total.labels(
             event=event, channel=channel, status=status
+        ).inc()
+
+    def record_job_event(
+        self, event: str, job_type: str, status: str = "ok"
+    ) -> None:
+        self.job_events_total.labels(
+            event=event, job_type=job_type, status=status
         ).inc()
 
     def metrics_response(self) -> Response:
@@ -137,3 +150,9 @@ def track_reminder_event(event: str, channel: str, status: str = "ok") -> None:
     obs = current_app.extensions.get("observability")
     if obs:
         obs.record_reminder_event(event=event, channel=channel, status=status)
+
+
+def track_job_event(event: str, job_type: str, status: str = "ok") -> None:
+    obs = current_app.extensions.get("observability")
+    if obs:
+        obs.record_job_event(event=event, job_type=job_type, status=status)

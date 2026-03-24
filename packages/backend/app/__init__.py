@@ -110,6 +110,42 @@ def _ensure_schema_compatibility(app: Flask) -> None:
             NOT NULL DEFAULT 'INR'
             """
         )
+        # Background jobs table (idempotent migration)
+        cur.execute(
+            """
+            DO $$ BEGIN
+              CREATE TYPE job_status AS ENUM ('PENDING','RUNNING','SUCCESS','FAILED','DEAD_LETTER');
+            EXCEPTION WHEN duplicate_object THEN NULL;
+            END $$;
+            """
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS background_jobs (
+              id SERIAL PRIMARY KEY,
+              job_type VARCHAR(100) NOT NULL,
+              payload JSONB NOT NULL DEFAULT '{}',
+              status job_status NOT NULL DEFAULT 'PENDING',
+              attempt INT NOT NULL DEFAULT 0,
+              max_retries INT NOT NULL DEFAULT 3,
+              next_run_at TIMESTAMP NOT NULL DEFAULT NOW(),
+              last_error TEXT,
+              result JSONB,
+              created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+              updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+              completed_at TIMESTAMP
+            );
+            """
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_bg_jobs_status_next_run ON background_jobs(status, next_run_at);"
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_bg_jobs_type ON background_jobs(job_type);"
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_bg_jobs_created ON background_jobs(created_at DESC);"
+        )
         conn.commit()
     except Exception:
         app.logger.exception(
