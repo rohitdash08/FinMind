@@ -121,5 +121,15 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   id SERIAL PRIMARY KEY,
   user_id INT REFERENCES users(id) ON DELETE SET NULL,
   action VARCHAR(100) NOT NULL,
+  details JSONB,
+  ip_address VARCHAR(45),
+  user_agent VARCHAR(500),
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+CREATE INDEX IF NOT EXISTS idx_audit_logs_user ON audit_logs(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON audit_logs(action, created_at DESC);
+
+-- GDPR migration: add columns to existing audit_logs tables
+ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS details JSONB;
+ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS ip_address VARCHAR(45);
+ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS user_agent VARCHAR(500);
