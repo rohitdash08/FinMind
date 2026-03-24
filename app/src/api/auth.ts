@@ -1,6 +1,6 @@
 import { api } from './client';
 
-export type LoginResponse = { access_token: string; refresh_token?: string };
+export type LoginResponse = { access_token: string; refresh_token?: string; new_device?: boolean };
 
 export async function login(email: string, password: string): Promise<LoginResponse> {
   return api<LoginResponse>('/auth/login', { method: 'POST', body: { email, password } });
