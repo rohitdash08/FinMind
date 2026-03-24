@@ -4,7 +4,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..extensions import db
 from ..models import Bill, Reminder
 from ..observability import track_reminder_event
-from ..services.reminders import send_reminder
+from ..services.jobs import enqueue, process_due_jobs
 import logging
 
 bp = Blueprint("reminders", __name__)
@@ -159,6 +159,17 @@ def autopay_result_followup(bill_id: int):
 @bp.post("/run")
 @jwt_required()
 def run_due():
+    """Process due reminders via the resilient job system.
+
+    Instead of sending reminders inline (fire-and-forget), this now:
+    1. Finds due reminders for the user
+    2. Enqueues a background job for each reminder
+    3. Immediately processes due jobs (with retry support)
+    4. Returns job statistics
+
+    This ensures failed sends are retried with exponential backoff
+    and permanently failed jobs go to the dead-letter queue.
+    """
     uid = int(get_jwt_identity())
     now = datetime.utcnow() + timedelta(minutes=1)
     items = (
@@ -170,13 +181,27 @@ def run_due():
         )
         .all()
     )
+
+    enqueued = 0
     for r in items:
-        send_reminder(r)
-        r.sent = True
-        track_reminder_event(event="sent", channel=r.channel)
-    db.session.commit()
-    logger.info("Processed due reminders user=%s count=%s", uid, len(items))
-    return jsonify(processed=len(items))
+        enqueue(
+            job_type="send_reminder",
+            payload={"reminder_id": r.id},
+            max_retries=3,
+        )
+        enqueued += 1
+        track_reminder_event(event="enqueued", channel=r.channel)
+
+    # Process the just-enqueued jobs immediately
+    stats = process_due_jobs(limit=enqueued or 50)
+
+    logger.info(
+        "Processed due reminders user=%s enqueued=%s stats=%s",
+        uid,
+        enqueued,
+        stats,
+    )
+    return jsonify(enqueued=enqueued, **stats)
 
 
 def _bill_channels(bill: Bill) -> list[str]:

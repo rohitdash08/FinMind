@@ -12,6 +12,8 @@ tags:
   - name: Bills
   - name: Reminders
   - name: Insights
+  - name: Jobs
+  - name: Savings
 paths:
   /auth/register:
     post:
@@ -481,6 +483,255 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
 
+  # ── Background Jobs (Admin) ──────────────────────────────────────────
+
+  /admin/jobs/stats:
+    get:
+      summary: Aggregated job statistics
+      tags: [Jobs]
+      security: [bearerAuth: []]
+      responses:
+        '200':
+          description: Job stats by status and type
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  by_status: { type: object, additionalProperties: { type: integer } }
+                  by_type: { type: object, additionalProperties: { type: integer } }
+                  total: { type: integer }
+        '403': { description: Admin required }
+
+  /admin/jobs:
+    get:
+      summary: List background jobs
+      tags: [Jobs]
+      security: [bearerAuth: []]
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string, enum: [PENDING, RUNNING, SUCCESS, FAILED, DEAD_LETTER] }
+        - name: job_type
+          in: query
+          schema: { type: string }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 50 }
+        - name: offset
+          in: query
+          schema: { type: integer, default: 0 }
+      responses:
+        '200':
+          description: Paginated job list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total: { type: integer }
+                  offset: { type: integer }
+                  limit: { type: integer }
+                  jobs:
+                    type: array
+                    items: { $ref: '#/components/schemas/BackgroundJob' }
+        '403': { description: Admin required }
+
+  /admin/jobs/{job_id}:
+    get:
+      summary: Get job details
+      tags: [Jobs]
+      security: [bearerAuth: []]
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Job details
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BackgroundJob' }
+        '404': { description: Not found }
+    delete:
+      summary: Delete a job record
+      tags: [Jobs]
+      security: [bearerAuth: []]
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200': { description: Deleted }
+        '404': { description: Not found }
+
+  /admin/jobs/{job_id}/retry:
+    post:
+      summary: Retry a dead-lettered job
+      tags: [Jobs]
+      security: [bearerAuth: []]
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200': { description: Job reset to PENDING }
+        '400': { description: Job not in DEAD_LETTER status }
+        '404': { description: Not found }
+
+  /admin/jobs/process:
+    post:
+      summary: Manually trigger job processing
+      tags: [Jobs]
+      security: [bearerAuth: []]
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, default: 50 }
+      responses:
+        '200':
+          description: Processing results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  processed: { type: integer }
+                  succeeded: { type: integer }
+                  failed: { type: integer }
+                  dead_lettered: { type: integer }
+
+  # ── Savings Goals ─────────────────────────────────────────────────────
+
+  /savings/goals:
+    get:
+      summary: List savings goals
+      tags: [Savings]
+      security: [bearerAuth: []]
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string, enum: [ACTIVE, COMPLETED, PAUSED] }
+      responses:
+        '200':
+          description: List of goals with progress
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/SavingsGoal' }
+    post:
+      summary: Create a savings goal
+      tags: [Savings]
+      security: [bearerAuth: []]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NewSavingsGoal' }
+      responses:
+        '201': { description: Created }
+        '400': { description: Validation error }
+
+  /savings/goals/{goal_id}:
+    get:
+      summary: Get goal with contributions
+      tags: [Savings]
+      security: [bearerAuth: []]
+      parameters:
+        - name: goal_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Goal detail
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SavingsGoalDetail' }
+        '404': { description: Not found }
+    patch:
+      summary: Update a savings goal
+      tags: [Savings]
+      security: [bearerAuth: []]
+      parameters:
+        - name: goal_id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateSavingsGoal' }
+      responses:
+        '200': { description: Updated }
+        '404': { description: Not found }
+    delete:
+      summary: Delete a savings goal
+      tags: [Savings]
+      security: [bearerAuth: []]
+      parameters:
+        - name: goal_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200': { description: Deleted }
+
+  /savings/goals/{goal_id}/contribute:
+    post:
+      summary: Add a contribution
+      tags: [Savings]
+      security: [bearerAuth: []]
+      parameters:
+        - name: goal_id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NewContribution' }
+      responses:
+        '201': { description: Contribution added }
+        '400': { description: Validation error }
+        '404': { description: Goal not found }
+
+  /savings/goals/{goal_id}/milestones:
+    get:
+      summary: Get milestone status
+      tags: [Savings]
+      security: [bearerAuth: []]
+      parameters:
+        - name: goal_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Milestone details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  goal_id: { type: integer }
+                  progress_pct: { type: number }
+                  milestones:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        threshold: { type: integer }
+                        reached: { type: boolean }
+                        amount_at_threshold: { type: number }
+                  next_milestone: { type: integer, nullable: true }
+                  amount_to_next: { type: number }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -587,3 +838,74 @@ components:
         message: { type: string }
         send_at: { type: string, format: date-time }
         channel: { type: string, enum: [email, whatsapp], default: email }
+    BackgroundJob:
+      type: object
+      properties:
+        id: { type: integer }
+        job_type: { type: string }
+        payload: { type: object }
+        status: { type: string, enum: [PENDING, RUNNING, SUCCESS, FAILED, DEAD_LETTER] }
+        attempt: { type: integer }
+        max_retries: { type: integer }
+        next_run_at: { type: string, format: date-time, nullable: true }
+        last_error: { type: string, nullable: true }
+        result: { type: object, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        completed_at: { type: string, format: date-time, nullable: true }
+    SavingsGoal:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        target_amount: { type: number, format: float }
+        current_amount: { type: number, format: float }
+        currency: { type: string }
+        progress_pct: { type: number }
+        remaining: { type: number }
+        deadline: { type: string, format: date, nullable: true }
+        category: { type: string, nullable: true }
+        status: { type: string, enum: [ACTIVE, COMPLETED, PAUSED] }
+        milestones_reached:
+          type: array
+          items: { type: integer }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    SavingsGoalDetail:
+      allOf:
+        - $ref: '#/components/schemas/SavingsGoal'
+        - type: object
+          properties:
+            contributions:
+              type: array
+              items:
+                type: object
+                properties:
+                  id: { type: integer }
+                  amount: { type: number, format: float }
+                  note: { type: string, nullable: true }
+                  contributed_at: { type: string, format: date }
+    NewSavingsGoal:
+      type: object
+      required: [name, target_amount]
+      properties:
+        name: { type: string }
+        target_amount: { type: number, format: float }
+        currency: { type: string, default: INR }
+        deadline: { type: string, format: date, nullable: true }
+        category: { type: string, nullable: true }
+    UpdateSavingsGoal:
+      type: object
+      properties:
+        name: { type: string }
+        target_amount: { type: number, format: float }
+        deadline: { type: string, format: date, nullable: true }
+        category: { type: string, nullable: true }
+        status: { type: string, enum: [ACTIVE, COMPLETED, PAUSED] }
+    NewContribution:
+      type: object
+      required: [amount]
+      properties:
+        amount: { type: number, format: float }
+        note: { type: string, nullable: true }
+        contributed_at: { type: string, format: date, nullable: true }

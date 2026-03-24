@@ -133,3 +133,77 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class JobStatus(str, Enum):
+    PENDING = "PENDING"
+    RUNNING = "RUNNING"
+    SUCCESS = "SUCCESS"
+    FAILED = "FAILED"
+    DEAD_LETTER = "DEAD_LETTER"
+
+
+class BackgroundJob(db.Model):
+    """Tracks background job execution with retry support."""
+
+    __tablename__ = "background_jobs"
+
+    id = db.Column(db.Integer, primary_key=True)
+    job_type = db.Column(db.String(100), nullable=False, index=True)
+    payload = db.Column(db.JSON, nullable=False, default=dict)
+    status = db.Column(
+        SAEnum(JobStatus), nullable=False, default=JobStatus.PENDING, index=True
+    )
+    attempt = db.Column(db.Integer, nullable=False, default=0)
+    max_retries = db.Column(db.Integer, nullable=False, default=3)
+    next_run_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    last_error = db.Column(db.Text, nullable=True)
+    result = db.Column(db.JSON, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    completed_at = db.Column(db.DateTime, nullable=True)
+
+
+class SavingsGoalStatus(str, Enum):
+    ACTIVE = "ACTIVE"
+    COMPLETED = "COMPLETED"
+    PAUSED = "PAUSED"
+
+
+class SavingsGoal(db.Model):
+    """A savings goal with a target amount and optional deadline."""
+
+    __tablename__ = "savings_goals"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    name = db.Column(db.String(200), nullable=False)
+    target_amount = db.Column(db.Numeric(12, 2), nullable=False)
+    current_amount = db.Column(db.Numeric(12, 2), nullable=False, default=0)
+    currency = db.Column(db.String(10), nullable=False, default="INR")
+    deadline = db.Column(db.Date, nullable=True)
+    category = db.Column(db.String(100), nullable=True)
+    status = db.Column(
+        db.String(20), nullable=False, default=SavingsGoalStatus.ACTIVE.value
+    )
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    contributions = db.relationship(
+        "SavingsContribution", backref="goal", lazy="dynamic", cascade="all, delete-orphan"
+    )
+
+
+class SavingsContribution(db.Model):
+    """A single contribution toward a savings goal."""
+
+    __tablename__ = "savings_contributions"
+
+    id = db.Column(db.Integer, primary_key=True)
+    goal_id = db.Column(
+        db.Integer, db.ForeignKey("savings_goals.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    amount = db.Column(db.Numeric(12, 2), nullable=False)
+    note = db.Column(db.String(500), nullable=True)
+    contributed_at = db.Column(db.Date, nullable=False, default=date.today)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)

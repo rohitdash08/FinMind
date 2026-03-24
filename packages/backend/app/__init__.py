@@ -110,6 +110,78 @@ def _ensure_schema_compatibility(app: Flask) -> None:
             NOT NULL DEFAULT 'INR'
             """
         )
+        # Background jobs table (idempotent migration)
+        cur.execute(
+            """
+            DO $$ BEGIN
+              CREATE TYPE job_status AS ENUM ('PENDING','RUNNING','SUCCESS','FAILED','DEAD_LETTER');
+            EXCEPTION WHEN duplicate_object THEN NULL;
+            END $$;
+            """
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS background_jobs (
+              id SERIAL PRIMARY KEY,
+              job_type VARCHAR(100) NOT NULL,
+              payload JSONB NOT NULL DEFAULT '{}',
+              status job_status NOT NULL DEFAULT 'PENDING',
+              attempt INT NOT NULL DEFAULT 0,
+              max_retries INT NOT NULL DEFAULT 3,
+              next_run_at TIMESTAMP NOT NULL DEFAULT NOW(),
+              last_error TEXT,
+              result JSONB,
+              created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+              updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+              completed_at TIMESTAMP
+            );
+            """
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_bg_jobs_status_next_run ON background_jobs(status, next_run_at);"
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_bg_jobs_type ON background_jobs(job_type);"
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_bg_jobs_created ON background_jobs(created_at DESC);"
+        )
+        # Savings goals tables (Issue #133)
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS savings_goals (
+              id SERIAL PRIMARY KEY,
+              user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              name VARCHAR(200) NOT NULL,
+              target_amount NUMERIC(12,2) NOT NULL,
+              current_amount NUMERIC(12,2) NOT NULL DEFAULT 0,
+              currency VARCHAR(10) NOT NULL DEFAULT 'INR',
+              deadline DATE,
+              category VARCHAR(100),
+              status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
+              created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+              updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+            );
+            """
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_savings_goals_user ON savings_goals(user_id, status);"
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS savings_contributions (
+              id SERIAL PRIMARY KEY,
+              goal_id INT NOT NULL REFERENCES savings_goals(id) ON DELETE CASCADE,
+              amount NUMERIC(12,2) NOT NULL,
+              note VARCHAR(500),
+              contributed_at DATE NOT NULL DEFAULT CURRENT_DATE,
+              created_at TIMESTAMP NOT NULL DEFAULT NOW()
+            );
+            """
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_savings_contributions_goal ON savings_contributions(goal_id, contributed_at DESC);"
+        )
         conn.commit()
     except Exception:
         app.logger.exception(
