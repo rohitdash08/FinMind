@@ -133,3 +133,31 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class LoginAttempt(db.Model):
+    """Tracks every login attempt for anomaly detection."""
+
+    __tablename__ = "login_attempts"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    email = db.Column(db.String(255), nullable=False)
+    ip_address = db.Column(db.String(45), nullable=True)
+    user_agent = db.Column(db.String(500), nullable=True)
+    success = db.Column(db.Boolean, nullable=False, default=False)
+    failure_reason = db.Column(db.String(100), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class LoginAlert(db.Model):
+    """Stores anomaly alerts triggered by suspicious login behavior."""
+
+    __tablename__ = "login_alerts"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    alert_type = db.Column(db.String(50), nullable=False)
+    severity = db.Column(db.String(20), nullable=False, default="medium")
+    message = db.Column(db.String(500), nullable=False)
+    metadata_json = db.Column(db.Text, nullable=True)
+    read = db.Column(db.Boolean, nullable=False, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
