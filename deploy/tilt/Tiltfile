@@ -1,0 +1,47 @@
+# FinMind Tiltfile - Local Kubernetes Development
+load('ext://helm_resource', 'helm_resource')
+load('ext://namespace', 'namespace_create')
+
+# Configuration
+allow_k8s_contexts(['minikube', 'docker-desktop', 'kind-kind', 'colima'])
+namespace_create('finmind-dev')
+
+# Build images with live reload
+docker_build(
+    'finmind/backend',
+    context='../..',
+    dockerfile='deploy/docker/Dockerfile.backend',
+    live_update=[
+        sync('../../packages/backend/app', '/app/app'),
+        sync('../../packages/backend/wsgi.py', '/app/wsgi.py'),
+        run('pip install -r requirements.txt', trigger=['requirements.txt']),
+    ]
+)
+
+docker_build(
+    'finmind/frontend',
+    context='../..',
+    dockerfile='deploy/docker/Dockerfile.frontend',
+    live_update=[
+        sync('../../app/src', '/app/src'),
+        run('npm install', trigger=['package.json']),
+    ]
+)
+
+# Deploy via Helm
+helm_resource(
+    'finmind',
+    '../kubernetes/helm',
+    namespace='finmind-dev',
+    flags=[
+        '--set', 'autoscaling.enabled=false',
+        '--set', 'replicaCount.backend=1',
+        '--set', 'replicaCount.frontend=1',
+        '--set', 'ingress.enabled=false',
+    ],
+    deps=['../kubernetes/helm']
+)
+
+# Port forwards for local access
+k8s_resource('finmind-backend', port_forwards=['8000:8000'])
+k8s_resource('finmind-frontend', port_forwards=['3080:80'])

@@ -1,0 +1,21 @@
+# FinMind Backend - Production Dockerfile
+FROM python:3.12-slim AS base
+WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends gcc libpq-dev && rm -rf /var/lib/apt/lists/*
+
+FROM base AS deps
+COPY packages/backend/requirements*.txt ./
+RUN pip install --no-cache-dir -r requirements.txt 2>/dev/null || pip install --no-cache-dir flask gunicorn psycopg2-binary redis prometheus-client
+
+FROM base AS runtime
+COPY --from=deps /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
+COPY --from=deps /usr/local/bin /usr/local/bin
+COPY packages/backend/ .
+
+ENV PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus_multiproc
+RUN mkdir -p $PROMETHEUS_MULTIPROC_DIR
+
+EXPOSE 8000
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" || exit 1
+
+CMD ["sh", "-c", "python -m flask --app wsgi:app init-db && gunicorn --workers=2 --threads=4 --bind 0.0.0.0:8000 --access-logfile - --error-logfile - wsgi:app"]

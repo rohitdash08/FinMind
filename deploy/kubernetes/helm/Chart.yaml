@@ -1,0 +1,10 @@
+apiVersion: v2
+name: finmind
+description: FinMind - Personal Finance Management Platform
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords: [finance, budgeting, personal-finance]
+maintainers:
+  - name: Padrao Bitcoin
+    email: standardbitcoin.io@gmail.com
