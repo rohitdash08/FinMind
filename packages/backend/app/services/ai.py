@@ -180,8 +180,9 @@ def monthly_budget_suggestion(
     if key:
         try:
             return _gemini_budget_suggestion(uid, ym, key, model, persona_text)
-        except Exception:
-            return _heuristic_budget(
-                uid, ym, persona_text, warnings=["gemini_unavailable"]
-            )
+        except Exception as e:
+            warnings = ["gemini_unavailable"]
+            if "timed out" in str(e).lower():
+                warnings.append("timeout")
+            return _heuristic_budget(uid, ym, persona_text, warnings=warnings)
     return _heuristic_budget(uid, ym, persona_text)
