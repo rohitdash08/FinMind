@@ -10,6 +10,7 @@ from flask_jwt_extended import (
 )
 from ..extensions import db, redis_client
 from ..models import User
+from ..services.login_anomaly import record_login_attempt, detect_anomalies
 import logging
 import time
 
@@ -26,6 +27,13 @@ SUPPORTED_CURRENCIES = {
     "CAD",
     "JPY",
 }
+
+
+def _client_ip() -> str | None:
+    """Extract client IP from request, respecting proxy headers."""
+    if request.headers.get("X-Forwarded-For"):
+        return request.headers["X-Forwarded-For"].split(",")[0].strip()
+    return request.remote_addr
 
 
 @bp.post("/register")
@@ -55,15 +63,55 @@ def login():
     data = request.get_json() or {}
     email = data.get("email")
     password = data.get("password")
+    ip_address = _client_ip()
+    user_agent = request.headers.get("User-Agent")
+
     user = db.session.query(User).filter_by(email=email).first()
     if not user or not check_password_hash(user.password_hash, password):
+        # Record failed attempt and check for anomalies
+        attempt = record_login_attempt(
+            email=email or "",
+            success=False,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            failure_reason="invalid_credentials",
+        )
+        try:
+            detect_anomalies(attempt)
+        except Exception:
+            logger.exception("Anomaly detection failed for failed login")
         logger.warning("Login failed for email=%s", email)
         return jsonify(error="invalid credentials"), 401
+
+    # Record successful attempt and check for anomalies
+    attempt = record_login_attempt(
+        email=email,
+        success=True,
+        ip_address=ip_address,
+        user_agent=user_agent,
+    )
+    alerts = []
+    try:
+        alerts = detect_anomalies(attempt)
+    except Exception:
+        logger.exception("Anomaly detection failed for successful login")
+
     access = create_access_token(identity=str(user.id))
     refresh = create_refresh_token(identity=str(user.id))
     _store_refresh_session(refresh, str(user.id))
     logger.info("Login success user_id=%s", user.id)
-    return jsonify(access_token=access, refresh_token=refresh)
+
+    response_data = {"access_token": access, "refresh_token": refresh}
+    if alerts:
+        response_data["security_alerts"] = [
+            {
+                "type": a.alert_type,
+                "severity": a.severity,
+                "message": a.message,
+            }
+            for a in alerts
+        ]
+    return jsonify(response_data)
 
 
 @bp.get("/me")
