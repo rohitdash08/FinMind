@@ -12,6 +12,7 @@ tags:
   - name: Bills
   - name: Reminders
   - name: Insights
+  - name: Goals
 paths:
   /auth/register:
     post:
@@ -251,6 +252,121 @@ paths:
                 properties:
                   inserted: { type: integer }
 
+  /goals:
+    get:
+      summary: List savings goals
+      tags: [Goals]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: status
+          schema: { type: string, enum: [ACTIVE, COMPLETED, CANCELLED] }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/SavingsGoal' } }
+    post:
+      summary: Create savings goal
+      tags: [Goals]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NewGoal' }
+      responses:
+        '201': { description: Created }
+  /goals/{goalId}:
+    get:
+      summary: Get goal
+      tags: [Goals]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: goalId
+          required: true
+          schema: { type: integer }
+      responses:
+        '200': { description: OK }
+        '404': { description: Not found }
+    put:
+      summary: Update goal
+      tags: [Goals]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: goalId
+          required: true
+          schema: { type: integer }
+      responses:
+        '200': { description: Updated }
+    delete:
+      summary: Cancel goal
+      tags: [Goals]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: goalId
+          required: true
+          schema: { type: integer }
+      responses:
+        '200': { description: Cancelled }
+  /goals/{goalId}/progress:
+    get:
+      summary: Get goal progress with milestones
+      tags: [Goals]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: goalId
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GoalProgress' }
+  /goals/{goalId}/contribute:
+    post:
+      summary: Add contribution to goal
+      tags: [Goals]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: goalId
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount]
+              properties:
+                amount: { type: number }
+                note: { type: string }
+      responses:
+        '201': { description: Created }
+  /goals/{goalId}/contributions:
+    get:
+      summary: List contributions for goal
+      tags: [Goals]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: goalId
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Contribution' } }
   /bills:
     get:
       summary: List bills
@@ -587,3 +703,52 @@ components:
         message: { type: string }
         send_at: { type: string, format: date-time }
         channel: { type: string, enum: [email, whatsapp], default: email }
+    SavingsGoal:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        target_amount: { type: number }
+        current_amount: { type: number }
+        currency: { type: string }
+        deadline: { type: string, format: date, nullable: true }
+        status: { type: string, enum: [ACTIVE, COMPLETED, CANCELLED] }
+        created_at: { type: string, format: date-time }
+    NewGoal:
+      type: object
+      required: [name, target_amount]
+      properties:
+        name: { type: string }
+        target_amount: { type: number }
+        currency: { type: string, default: INR }
+        deadline: { type: string, format: date }
+    GoalProgress:
+      type: object
+      properties:
+        goal_id: { type: integer }
+        name: { type: string }
+        target: { type: number }
+        current: { type: number }
+        remaining: { type: number }
+        progress_pct: { type: number }
+        status: { type: string }
+        on_track: { type: boolean }
+        deadline: { type: string, format: date }
+        days_left: { type: integer }
+        daily_savings_needed: { type: number }
+        milestones:
+          type: array
+          items:
+            type: object
+            properties:
+              pct: { type: integer }
+              reached: { type: boolean }
+              amount: { type: number }
+    Contribution:
+      type: object
+      properties:
+        id: { type: integer }
+        goal_id: { type: integer }
+        amount: { type: number }
+        note: { type: string, nullable: true }
+        contributed_at: { type: string, format: date }
