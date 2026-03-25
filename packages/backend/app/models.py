@@ -127,6 +127,24 @@ class UserSubscription(db.Model):
     started_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
 
+class WeeklyDigest(db.Model):
+    __tablename__ = "weekly_digests"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    week_start = db.Column(db.Date, nullable=False)
+    week_end = db.Column(db.Date, nullable=False)
+    summary = db.Column(db.Text, nullable=False)
+    tips = db.Column(db.Text, default="[]", nullable=False)
+    highlights = db.Column(db.Text, default="[]", nullable=False)
+    raw_data = db.Column(db.Text, default="{}", nullable=False)
+    method = db.Column(db.String(20), default="heuristic", nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        db.UniqueConstraint("user_id", "week_start", name="uq_user_week"),
+    )
+
+
 class AuditLog(db.Model):
     __tablename__ = "audit_logs"
     id = db.Column(db.Integer, primary_key=True)

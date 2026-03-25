@@ -117,6 +117,20 @@ CREATE TABLE IF NOT EXISTS user_subscriptions (
   started_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS weekly_digests (
+  id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  week_start DATE NOT NULL,
+  week_end DATE NOT NULL,
+  summary TEXT NOT NULL,
+  tips TEXT NOT NULL DEFAULT '[]',
+  highlights TEXT NOT NULL DEFAULT '[]',
+  raw_data TEXT NOT NULL DEFAULT '{}',
+  method VARCHAR(20) NOT NULL DEFAULT 'heuristic',
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  UNIQUE (user_id, week_start)
+);
+
 CREATE TABLE IF NOT EXISTS audit_logs (
   id SERIAL PRIMARY KEY,
   user_id INT REFERENCES users(id) ON DELETE SET NULL,
