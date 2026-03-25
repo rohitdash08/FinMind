@@ -1,0 +1,38 @@
+{
+  "id": "rohitdash08__FinMind__132",
+  "status": "push_only",
+  "bounty": {
+    "source": "github",
+    "id": "3949243458",
+    "title": "[rohitdash08/FinMind] Multi-account financial overview dashboard",
+    "reward": 200,
+    "token": "USD",
+    "deadline": "",
+    "days_left": 999,
+    "submissions": 0,
+    "agent_allowed": true,
+    "url": "https://github.com/rohitdash08/FinMind/issues/132",
+    "sponsor": "rohitdash08/FinMind",
+    "score": 40,
+    "type": "github_issue"
+  },
+  "issue": {
+    "owner": "rohitdash08",
+    "repo": "FinMind",
+    "issue_num": "132",
+    "title": "Multi-account financial overview dashboard",
+    "body": "Support viewing multiple financial accounts in one view.\r\n\r\n## Acceptance Criteria\r\n- Production ready implementation\r\n- Includes tests\r\n- Documentation updated",
+    "labels": [
+      "feature",
+      "bounty",
+      "\ud83d\udc8e Bounty",
+      "$200"
+    ]
+  },
+  "branch": "kiro/multi-account-financial-overview-dashboa",
+  "default_branch": "main",
+  "job_dir": "/home/ubuntu/.openclaw/workspace/skills/kiro/jobs/rohitdash08__FinMind__132",
+  "task_file": "/home/ubuntu/.openclaw/workspace/skills/kiro/jobs/rohitdash08__FinMind__132/.kiro-task.md",
+  "created_at": "2026-03-25T01:36:23.974075",
+  "auto_execute": true
+}

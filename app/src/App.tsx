@@ -91,6 +91,14 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="accounts"
+              element={
+                <ProtectedRoute>
+                  <Account />
+                </ProtectedRoute>
+              }
+            />
           </Route>
           <Route path="/signin" element={<SignIn />} />
           <Route path="/register" element={<Register />} />
