@@ -12,6 +12,7 @@ tags:
   - name: Bills
   - name: Reminders
   - name: Insights
+  - name: Accounts
 paths:
   /auth/register:
     post:
@@ -251,6 +252,85 @@ paths:
                 properties:
                   inserted: { type: integer }
 
+  /accounts:
+    get:
+      summary: List accounts
+      tags: [Accounts]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: include_inactive
+          schema: { type: boolean, default: false }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Account' } }
+    post:
+      summary: Create account
+      tags: [Accounts]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NewAccount' }
+      responses:
+        '201': { description: Created }
+        '400': { description: Invalid input }
+  /accounts/overview:
+    get:
+      summary: Get aggregated overview with net worth
+      tags: [Accounts]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AccountOverview' }
+  /accounts/{accountId}:
+    get:
+      summary: Get account
+      tags: [Accounts]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: accountId
+          required: true
+          schema: { type: integer }
+      responses:
+        '200': { description: OK }
+        '404': { description: Not found }
+    put:
+      summary: Update account
+      tags: [Accounts]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: accountId
+          required: true
+          schema: { type: integer }
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NewAccount' }
+      responses:
+        '200': { description: Updated }
+        '404': { description: Not found }
+    delete:
+      summary: Deactivate account (soft-delete)
+      tags: [Accounts]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: accountId
+          required: true
+          schema: { type: integer }
+      responses:
+        '200': { description: Deactivated }
+        '404': { description: Not found }
   /bills:
     get:
       summary: List bills
@@ -587,3 +667,31 @@ components:
         message: { type: string }
         send_at: { type: string, format: date-time }
         channel: { type: string, enum: [email, whatsapp], default: email }
+    Account:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        account_type: { type: string, enum: [checking, savings, credit, cash, investment] }
+        currency: { type: string }
+        balance: { type: number, format: float }
+        is_active: { type: boolean }
+        color: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+    NewAccount:
+      type: object
+      required: [name, account_type]
+      properties:
+        name: { type: string }
+        account_type: { type: string, enum: [checking, savings, credit, cash, investment] }
+        currency: { type: string, default: INR }
+        balance: { type: number, format: float, default: 0 }
+        color: { type: string }
+    AccountOverview:
+      type: object
+      properties:
+        total_balance: { type: number, format: float }
+        net_worth: { type: number, format: float }
+        account_count: { type: integer }
+        by_type: { type: object }
+        accounts: { type: array, items: { $ref: '#/components/schemas/Account' } }

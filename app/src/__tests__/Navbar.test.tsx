@@ -27,7 +27,7 @@ describe('Navbar auth state', () => {
   it('shows Account/Logout when signed in (token present)', () => {
     localStorage.setItem('fm_token', 'token');
     renderNav();
-    expect(screen.getByRole('link', { name: /account/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /^account$/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /logout/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /finmind/i })).toHaveAttribute('href', '/dashboard');
   });
