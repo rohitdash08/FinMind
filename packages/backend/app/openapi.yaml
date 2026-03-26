@@ -12,6 +12,7 @@ tags:
   - name: Bills
   - name: Reminders
   - name: Insights
+  - name: Digest
 paths:
   /auth/register:
     post:
@@ -475,6 +476,128 @@ paths:
                   wants: 360
                   savings: 240
                 tips: ["Cap dining spend to 80% of last month", "Automate weekly transfer to savings"]
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /digest/weekly:
+    get:
+      summary: Get weekly financial digest
+      description: >
+        Returns a comprehensive weekly financial summary including income/expense
+        totals, week-over-week comparisons, category breakdowns, daily spending
+        patterns, trend analysis, upcoming bills, and actionable insights.
+      tags: [Digest]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: week
+          required: false
+          description: ISO week in YYYY-Wnn format (e.g. 2026-W13). Defaults to current week.
+          schema: { type: string, pattern: '^\d{4}-W\d{2}$' }
+        - in: query
+          name: currency
+          required: false
+          description: Filter by currency code (e.g. USD, EUR, INR)
+          schema: { type: string }
+      responses:
+        '200':
+          description: Weekly digest
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  week: { type: string, example: '2026-W13' }
+                  period:
+                    type: object
+                    properties:
+                      start: { type: string, format: date }
+                      end: { type: string, format: date }
+                  summary:
+                    type: object
+                    properties:
+                      total_income: { type: number }
+                      total_expenses: { type: number }
+                      net_savings: { type: number }
+                      transaction_count: { type: integer }
+                  week_over_week:
+                    type: object
+                    properties:
+                      income_change: { type: number, nullable: true }
+                      expense_change: { type: number, nullable: true }
+                      savings_change: { type: number, nullable: true }
+                      prev_total_expenses: { type: number }
+                      prev_total_income: { type: number }
+                  category_breakdown:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        category_id: { type: integer, nullable: true }
+                        category_name: { type: string }
+                        amount: { type: number }
+                        transaction_count: { type: integer }
+                        share_pct: { type: number }
+                  daily_spending:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        date: { type: string, format: date }
+                        day_name: { type: string }
+                        amount: { type: number }
+                  trends:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        metric: { type: string }
+                        direction: { type: string, enum: [UP, DOWN, FLAT, NEW, GONE] }
+                        change_pct: { type: number, nullable: true }
+                        description: { type: string }
+                  upcoming_bills:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: integer }
+                        name: { type: string }
+                        amount: { type: number }
+                        currency: { type: string }
+                        due_date: { type: string, format: date }
+                        cadence: { type: string }
+                        autopay: { type: boolean }
+                  insights:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        type: { type: string, enum: [positive, neutral, warning] }
+                        title: { type: string }
+                        message: { type: string }
+                  currency: { type: string, description: 'Present when currency filter is applied' }
+              example:
+                week: '2026-W13'
+                period: { start: '2026-03-23', end: '2026-03-29' }
+                summary: { total_income: 5000, total_expenses: 1200, net_savings: 3800, transaction_count: 12 }
+                week_over_week: { income_change: 0, expense_change: 15.5, savings_change: -4.2, prev_total_expenses: 1039, prev_total_income: 5000 }
+                category_breakdown:
+                  - { category_id: 1, category_name: Food, amount: 450, transaction_count: 5, share_pct: 37.5 }
+                  - { category_id: 2, category_name: Transport, amount: 200, transaction_count: 3, share_pct: 16.67 }
+                daily_spending:
+                  - { date: '2026-03-23', day_name: Monday, amount: 150 }
+                trends:
+                  - { metric: total_spending, direction: UP, change_pct: 15.5, description: 'Spending increased from $1,039.00 to $1,200.00' }
+                insights:
+                  - { type: positive, title: Strong savings rate, message: 'You saved 76% of your income this week. Keep it up!' }
+        '400':
+          description: Invalid week format
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
         '401':
           description: Unauthorized
           content:
