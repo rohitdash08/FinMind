@@ -37,6 +37,9 @@ class Expense(db.Model):
     expense_type = db.Column(db.String(20), default="EXPENSE", nullable=False)
     notes = db.Column(db.String(500), nullable=True)
     spent_at = db.Column(db.Date, default=date.today, nullable=False)
+    account_id = db.Column(
+        db.Integer, db.ForeignKey("financial_accounts.id"), nullable=True
+    )
     source_recurring_id = db.Column(
         db.Integer, db.ForeignKey("recurring_expenses.id"), nullable=True
     )
@@ -125,6 +128,33 @@ class UserSubscription(db.Model):
     )
     active = db.Column(db.Boolean, default=False, nullable=False)
     started_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class AccountType(str, Enum):
+    CHECKING = "CHECKING"
+    SAVINGS = "SAVINGS"
+    CREDIT_CARD = "CREDIT_CARD"
+    INVESTMENT = "INVESTMENT"
+    LOAN = "LOAN"
+    CASH = "CASH"
+    OTHER = "OTHER"
+
+
+class FinancialAccount(db.Model):
+    __tablename__ = "financial_accounts"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    name = db.Column(db.String(200), nullable=False)
+    account_type = db.Column(db.String(30), nullable=False, default=AccountType.CHECKING.value)
+    institution = db.Column(db.String(200), nullable=True)
+    balance = db.Column(db.Numeric(14, 2), nullable=False, default=0)
+    currency = db.Column(db.String(10), default="INR", nullable=False)
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+    notes = db.Column(db.String(500), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(
+        db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+    )
 
 
 class AuditLog(db.Model):

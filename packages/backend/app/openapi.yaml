@@ -12,6 +12,7 @@ tags:
   - name: Bills
   - name: Reminders
   - name: Insights
+  - name: Accounts
 paths:
   /auth/register:
     post:
@@ -510,6 +511,7 @@ components:
         amount: { type: number, format: float }
         currency: { type: string }
         category_id: { type: integer }
+        account_id: { type: integer, nullable: true }
         expense_type: { type: string }
         description: { type: string, nullable: true }
         date: { type: string, format: date }
@@ -587,3 +589,54 @@ components:
         message: { type: string }
         send_at: { type: string, format: date-time }
         channel: { type: string, enum: [email, whatsapp], default: email }
+    FinancialAccount:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        account_type: { type: string, enum: [CHECKING, SAVINGS, CREDIT_CARD, INVESTMENT, LOAN, CASH, OTHER] }
+        institution: { type: string, nullable: true }
+        balance: { type: number, format: float }
+        currency: { type: string }
+        is_active: { type: boolean }
+        notes: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    NewFinancialAccount:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        account_type: { type: string, enum: [CHECKING, SAVINGS, CREDIT_CARD, INVESTMENT, LOAN, CASH, OTHER], default: CHECKING }
+        institution: { type: string, nullable: true }
+        balance: { type: number, format: float, default: 0 }
+        currency: { type: string, default: INR }
+        notes: { type: string, nullable: true }
+    AccountsOverview:
+      type: object
+      properties:
+        period: { type: object, properties: { month: { type: string } } }
+        net_worth: { type: number, format: float }
+        total_assets: { type: number, format: float }
+        total_liabilities: { type: number, format: float }
+        aggregate:
+          type: object
+          properties:
+            monthly_income: { type: number, format: float }
+            monthly_expenses: { type: number, format: float }
+            monthly_net: { type: number, format: float }
+        accounts:
+          type: array
+          items:
+            allOf:
+              - $ref: '#/components/schemas/FinancialAccount'
+              - type: object
+                properties:
+                  monthly_income: { type: number }
+                  monthly_expenses: { type: number }
+                  monthly_net: { type: number }
+                  transaction_count: { type: integer }
+        account_count: { type: integer }
+        recent_transactions:
+          type: array
+          items: { $ref: '#/components/schemas/Expense' }

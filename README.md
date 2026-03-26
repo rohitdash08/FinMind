@@ -46,6 +46,7 @@ flowchart LR
 ## PostgreSQL Schema (DDL)
 See `backend/app/db/schema.sql`. Key tables:
 - users, categories, expenses, bills, reminders
+- financial_accounts (multi-account support: checking, savings, credit cards, investments, loans, cash)
 - ad_impressions, subscription_plans, user_subscriptions
 - refresh_tokens (optional if rotating), audit_logs
 
@@ -66,6 +67,7 @@ OpenAPI: `backend/app/openapi.yaml`
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
 - Insights: `/insights/monthly`, `/insights/budget-suggestion`
+- Accounts: CRUD `/accounts`, overview `/accounts/overview`, per-account transactions `/accounts/{id}/transactions`
 
 ## MVP UI/UX Plan
 - Auth screens: register/login.
@@ -73,6 +75,11 @@ OpenAPI: `backend/app/openapi.yaml`
   - Monthly spend chart, category breakdown donut.
   - Upcoming bills list with due dates and pay status.
   - AI budget suggestion card.
+- Accounts:
+  - Multi-account overview with net worth, total assets, total liabilities.
+  - Per-account cards grouped by type (checking, savings, credit card, investment, loan, cash).
+  - Aggregate income/expenses across all accounts with monthly breakdown.
+  - CRUD operations for adding, editing, and deactivating accounts.
 - Expenses page: add expense (amount, category, notes, date), list & filter.
 - Bills page: create bill (name, amount, cadence, due date, channel), toggle WhatsApp/email.
 - Settings: profile, categories, reminders default channel, export (premium).
@@ -104,6 +111,7 @@ finmind/
         bills.py
         reminders.py
         insights.py
+        accounts.py
       services/
         __init__.py
         ai.py
@@ -127,6 +135,7 @@ finmind/
         Dashboard.tsx
         Expenses.tsx
         Bills.tsx
+        Accounts.tsx
         Settings.tsx
     package.json
     tsconfig.json

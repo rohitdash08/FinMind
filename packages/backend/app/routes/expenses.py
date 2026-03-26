@@ -65,12 +65,16 @@ def create_expense():
     description = (data.get("description") or data.get("notes") or "").strip()
     if not description:
         return jsonify(error="description required"), 400
+    account_id = data.get("account_id")
+    if account_id is not None:
+        account_id = int(account_id)
     e = Expense(
         user_id=uid,
         amount=amount,
         currency=(data.get("currency") or (user.preferred_currency if user else "INR")),
         expense_type=str(data.get("expense_type") or "EXPENSE").upper(),
         category_id=data.get("category_id"),
+        account_id=account_id,
         notes=description,
         spent_at=date.fromisoformat(raw_date) if raw_date else date.today(),
     )
@@ -226,6 +230,8 @@ def update_expense(expense_id: int):
         if not description:
             return jsonify(error="description required"), 400
         e.notes = description
+    if "account_id" in data:
+        e.account_id = int(data["account_id"]) if data["account_id"] is not None else None
     if "date" in data or "spent_at" in data:
         raw_date = data.get("date") or data.get("spent_at")
         e.spent_at = date.fromisoformat(raw_date)
@@ -317,6 +323,7 @@ def _expense_to_dict(e: Expense) -> dict:
         "amount": float(e.amount),
         "currency": e.currency,
         "category_id": e.category_id,
+        "account_id": e.account_id,
         "expense_type": e.expense_type,
         "description": e.notes or "",
         "date": e.spent_at.isoformat(),
