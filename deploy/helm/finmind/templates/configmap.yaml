@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: finmind-config
+  namespace: {{ include "finmind.namespace" . }}
+  labels:
+    {{- include "finmind.labels" . | nindent 4 }}
+data:
+  LOG_LEVEL: {{ .Values.backend.env.LOG_LEVEL | quote }}
+  GEMINI_MODEL: {{ .Values.backend.env.GEMINI_MODEL | quote }}
+  REDIS_URL: "redis://redis:6379/0"
+  VITE_API_URL: "http://backend:8000"

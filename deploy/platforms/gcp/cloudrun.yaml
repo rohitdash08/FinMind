@@ -1,0 +1,62 @@
+# GCP Cloud Run Service Definition
+# Deploy with: gcloud run services replace deploy/platforms/gcp/cloudrun.yaml
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: finmind-backend
+  annotations:
+    run.googleapis.com/ingress: all
+    run.googleapis.com/launch-stage: GA
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: "1"
+        autoscaling.knative.dev/maxScale: "10"
+        run.googleapis.com/cpu-throttling: "false"
+        run.googleapis.com/startup-cpu-boost: "true"
+        run.googleapis.com/vpc-access-connector: projects/PROJECT_ID/locations/REGION/connectors/finmind-vpc
+    spec:
+      containerConcurrency: 100
+      timeoutSeconds: 300
+      serviceAccountName: finmind-sa@PROJECT_ID.iam.gserviceaccount.com
+      containers:
+        - image: gcr.io/PROJECT_ID/finmind-backend:latest
+          ports:
+            - containerPort: 8000
+          env:
+            - name: LOG_LEVEL
+              value: INFO
+            - name: GEMINI_MODEL
+              value: gemini-1.5-flash
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  key: latest
+                  name: finmind-database-url
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  key: latest
+                  name: finmind-redis-url
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: latest
+                  name: finmind-jwt-secret
+          resources:
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            periodSeconds: 30

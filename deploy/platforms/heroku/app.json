@@ -1,0 +1,46 @@
+{
+  "name": "FinMind",
+  "description": "Personal Finance Management Platform — track expenses, bills, reminders, and get AI-powered insights",
+  "repository": "https://github.com/rohitdash08/FinMind",
+  "logo": "",
+  "keywords": ["finance", "budgeting", "expenses", "flask", "react"],
+  "stack": "container",
+  "env": {
+    "JWT_SECRET": {
+      "description": "Secret key for JWT token signing",
+      "generator": "secret"
+    },
+    "GEMINI_API_KEY": {
+      "description": "Google Gemini API key for AI insights (optional)",
+      "required": false,
+      "value": ""
+    },
+    "GEMINI_MODEL": {
+      "description": "Gemini model to use",
+      "value": "gemini-1.5-flash"
+    },
+    "LOG_LEVEL": {
+      "description": "Application log level",
+      "value": "INFO"
+    },
+    "OPENAI_API_KEY": {
+      "description": "OpenAI API key (optional)",
+      "required": false,
+      "value": ""
+    }
+  },
+  "addons": [
+    "heroku-postgresql:essential-0",
+    "heroku-redis:mini"
+  ],
+  "formation": {
+    "web": {
+      "quantity": 1,
+      "size": "basic"
+    }
+  },
+  "buildpacks": [],
+  "scripts": {
+    "postdeploy": "python -m flask --app wsgi:app init-db"
+  }
+}
