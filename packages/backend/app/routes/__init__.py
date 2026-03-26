@@ -7,6 +7,8 @@ from .insights import bp as insights_bp
 from .categories import bp as categories_bp
 from .docs import bp as docs_bp
 from .dashboard import bp as dashboard_bp
+from .webhooks import bp as webhooks_bp
+from .bank_connections import bp as bank_connections_bp
 
 
 def register_routes(app: Flask):
@@ -18,3 +20,5 @@ def register_routes(app: Flask):
     app.register_blueprint(categories_bp, url_prefix="/categories")
     app.register_blueprint(docs_bp, url_prefix="/docs")
     app.register_blueprint(dashboard_bp, url_prefix="/dashboard")
+    app.register_blueprint(webhooks_bp, url_prefix="/webhooks")
+    app.register_blueprint(bank_connections_bp, url_prefix="/bank-connections")

@@ -9,6 +9,40 @@ class Role(str, Enum):
     ADMIN = "ADMIN"
 
 
+class WebhookEvent(str, Enum):
+    """Supported webhook event types."""
+    EXPENSE_CREATED = "expense.created"
+    EXPENSE_UPDATED = "expense.updated"
+    EXPENSE_DELETED = "expense.deleted"
+    BILL_DUE = "bill.due"
+    REMINDER_SENT = "reminder.sent"
+
+
+class WebhookSubscription(db.Model):
+    __tablename__ = "webhook_subscriptions"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    url = db.Column(db.String(2048), nullable=False)
+    secret = db.Column(db.String(255), nullable=False)  # HMAC secret for signing
+    events = db.Column(db.Text, nullable=False)  # JSON array of event types
+    active = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class WebhookDelivery(db.Model):
+    __tablename__ = "webhook_deliveries"
+    id = db.Column(db.Integer, primary_key=True)
+    subscription_id = db.Column(db.Integer, db.ForeignKey("webhook_subscriptions.id"), nullable=False)
+    event_type = db.Column(db.String(100), nullable=False)
+    payload = db.Column(db.Text, nullable=False)  # JSON payload
+    status = db.Column(db.String(20), nullable=False)  # pending, success, failed
+    attempts = db.Column(db.Integer, default=0, nullable=False)
+    last_attempt_at = db.Column(db.DateTime, nullable=True)
+    response_status = db.Column(db.Integer, nullable=True)
+    response_body = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
 class User(db.Model):
     __tablename__ = "users"
     id = db.Column(db.Integer, primary_key=True)
@@ -133,3 +167,72 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class BankConnection(db.Model):
+    __tablename__ = "bank_connections"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    connector_name = db.Column(db.String(50), nullable=False)
+    display_name = db.Column(db.String(200), nullable=False)
+    status = db.Column(db.String(20), nullable=False, default="active")
+    config_encrypted = db.Column(db.Text, nullable=True)
+    last_refresh_at = db.Column(db.DateTime, nullable=True)
+    last_error = db.Column(db.Text, nullable=True)
+    institution_name = db.Column(db.String(200), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    accounts = db.relationship(
+        "BankConnectionAccount",
+        back_populates="bank_connection",
+        cascade="all, delete-orphan",
+    )
+
+
+class BankConnectionAccount(db.Model):
+    __tablename__ = "bank_connection_accounts"
+    id = db.Column(db.Integer, primary_key=True)
+    bank_connection_id = db.Column(
+        db.Integer, db.ForeignKey("bank_connections.id"), nullable=False
+    )
+    external_account_id = db.Column(db.String(100), nullable=False)
+    account_name = db.Column(db.String(200), nullable=False)
+    account_type = db.Column(db.String(50), nullable=False, default="UNKNOWN")
+    currency = db.Column(db.String(10), nullable=False, default="USD")
+    current_balance = db.Column(db.Numeric(12, 2), nullable=True)
+    mask = db.Column(db.String(10), nullable=True)
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+    metadata_json = db.Column(db.JSON, default=dict, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    bank_connection = db.relationship("BankConnection", back_populates="accounts")
+    import_runs = db.relationship(
+        "BankImportRun", back_populates="account", cascade="all, delete-orphan"
+    )
+
+
+class BankImportRunStatus(str, Enum):
+    STARTED = "started"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
+class BankImportRun(db.Model):
+    __tablename__ = "bank_import_runs"
+    id = db.Column(db.Integer, primary_key=True)
+    bank_connection_id = db.Column(
+        db.Integer, db.ForeignKey("bank_connections.id"), nullable=False
+    )
+    account_id = db.Column(
+        db.Integer, db.ForeignKey("bank_connection_accounts.id"), nullable=False
+    )
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    imported_count = db.Column(db.Integer, nullable=False, default=0)
+    duplicate_count = db.Column(db.Integer, nullable=False, default=0)
+    status = db.Column(db.String(20), nullable=False, default="started")
+    error_message = db.Column(db.Text, nullable=True)
+    started_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    completed_at = db.Column(db.DateTime, nullable=True)
+
+    account = db.relationship("BankConnectionAccount", back_populates="import_runs")
