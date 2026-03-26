@@ -481,6 +481,201 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
 
+  # Bank Connections
+  /bank-connections/connectors:
+    get:
+      summary: List available bank connectors
+      tags: [Bank Connections]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: List of available connectors
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BankConnectorInfo'
+
+  /bank-connections/connections:
+    get:
+      summary: List user's bank connections
+      tags: [Bank Connections]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: List of bank connections
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BankConnection'
+    post:
+      summary: Create a new bank connection
+      tags: [Bank Connections]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewBankConnection'
+      responses:
+        '201':
+          description: Connection created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BankConnection'
+
+  /bank-connections/connections/{connectionId}:
+    get:
+      summary: Get a bank connection
+      tags: [Bank Connections]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: connectionId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Bank connection details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BankConnection'
+        '404':
+          description: Not found
+    delete:
+      summary: Delete a bank connection
+      tags: [Bank Connections]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: connectionId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Deleted
+        '404':
+          description: Not found
+
+  /bank-connections/connections/{connectionId}/accounts:
+    get:
+      summary: List accounts for a bank connection
+      tags: [Bank Connections]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: connectionId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: List of accounts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BankAccount'
+
+  /bank-connections/connections/{connectionId}/import:
+    post:
+      summary: Import transactions from a bank connection
+      tags: [Bank Connections]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: connectionId
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: account_id
+          in: query
+          schema: { type: integer }
+        - name: from_date
+          in: query
+          schema: { type: string, format: date }
+        - name: to_date
+          in: query
+          schema: { type: string, format: date }
+        - name: dry_run
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: Import summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportSummary'
+
+  /bank-connections/connections/{connectionId}/refresh:
+    post:
+      summary: Incrementally refresh new transactions
+      tags: [Bank Connections]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: connectionId
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: account_id
+          in: query
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Refresh summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportSummary'
+
+  /bank-connections/connections/{connectionId}/import-runs:
+    get:
+      summary: List import run history
+      tags: [Bank Connections]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: connectionId
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 20 }
+      responses:
+        '200':
+          description: List of import runs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ImportRun'
+
+  /bank-connections/connections/{connectionId}/refresh-auth:
+    post:
+      summary: Refresh authentication status of a bank connection
+      tags: [Bank Connections]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: connectionId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Updated connection
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BankConnection'
+
+
 components:
   securitySchemes:
     bearerAuth:
@@ -587,3 +782,85 @@ components:
         message: { type: string }
         send_at: { type: string, format: date-time }
         channel: { type: string, enum: [email, whatsapp], default: email }
+
+    BankConnectorInfo:
+      type: object
+      properties:
+        name: { type: string }
+        display_name: { type: string }
+        supports_refresh: { type: boolean }
+        supports_oauth: { type: boolean }
+        website_url: { type: string, nullable: true }
+        icon_url: { type: string, nullable: true }
+
+    BankConnection:
+      type: object
+      properties:
+        id: { type: integer }
+        connector_name: { type: string }
+        display_name: { type: string }
+        status: { type: string }
+        institution_name: { type: string }
+        last_refresh_at: { type: string, format: date-time, nullable: true }
+        last_error: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        accounts:
+          type: array
+          items:
+            $ref: '#/components/schemas/BankAccount'
+
+    NewBankConnection:
+      type: object
+      required: [connector_name, config]
+      properties:
+        connector_name: { type: string }
+        config: { type: object }
+        display_name: { type: string }
+        institution_name: { type: string }
+
+    BankAccount:
+      type: object
+      properties:
+        id: { type: integer }
+        external_account_id: { type: string }
+        account_name: { type: string }
+        account_type: { type: string }
+        currency: { type: string }
+        current_balance: { type: number, format: float, nullable: true }
+        mask: { type: string, nullable: true }
+        is_active: { type: boolean }
+        metadata: { type: object }
+
+    ImportSummary:
+      type: object
+      properties:
+        connection_id: { type: integer }
+        imported_count: { type: integer }
+        duplicate_count: { type: integer }
+        dry_run: { type: boolean }
+        accounts:
+          type: array
+          items:
+            type: object
+            properties:
+              account_id: { type: integer }
+              account_name: { type: string }
+              imported_count: { type: integer }
+              duplicate_count: { type: integer }
+              transactions: { type: array, items: {} }
+              error: { type: string }
+
+    ImportRun:
+      type: object
+      properties:
+        id: { type: integer }
+        bank_connection_id: { type: integer }
+        account_id: { type: integer }
+        imported_count: { type: integer }
+        duplicate_count: { type: integer }
+        status: { type: string }
+        error_message: { type: string, nullable: true }
+        started_at: { type: string, format: date-time }
+        completed_at: { type: string, format: date-time, nullable: true }
+
