@@ -117,6 +117,25 @@ CREATE TABLE IF NOT EXISTS user_subscriptions (
   started_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS financial_accounts (
+  id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name VARCHAR(200) NOT NULL,
+  account_type VARCHAR(30) NOT NULL DEFAULT 'CHECKING',
+  institution VARCHAR(200),
+  balance NUMERIC(14,2) NOT NULL DEFAULT 0,
+  currency VARCHAR(10) NOT NULL DEFAULT 'INR',
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  notes VARCHAR(500),
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_financial_accounts_user ON financial_accounts(user_id, is_active);
+
+ALTER TABLE expenses
+  ADD COLUMN IF NOT EXISTS account_id INT REFERENCES financial_accounts(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_expenses_account ON expenses(account_id);
+
 CREATE TABLE IF NOT EXISTS audit_logs (
   id SERIAL PRIMARY KEY,
   user_id INT REFERENCES users(id) ON DELETE SET NULL,
