@@ -16,6 +16,7 @@ import NotFound from "./pages/NotFound";
 import { Landing } from "./pages/Landing";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
 import Account from "./pages/Account";
+import SavingsGoals from "./pages/SavingsGoals";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -80,6 +81,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Reminders />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="savings"
+              element={
+                <ProtectedRoute>
+                  <SavingsGoals />
                 </ProtectedRoute>
               }
             />

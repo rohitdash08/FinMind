@@ -12,6 +12,7 @@ tags:
   - name: Bills
   - name: Reminders
   - name: Insights
+  - name: Savings
 paths:
   /auth/register:
     post:
@@ -444,6 +445,217 @@ paths:
                 properties:
                   created: { type: integer }
 
+  /savings:
+    get:
+      summary: List savings goals
+      tags: [Savings]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: status
+          required: false
+          schema: { type: string, enum: [ACTIVE, COMPLETED, CANCELLED, ALL], default: ACTIVE }
+      responses:
+        '200':
+          description: List of savings goals
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SavingsGoal'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+    post:
+      summary: Create savings goal
+      tags: [Savings]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewSavingsGoal'
+            example:
+              name: Emergency Fund
+              description: 6 months of expenses
+              target_amount: 10000
+              target_date: '2027-01-01'
+              icon: shield
+              color: '#22c55e'
+      responses:
+        '201': { description: Created }
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /savings/summary:
+    get:
+      summary: Get savings summary stats
+      tags: [Savings]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Summary statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SavingsSummary'
+
+  /savings/{goalId}:
+    get:
+      summary: Get savings goal with contributions
+      tags: [Savings]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: goalId
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Goal with contributions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SavingsGoal'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+    patch:
+      summary: Update savings goal
+      tags: [Savings]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: goalId
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSavingsGoal'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SavingsGoal'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+    delete:
+      summary: Delete savings goal
+      tags: [Savings]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: goalId
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /savings/{goalId}/contributions:
+    post:
+      summary: Add contribution to savings goal
+      tags: [Savings]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: goalId
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewContribution'
+            example:
+              amount: 500
+              note: Monthly savings
+      responses:
+        '201':
+          description: Contribution added
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  contribution: { $ref: '#/components/schemas/SavingsContribution' }
+                  goal: { $ref: '#/components/schemas/SavingsGoal' }
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /savings/{goalId}/withdraw:
+    post:
+      summary: Withdraw from savings goal
+      tags: [Savings]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: goalId
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount]
+              properties:
+                amount: { type: number, format: float }
+                note: { type: string, nullable: true }
+      responses:
+        '200':
+          description: Withdrawal processed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  contribution: { $ref: '#/components/schemas/SavingsContribution' }
+                  goal: { $ref: '#/components/schemas/SavingsGoal' }
+        '400':
+          description: Insufficient balance or validation error
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
   /insights/budget-suggestion:
     get:
       summary: Get monthly budget suggestion
@@ -587,3 +799,73 @@ components:
         message: { type: string }
         send_at: { type: string, format: date-time }
         channel: { type: string, enum: [email, whatsapp], default: email }
+    SavingsGoal:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        target_amount: { type: number, format: float }
+        current_amount: { type: number, format: float }
+        currency: { type: string }
+        target_date: { type: string, format: date, nullable: true }
+        icon: { type: string }
+        color: { type: string }
+        status: { type: string, enum: [ACTIVE, COMPLETED, CANCELLED] }
+        progress_pct: { type: number }
+        remaining: { type: number }
+        days_remaining: { type: integer, nullable: true }
+        monthly_needed: { type: number, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        contributions:
+          type: array
+          items:
+            $ref: '#/components/schemas/SavingsContribution'
+    NewSavingsGoal:
+      type: object
+      required: [name, target_amount]
+      properties:
+        name: { type: string }
+        description: { type: string, nullable: true }
+        target_amount: { type: number, format: float }
+        current_amount: { type: number, format: float, default: 0 }
+        currency: { type: string, default: INR }
+        target_date: { type: string, format: date, nullable: true }
+        icon: { type: string, default: piggy-bank }
+        color: { type: string, default: '#6366f1' }
+    UpdateSavingsGoal:
+      type: object
+      properties:
+        name: { type: string }
+        description: { type: string, nullable: true }
+        target_amount: { type: number, format: float }
+        target_date: { type: string, format: date, nullable: true }
+        icon: { type: string }
+        color: { type: string }
+        status: { type: string, enum: [ACTIVE, COMPLETED, CANCELLED] }
+    SavingsContribution:
+      type: object
+      properties:
+        id: { type: integer }
+        goal_id: { type: integer }
+        amount: { type: number, format: float }
+        note: { type: string, nullable: true }
+        contributed_at: { type: string, format: date }
+        created_at: { type: string, format: date-time }
+    NewContribution:
+      type: object
+      required: [amount]
+      properties:
+        amount: { type: number, format: float }
+        note: { type: string, nullable: true }
+        contributed_at: { type: string, format: date, nullable: true }
+    SavingsSummary:
+      type: object
+      properties:
+        total_goals: { type: integer }
+        active_goals: { type: integer }
+        completed_goals: { type: integer }
+        total_saved: { type: number }
+        total_target: { type: number }
+        overall_progress_pct: { type: number }
