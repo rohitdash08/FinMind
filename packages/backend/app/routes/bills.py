@@ -2,8 +2,9 @@ from datetime import date, timedelta
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..extensions import db
-from ..models import Bill, BillCadence, User
+from ..models import Bill, BillCadence, User, WebhookEvent
 from ..services.cache import cache_delete_patterns
+from ..services.webhook import emit_webhook
 import logging
 
 bp = Blueprint("bills", __name__)
@@ -61,6 +62,18 @@ def create_bill():
     logger.info("Created bill id=%s user=%s name=%s", b.id, uid, b.name)
     cache_delete_patterns(
         [f"user:{uid}:upcoming_bills*", f"user:{uid}:dashboard_summary:*"]
+    )
+    emit_webhook(
+        user_id=uid,
+        event_type=WebhookEvent.BILL_DUE,
+        data={
+            "id": b.id,
+            "name": b.name,
+            "amount": float(b.amount),
+            "currency": b.currency,
+            "next_due_date": b.next_due_date.isoformat(),
+            "cadence": b.cadence.value,
+        },
     )
     return jsonify(id=b.id), 201
 
