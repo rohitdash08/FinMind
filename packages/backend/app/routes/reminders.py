@@ -5,10 +5,43 @@ from ..extensions import db
 from ..models import Bill, Reminder
 from ..observability import track_reminder_event
 from ..services.reminders import send_reminder
+from ..services.job_runner import JobRunner, JobResult
 import logging
 
 bp = Blueprint("reminders", __name__)
 logger = logging.getLogger("finmind.reminders")
+
+# Module-level job runner for reminder delivery
+_job_runner = JobRunner()
+
+
+def _handle_send_reminder(reminder_id: int, **_kwargs) -> JobResult:
+    """Job handler: attempt to deliver a single reminder."""
+    reminder = db.session.get(Reminder, reminder_id)
+    if not reminder:
+        return JobResult(success=False, error_message=f"Reminder {reminder_id} not found")
+    if reminder.sent:
+        return JobResult(success=True, metadata={"skipped": "already sent"})
+
+    ok = send_reminder(reminder)
+    if ok:
+        reminder.sent = True
+        track_reminder_event(event="sent", channel=reminder.channel)
+        db.session.commit()
+        logger.info("Reminder id=%s delivered via %s", reminder_id, reminder.channel)
+        return JobResult(success=True, metadata={"channel": reminder.channel})
+    else:
+        track_reminder_event(event="send_failed", channel=reminder.channel, status="error")
+        db.session.commit()
+        return JobResult(success=False, error_message=f"send_reminder returned False for channel={reminder.channel}")
+
+
+_job_runner.register_handler("send_reminder", _handle_send_reminder)
+
+
+def get_job_runner() -> JobRunner:
+    """Access the module-level job runner (useful for tests and CLI)."""
+    return _job_runner
 
 
 @bp.get("")
@@ -159,6 +192,13 @@ def autopay_result_followup(bill_id: int):
 @bp.post("/run")
 @jwt_required()
 def run_due():
+    """
+    Process due reminders via the resilient job runner.
+
+    Instead of directly sending and blindly marking sent=True, each reminder
+    is enqueued as a background job with retry support. Failed deliveries
+    will be automatically retried with exponential backoff.
+    """
     uid = int(get_jwt_identity())
     now = datetime.utcnow() + timedelta(minutes=1)
     items = (
@@ -170,13 +210,59 @@ def run_due():
         )
         .all()
     )
+
+    runner = get_job_runner()
+    enqueued = 0
     for r in items:
-        send_reminder(r)
-        r.sent = True
-        track_reminder_event(event="sent", channel=r.channel)
+        runner.enqueue(
+            "send_reminder",
+            payload={"reminder_id": r.id},
+        )
+        enqueued += 1
+
     db.session.commit()
-    logger.info("Processed due reminders user=%s count=%s", uid, len(items))
-    return jsonify(processed=len(items))
+
+    # Immediately process the enqueued jobs
+    processed = runner.process_due_jobs(job_type="send_reminder")
+
+    logger.info(
+        "run_due user=%s enqueued=%d processed=%d", uid, enqueued, processed
+    )
+    return jsonify(enqueued=enqueued, processed=processed)
+
+
+@bp.get("/jobs/stats")
+@jwt_required()
+def job_stats():
+    """Monitoring: get background job statistics."""
+    stats = get_job_runner().get_stats()
+    return jsonify(stats)
+
+
+@bp.get("/jobs/dead")
+@jwt_required()
+def dead_jobs():
+    """Monitoring: list dead-lettered jobs for manual inspection."""
+    jobs = get_job_runner().get_dead_jobs()
+    return jsonify(jobs)
+
+
+@bp.get("/jobs/retrying")
+@jwt_required()
+def retrying_jobs():
+    """Monitoring: list jobs currently waiting for retry."""
+    jobs = get_job_runner().get_retrying_jobs()
+    return jsonify(jobs)
+
+
+@bp.post("/jobs/<int:job_id>/retry")
+@jwt_required()
+def retry_dead_job(job_id: int):
+    """Manually retry a dead-lettered job."""
+    ok = get_job_runner().retry_dead_job(job_id)
+    if not ok:
+        return jsonify(error="Job not found or not in DEAD status"), 404
+    return jsonify(status="requeued")
 
 
 def _bill_channels(bill: Bill) -> list[str]:
