@@ -123,3 +123,23 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   action VARCHAR(100) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+-- Background job tracking for resilient async execution with retry support
+CREATE TABLE IF NOT EXISTS background_jobs (
+  id SERIAL PRIMARY KEY,
+  job_type VARCHAR(100) NOT NULL,
+  payload JSONB,
+  status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+  attempts INT NOT NULL DEFAULT 0,
+  max_retries INT NOT NULL DEFAULT 3,
+  error_message TEXT,
+  result_metadata JSONB,
+  scheduled_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  next_retry_at TIMESTAMP,
+  last_attempt_at TIMESTAMP,
+  completed_at TIMESTAMP,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_background_jobs_status ON background_jobs(status);
+CREATE INDEX IF NOT EXISTS idx_background_jobs_type ON background_jobs(job_type);
+CREATE INDEX IF NOT EXISTS idx_background_jobs_scheduled ON background_jobs(scheduled_at);

@@ -133,3 +133,37 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class JobStatus(str, Enum):
+    PENDING = "PENDING"
+    RUNNING = "RUNNING"
+    COMPLETED = "COMPLETED"
+    RETRYING = "RETRYING"
+    FAILED = "FAILED"
+    DEAD = "DEAD"
+
+
+class BackgroundJob(db.Model):
+    """
+    Tracks background job execution with retry metadata.
+
+    Lifecycle: PENDING -> RUNNING -> COMPLETED
+                                 -> RETRYING -> RUNNING -> ... (up to max_retries)
+                                 -> FAILED (handler not found)
+                                 -> DEAD (max retries exhausted)
+    """
+    __tablename__ = "background_jobs"
+    id = db.Column(db.Integer, primary_key=True)
+    job_type = db.Column(db.String(100), nullable=False, index=True)
+    payload = db.Column(db.JSON, nullable=True)
+    status = db.Column(db.String(20), default=JobStatus.PENDING.value, nullable=False, index=True)
+    attempts = db.Column(db.Integer, default=0, nullable=False)
+    max_retries = db.Column(db.Integer, default=3, nullable=False)
+    error_message = db.Column(db.Text, nullable=True)
+    result_metadata = db.Column(db.JSON, nullable=True)
+    scheduled_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    next_retry_at = db.Column(db.DateTime, nullable=True)
+    last_attempt_at = db.Column(db.DateTime, nullable=True)
+    completed_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
