@@ -123,3 +123,23 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   action VARCHAR(100) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+-- Background job execution tracking with retry support
+CREATE TABLE IF NOT EXISTS job_executions (
+  id SERIAL PRIMARY KEY,
+  job_type VARCHAR(100) NOT NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+  payload TEXT,
+  result TEXT,
+  retry_count INT NOT NULL DEFAULT 0,
+  max_retries INT NOT NULL DEFAULT 3,
+  last_error TEXT,
+  next_retry_at TIMESTAMP,
+  started_at TIMESTAMP,
+  completed_at TIMESTAMP,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  user_id INT REFERENCES users(id) ON DELETE SET NULL
+);
+CREATE INDEX IF NOT EXISTS idx_job_executions_status ON job_executions(status);
+CREATE INDEX IF NOT EXISTS idx_job_executions_type ON job_executions(job_type);
+CREATE INDEX IF NOT EXISTS idx_job_executions_retry ON job_executions(status, next_retry_at);
