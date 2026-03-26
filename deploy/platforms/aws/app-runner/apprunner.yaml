@@ -1,0 +1,27 @@
+# AWS App Runner configuration
+# Deploy: aws apprunner create-service --cli-input-yaml file://deploy/platforms/aws/app-runner/apprunner.yaml
+ServiceName: finmind-backend
+SourceConfiguration:
+  AutoDeploymentsEnabled: true
+  ImageRepository:
+    ImageIdentifier: ghcr.io/rohitdash08/finmind-backend:latest
+    ImageRepositoryType: ECR_PUBLIC
+    ImageConfiguration:
+      Port: "8000"
+      RuntimeEnvironmentVariables:
+        LOG_LEVEL: INFO
+        GEMINI_MODEL: gemini-1.5-flash
+      RuntimeEnvironmentSecrets:
+        DATABASE_URL: "arn:aws:ssm:us-east-1:ACCOUNT_ID:parameter/finmind/DATABASE_URL"
+        REDIS_URL: "arn:aws:ssm:us-east-1:ACCOUNT_ID:parameter/finmind/REDIS_URL"
+        JWT_SECRET: "arn:aws:ssm:us-east-1:ACCOUNT_ID:parameter/finmind/JWT_SECRET"
+InstanceConfiguration:
+  Cpu: "0.5 vCPU"
+  Memory: "1 GB"
+HealthCheckConfiguration:
+  Protocol: HTTP
+  Path: /health
+  Interval: 10
+  Timeout: 5
+  HealthyThreshold: 1
+  UnhealthyThreshold: 3

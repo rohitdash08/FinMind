@@ -1,0 +1,201 @@
+# FinMind Helm Chart Values
+# Production-grade defaults with sensible overrides
+
+global:
+  namespace: finmind
+  imagePullPolicy: IfNotPresent
+
+# --- Backend (Flask + Gunicorn) ---
+backend:
+  image:
+    repository: ghcr.io/rohitdash08/finmind-backend
+    tag: latest
+  replicas: 2
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 512Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+    behavior:
+      scaleDown:
+        stabilizationWindowSeconds: 300
+        policies:
+          - type: Pods
+            value: 1
+            periodSeconds: 60
+      scaleUp:
+        stabilizationWindowSeconds: 30
+        policies:
+          - type: Pods
+            value: 2
+            periodSeconds: 60
+  service:
+    type: ClusterIP
+    port: 8000
+  healthCheck:
+    path: /health
+    initialDelaySeconds: 15
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+    successThreshold: 1
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+  env:
+    LOG_LEVEL: INFO
+    GEMINI_MODEL: gemini-1.5-flash
+  prometheus:
+    enabled: true
+    path: /metrics
+    port: 8000
+
+# --- Frontend (React + Nginx) ---
+frontend:
+  image:
+    repository: ghcr.io/rohitdash08/finmind-frontend
+    tag: latest
+  replicas: 2
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 75
+  service:
+    type: ClusterIP
+    port: 80
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+
+# --- PostgreSQL ---
+postgres:
+  image:
+    repository: postgres
+    tag: "16"
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  storage:
+    size: 10Gi
+    storageClass: ""
+  service:
+    port: 5432
+
+# --- Redis ---
+redis:
+  image:
+    repository: redis
+    tag: "7"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  service:
+    port: 6379
+
+# --- Nginx Reverse Proxy ---
+nginx:
+  image:
+    repository: nginx
+    tag: 1.27-alpine
+  replicas: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+  service:
+    type: ClusterIP
+    port: 80
+
+# --- Ingress ---
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+    nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
+  hosts:
+    - host: finmind.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+          service: frontend
+          port: 80
+        - path: /api
+          pathType: Prefix
+          service: nginx
+          port: 80
+        - path: /health
+          pathType: Exact
+          service: nginx
+          port: 80
+  tls:
+    - secretName: finmind-tls
+      hosts:
+        - finmind.example.com
+
+# --- Network Policies ---
+networkPolicy:
+  enabled: true
+
+# --- Secrets (override in production) ---
+secrets:
+  postgresUser: finmind
+  postgresPassword: change-me-strong
+  postgresDb: finmind
+  jwtSecret: change-me-long-random-secret
+  grafanaAdminUser: finmind_admin
+  grafanaAdminPassword: change-me-admin-password
+  geminiApiKey: ""
+  openaiApiKey: ""
+
+# --- Security Context ---
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+# --- Service Account ---
+serviceAccount:
+  create: true
+  name: finmind
+  annotations: {}
+
+# --- Observability ---
+monitoring:
+  enabled: true
+  prometheus:
+    enabled: true
+  grafana:
+    enabled: true

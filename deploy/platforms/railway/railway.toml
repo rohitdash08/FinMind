@@ -1,0 +1,22 @@
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "packages/backend/Dockerfile"
+
+[deploy]
+startCommand = "sh -c 'python -m flask --app wsgi:app init-db && gunicorn --workers=2 --threads=4 --bind 0.0.0.0:${PORT:-8000} wsgi:app'"
+healthcheckPath = "/health"
+healthcheckTimeout = 30
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
+
+[[services]]
+name = "finmind-backend"
+internalPort = 8000
+protocol = "TCP"
+
+[variables]
+DATABASE_URL = "${{Postgres.DATABASE_URL}}"
+REDIS_URL = "${{Redis.REDIS_URL}}"
+JWT_SECRET = "${{shared.JWT_SECRET}}"
+LOG_LEVEL = "INFO"
+GEMINI_MODEL = "gemini-1.5-flash"
