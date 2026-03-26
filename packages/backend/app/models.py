@@ -133,3 +133,64 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+# ---------------------------------------------------------------------------
+# Background Job Execution Tracking
+# ---------------------------------------------------------------------------
+
+class JobStatus(str, Enum):
+    PENDING = "PENDING"
+    RUNNING = "RUNNING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+    RETRYING = "RETRYING"
+    DEAD = "DEAD"  # exhausted all retries
+
+
+class JobExecution(db.Model):
+    """Tracks every background job execution with retry metadata."""
+
+    __tablename__ = "job_executions"
+    id = db.Column(db.Integer, primary_key=True)
+    job_type = db.Column(db.String(100), nullable=False, index=True)
+    status = db.Column(
+        db.String(20), default=JobStatus.PENDING.value, nullable=False, index=True
+    )
+    payload = db.Column(db.Text, nullable=True)  # JSON-encoded job arguments
+    result = db.Column(db.Text, nullable=True)  # JSON-encoded result or error detail
+
+    retry_count = db.Column(db.Integer, default=0, nullable=False)
+    max_retries = db.Column(db.Integer, default=3, nullable=False)
+    last_error = db.Column(db.Text, nullable=True)
+    next_retry_at = db.Column(db.DateTime, nullable=True)
+
+    started_at = db.Column(db.DateTime, nullable=True)
+    completed_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    # Optional user association for user-scoped jobs
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "job_type": self.job_type,
+            "status": self.status,
+            "payload": self.payload,
+            "result": self.result,
+            "retry_count": self.retry_count,
+            "max_retries": self.max_retries,
+            "last_error": self.last_error,
+            "next_retry_at": (
+                self.next_retry_at.isoformat() if self.next_retry_at else None
+            ),
+            "started_at": (
+                self.started_at.isoformat() if self.started_at else None
+            ),
+            "completed_at": (
+                self.completed_at.isoformat() if self.completed_at else None
+            ),
+            "created_at": self.created_at.isoformat(),
+            "user_id": self.user_id,
+        }
