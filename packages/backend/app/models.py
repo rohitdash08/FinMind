@@ -133,3 +133,34 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class GdprAuditLog(db.Model):
+    """Immutable audit trail for GDPR export/delete operations.
+
+    These records are retained for compliance even after user deletion
+    and are exempt from the right-to-erasure cascade.
+    """
+
+    __tablename__ = "gdpr_audit_logs"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, nullable=False)  # no FK – survives deletion
+    action = db.Column(db.String(50), nullable=False)  # EXPORT / DELETE_REQUEST / DELETE_CONFIRM / DELETE_CANCEL / ANONYMIZE
+    status = db.Column(db.String(20), nullable=False, default="completed")  # pending / completed / cancelled
+    ip_address = db.Column(db.String(45), nullable=True)
+    user_agent = db.Column(db.String(500), nullable=True)
+    details = db.Column(db.Text, nullable=True)  # JSON blob with extra context
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class DeletionRequest(db.Model):
+    """Tracks pending account deletion requests with a grace period."""
+
+    __tablename__ = "deletion_requests"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, unique=True)
+    reason = db.Column(db.String(1000), nullable=True)
+    requested_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    scheduled_at = db.Column(db.DateTime, nullable=False)  # when hard-delete executes
+    confirmed = db.Column(db.Boolean, default=False, nullable=False)
+    cancelled = db.Column(db.Boolean, default=False, nullable=False)
