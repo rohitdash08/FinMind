@@ -60,6 +60,25 @@ class Observability:
             ["event", "channel", "status"],
             registry=self.registry,
         )
+        self.job_events_total = Counter(
+            "finmind_job_events_total",
+            "Background job lifecycle events.",
+            ["job_type", "event"],
+            registry=self.registry,
+        )
+        self.job_duration_seconds = Histogram(
+            "finmind_job_duration_seconds",
+            "Background job execution duration in seconds.",
+            ["job_type"],
+            buckets=(0.1, 0.5, 1, 5, 10, 30, 60, 120, 300),
+            registry=self.registry,
+        )
+        self.dead_letter_total = Counter(
+            "finmind_dead_letter_total",
+            "Jobs moved to dead-letter queue.",
+            ["job_type"],
+            registry=self.registry,
+        )
 
     def observe_http_request(
         self, method: str, endpoint: str, status_code: int, duration_seconds: float
@@ -78,6 +97,15 @@ class Observability:
         self.reminder_events_total.labels(
             event=event, channel=channel, status=status
         ).inc()
+
+    def record_job_event(self, job_type: str, event: str) -> None:
+        self.job_events_total.labels(job_type=job_type, event=event).inc()
+
+    def observe_job_duration(self, job_type: str, duration_seconds: float) -> None:
+        self.job_duration_seconds.labels(job_type=job_type).observe(duration_seconds)
+
+    def record_dead_letter(self, job_type: str) -> None:
+        self.dead_letter_total.labels(job_type=job_type).inc()
 
     def metrics_response(self) -> Response:
         if self.multiprocess_enabled:
@@ -137,3 +165,12 @@ def track_reminder_event(event: str, channel: str, status: str = "ok") -> None:
     obs = current_app.extensions.get("observability")
     if obs:
         obs.record_reminder_event(event=event, channel=channel, status=status)
+
+
+def track_job_event(job_type: str, event: str) -> None:
+    try:
+        obs = current_app.extensions.get("observability")
+        if obs:
+            obs.record_job_event(job_type=job_type, event=event)
+    except RuntimeError:
+        pass  # Outside application context (e.g. scheduler thread)

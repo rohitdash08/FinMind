@@ -36,7 +36,7 @@ def create_app(settings: Settings | None = None) -> Flask:
     )
 
     # Logging
-    log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+    log_level = cfg.log_level.upper()
     configure_logging(log_level)
     logger = logging.getLogger("finmind")
     logger.info("Starting FinMind backend with log level %s", log_level)
@@ -51,6 +51,11 @@ def create_app(settings: Settings | None = None) -> Flask:
     # Redis (already global)
     # Blueprint routes
     register_routes(app)
+
+    # Background job scheduler (suppressed in tests)
+    from .services.scheduler import init_scheduler
+
+    init_scheduler(app)
 
     # Backward-compatible schema patch for existing databases.
     with app.app_context():

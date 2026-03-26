@@ -1,6 +1,6 @@
 from datetime import datetime, date
 from enum import Enum
-from sqlalchemy import Enum as SAEnum
+from sqlalchemy import Enum as SAEnum, Index
 from .extensions import db
 
 
@@ -133,3 +133,35 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class JobStatus(str, Enum):
+    PENDING = "PENDING"
+    RUNNING = "RUNNING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+    DEAD = "DEAD"
+
+
+class JobExecution(db.Model):
+    """Tracks background job executions with retry state."""
+
+    __tablename__ = "job_executions"
+
+    id = db.Column(db.Integer, primary_key=True)
+    job_type = db.Column(db.String(100), nullable=False)
+    status = db.Column(db.String(20), default=JobStatus.PENDING.value, nullable=False)
+    payload = db.Column(db.Text, nullable=True)
+    result = db.Column(db.Text, nullable=True)
+    last_error = db.Column(db.Text, nullable=True)
+    retry_count = db.Column(db.Integer, default=0, nullable=False)
+    max_retries = db.Column(db.Integer, default=3, nullable=False)
+    next_retry_at = db.Column(db.DateTime, nullable=True)
+    started_at = db.Column(db.DateTime, nullable=True)
+    completed_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        Index("idx_job_executions_status_retry", "status", "next_retry_at"),
+        Index("idx_job_executions_type_status", "job_type", "status"),
+    )

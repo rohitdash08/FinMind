@@ -23,6 +23,16 @@ class Settings(BaseSettings):
     email_from: str | None = None
     smtp_url: str | None = None  # e.g. smtp+ssl://user:pass@mail:465
 
+    log_level: str = "INFO"
+
+    # Background job retry configuration
+    job_max_retries: int = 3
+    job_base_backoff_seconds: int = 300  # 5 minutes
+    job_backoff_multiplier: float = 3.0
+    job_jitter_factor: float = 0.1
+    job_cb_failure_threshold: int = 5
+    job_cb_recovery_timeout: int = 300  # 5 minutes
+
     # pydantic-settings v2 configuration
     model_config = SettingsConfigDict(
         env_file=".env",
