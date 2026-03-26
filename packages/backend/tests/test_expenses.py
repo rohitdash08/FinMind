@@ -260,3 +260,411 @@ def test_recurring_expense_generate_respects_end_date(client, auth_header):
     assert r.status_code == 200
     generated = r.get_json()
     assert len(generated) == 3
+
+
+# ---------------------------------------------------------------------------
+# Tests for Bulk Import Validation & Preview (issue #115)
+# ---------------------------------------------------------------------------
+
+from io import BytesIO
+
+
+def test_import_preview_returns_validation_results(client, auth_header):
+    """Preview endpoint now returns per-row validation, warnings, and corrections."""
+    csv_data = (
+        "date,amount,description,currency\n"
+        "2026-02-10,10.50,Coffee,USD\n"
+        "2026-02-11,22.00,Lunch,USD\n"
+    )
+    data = {"file": (BytesIO(csv_data.encode("utf-8")), "statement.csv")}
+    r = client.post(
+        "/expenses/import/preview",
+        data=data,
+        content_type="multipart/form-data",
+        headers=auth_header,
+    )
+    assert r.status_code == 200
+    payload = r.get_json()
+    # New validation fields
+    assert "valid_rows" in payload
+    assert "warning_rows" in payload
+    assert "error_rows" in payload
+    assert "ready_to_import" in payload
+    assert "row_validations" in payload
+    # Valid data: 2 rows should be valid
+    assert payload["valid_rows"] == 2
+    assert payload["error_rows"] == 0
+    assert payload["ready_to_import"] is True
+    assert len(payload["row_validations"]) == 2
+
+
+def test_import_preview_flags_invalid_date(client, auth_header):
+    """Rows with invalid dates are flagged as errors."""
+    csv_data = (
+        "date,amount,description\n"
+        "NOT-A-DATE,10.50,Coffee\n"
+    )
+    data = {"file": (BytesIO(csv_data.encode("utf-8")), "statement.csv")}
+    r = client.post(
+        "/expenses/import/preview",
+        data=data,
+        content_type="multipart/form-data",
+        headers=auth_header,
+    )
+    assert r.status_code == 200
+    payload = r.get_json()
+    assert payload["error_rows"] >= 1
+    assert payload["ready_to_import"] is False
+    v = payload["row_validations"][0]
+    assert v["has_errors"] is True
+    assert any("date" in w.lower() for w in v["warnings"])
+
+
+def test_import_preview_flags_zero_amount_warning_by_default(client, auth_header):
+    """Zero-amount rows produce a warning but are not blocking errors by default."""
+    csv_data = (
+        "date,amount,description\n"
+        "2026-02-10,0,Refund Adjustment\n"
+    )
+    data = {"file": (BytesIO(csv_data.encode("utf-8")), "statement.csv")}
+    r = client.post(
+        "/expenses/import/preview",
+        data=data,
+        content_type="multipart/form-data",
+        headers=auth_header,
+    )
+    assert r.status_code == 200
+    payload = r.get_json()
+    # Zero amount is a warning, not an error, so ready_to_import still True
+    assert payload["error_rows"] == 0
+    assert payload["warning_rows"] >= 1
+    assert payload["ready_to_import"] is True
+
+
+def test_import_preview_strict_zero_amount_blocks_import(client, auth_header):
+    """With strict=true, zero amounts block the import."""
+    csv_data = (
+        "date,amount,description\n"
+        "2026-02-10,0,Refund Adjustment\n"
+    )
+    data = {"file": (BytesIO(csv_data.encode("utf-8")), "statement.csv")}
+    r = client.post(
+        "/expenses/import/preview?strict=true",
+        data=data,
+        content_type="multipart/form-data",
+        headers=auth_header,
+    )
+    assert r.status_code == 200
+    payload = r.get_json()
+    assert payload["error_rows"] >= 1
+    assert payload["ready_to_import"] is False
+
+
+def test_import_preview_auto_corrects_missing_description(client, auth_header):
+    """Missing descriptions are auto-corrected to 'Unknown'."""
+    csv_data = (
+        "date,amount,description,currency\n"
+        "2026-02-10,10.50,,USD\n"
+    )
+    data = {"file": (BytesIO(csv_data.encode("utf-8")), "statement.csv")}
+    r = client.post(
+        "/expenses/import/preview",
+        data=data,
+        content_type="multipart/form-data",
+        headers=auth_header,
+    )
+    assert r.status_code == 200
+    payload = r.get_json()
+    v = payload["row_validations"][0]
+    # Missing description should be corrected
+    assert "description" in v["corrections"]
+    assert v["corrections"]["description"] == "Unknown"
+    # And the original row in transactions should reflect the correction
+    tx = payload["transactions"][0]
+    assert tx["description"] == "Unknown"
+
+
+def test_import_preview_auto_corrects_missing_currency(client, auth_header):
+    """Missing currency defaults to USD."""
+    csv_data = (
+        "date,amount,description,currency\n"
+        "2026-02-10,10.50,Coffee,\n"
+    )
+    data = {"file": (BytesIO(csv_data.encode("utf-8")), "statement.csv")}
+    r = client.post(
+        "/expenses/import/preview",
+        data=data,
+        content_type="multipart/form-data",
+        headers=auth_header,
+    )
+    assert r.status_code == 200
+    payload = r.get_json()
+    v = payload["row_validations"][0]
+    assert "currency" in v["corrections"]
+    assert v["corrections"]["currency"] == "USD"
+
+
+def test_import_preview_corrects_unknown_expense_type(client, auth_header):
+    """Unknown expense_type is corrected to EXPENSE."""
+    csv_data = (
+        "date,amount,description,expense_type\n"
+        "2026-02-10,10.50,Coffee,UNKNOWN_TYPE\n"
+    )
+    data = {"file": (BytesIO(csv_data.encode("utf-8")), "statement.csv")}
+    r = client.post(
+        "/expenses/import/preview",
+        data=data,
+        content_type="multipart/form-data",
+        headers=auth_header,
+    )
+    assert r.status_code == 200
+    payload = r.get_json()
+    v = payload["row_validations"][0]
+    assert v["corrections"].get("expense_type") == "EXPENSE"
+    assert any("expense_type" in w.lower() for w in v["warnings"])
+
+
+def test_import_preview_flags_future_date_in_strict_mode(client, auth_header):
+    """Future dates are flagged in strict mode."""
+    csv_data = (
+        "date,amount,description\n"
+        "2099-12-31,10.50,Coffee\n"
+    )
+    data = {"file": (BytesIO(csv_data.encode("utf-8")), "statement.csv")}
+    r = client.post(
+        "/expenses/import/preview?strict=true",
+        data=data,
+        content_type="multipart/form-data",
+        headers=auth_header,
+    )
+    assert r.status_code == 200
+    payload = r.get_json()
+    assert payload["error_rows"] >= 1
+    assert payload["ready_to_import"] is False
+
+
+def test_import_preview_shows_duplicate_warning(client, auth_header):
+    """Existing transactions are flagged as potential duplicates in preview."""
+    # First import
+    csv1 = (
+        "date,amount,description\n"
+        "2026-02-10,10.50,Coffee\n"
+    )
+    data1 = {"file": (BytesIO(csv1.encode("utf-8")), "s1.csv")}
+    r = client.post(
+        "/expenses/import/preview",
+        data=data1,
+        content_type="multipart/form-data",
+        headers=auth_header,
+    )
+    assert r.status_code == 200
+    preview = r.get_json()
+    r = client.post(
+        "/expenses/import/commit",
+        json={"transactions": preview["transactions"]},
+        headers=auth_header,
+    )
+    assert r.status_code == 201
+
+    # Preview again — should flag as duplicate
+    r = client.post(
+        "/expenses/import/preview",
+        data=data1,
+        content_type="multipart/form-data",
+        headers=auth_header,
+    )
+    assert r.status_code == 200
+    payload = r.get_json()
+    v = payload["row_validations"][0]
+    assert any("duplicate" in w.lower() for w in v["warnings"])
+
+
+def test_import_preview_large_amount_warns(client, auth_header):
+    """Amounts over 100000 are flagged as unusually large."""
+    csv_data = (
+        "date,amount,description\n"
+        "2026-02-10,150000.00,House Deposit\n"
+    )
+    data = {"file": (BytesIO(csv_data.encode("utf-8")), "statement.csv")}
+    r = client.post(
+        "/expenses/import/preview",
+        data=data,
+        content_type="multipart/form-data",
+        headers=auth_header,
+    )
+    assert r.status_code == 200
+    payload = r.get_json()
+    v = payload["row_validations"][0]
+    assert any("large amount" in w.lower() or "150000" in w for w in v["warnings"])
+
+
+def test_import_preview_very_old_date_warns(client, auth_header):
+    """Dates before 1990-01-01 produce a warning."""
+    csv_data = (
+        "date,amount,description\n"
+        "1980-01-01,10.50,Coffee\n"
+    )
+    data = {"file": (BytesIO(csv_data.encode("utf-8")), "statement.csv")}
+    r = client.post(
+        "/expenses/import/preview",
+        data=data,
+        content_type="multipart/form-data",
+        headers=auth_header,
+    )
+    assert r.status_code == 200
+    payload = r.get_json()
+    v = payload["row_validations"][0]
+    assert any("very old" in w.lower() for w in v["warnings"])
+
+
+def test_import_preview_corrections_applied_to_transactions(client, auth_header):
+    """Auto-corrections are reflected in the returned transactions list."""
+    csv_data = (
+        "date,amount,description,currency,expense_type\n"
+        "2026-02-10,10.50,,,\n"
+    )
+    data = {"file": (BytesIO(csv_data.encode("utf-8")), "statement.csv")}
+    r = client.post(
+        "/expenses/import/preview",
+        data=data,
+        content_type="multipart/form-data",
+        headers=auth_header,
+    )
+    assert r.status_code == 200
+    payload = r.get_json()
+    tx = payload["transactions"][0]
+    # Corrections should be applied to the transaction
+    assert tx["description"] == "Unknown"
+    assert tx["currency"] == "USD"
+    assert tx["expense_type"] == "EXPENSE"
+
+
+# ---------------------------------------------------------------------------
+# Standalone unit tests for the validation service
+# ---------------------------------------------------------------------------
+
+from app.services.expense_import import validate_import_rows, _parse_date, _parse_float
+
+
+def test_validate_import_rows_all_valid():
+    rows = [
+        {"date": "2026-01-15", "amount": 5.0, "description": "Coffee", "expense_type": "EXPENSE", "currency": "USD"},
+        {"date": "2026-01-16", "amount": 1000.0, "description": "Rent", "expense_type": "EXPENSE", "currency": "USD"},
+    ]
+    result = validate_import_rows(rows)
+    assert result.total_rows == 2
+    assert result.valid_rows == 2
+    assert result.warning_rows == 0
+    assert result.error_rows == 0
+    assert result.ready_to_import is True
+
+
+def test_validate_import_rows_invalid_date():
+    rows = [{"date": "NOT-A-DATE", "amount": 5.0, "description": "Coffee", "expense_type": "EXPENSE", "currency": "USD"}]
+    result = validate_import_rows(rows)
+    assert result.error_rows == 1
+    assert result.ready_to_import is False
+    v = result.row_results[0]
+    assert v.has_errors is True
+    assert any("date" in w.lower() for w in v.warnings)
+
+
+def test_validate_import_rows_missing_amount():
+    rows = [{"date": "2026-01-15", "amount": None, "description": "Coffee", "expense_type": "EXPENSE", "currency": "USD"}]
+    result = validate_import_rows(rows)
+    assert result.error_rows == 1
+    assert result.ready_to_import is False
+
+
+def test_validate_import_rows_zero_amount_warning():
+    rows = [{"date": "2026-01-15", "amount": 0, "description": "Adjustment", "expense_type": "EXPENSE", "currency": "USD"}]
+    result = validate_import_rows(rows, strict=False)
+    assert result.error_rows == 0
+    assert result.warning_rows == 1
+    assert result.ready_to_import is True
+    assert any("zero" in w.lower() for w in result.row_results[0].warnings)
+
+
+def test_validate_import_rows_zero_amount_strict_blocks():
+    rows = [{"date": "2026-01-15", "amount": 0, "description": "Adjustment", "expense_type": "EXPENSE", "currency": "USD"}]
+    result = validate_import_rows(rows, strict=True)
+    assert result.error_rows == 1
+    assert result.ready_to_import is False
+
+
+def test_validate_import_rows_missing_description_auto_corrected():
+    rows = [{"date": "2026-01-15", "amount": 5.0, "description": "", "expense_type": "EXPENSE", "currency": "USD"}]
+    result = validate_import_rows(rows)
+    v = result.row_results[0]
+    assert v.corrections["description"] == "Unknown"
+    assert any("missing description" in w.lower() for w in v.warnings)
+    assert result.row_results[0].is_valid is True  # warning only, not error
+
+
+def test_validate_import_rows_missing_currency_auto_corrected():
+    rows = [{"date": "2026-01-15", "amount": 5.0, "description": "Coffee", "expense_type": "EXPENSE", "currency": ""}]
+    result = validate_import_rows(rows)
+    v = result.row_results[0]
+    assert v.corrections["currency"] == "USD"
+    assert any("currency" in w.lower() for w in v.warnings)
+
+
+def test_validate_import_rows_unknown_expense_type_corrected():
+    rows = [{"date": "2026-01-15", "amount": 5.0, "description": "Coffee", "expense_type": "GARBAGE", "currency": "USD"}]
+    result = validate_import_rows(rows)
+    v = result.row_results[0]
+    assert v.corrections["expense_type"] == "EXPENSE"
+
+
+def test_validate_import_rows_future_date_strict_blocks():
+    rows = [{"date": "2099-01-15", "amount": 5.0, "description": "Coffee", "expense_type": "EXPENSE", "currency": "USD"}]
+    result = validate_import_rows(rows, strict=True)
+    assert result.error_rows == 1
+    assert result.ready_to_import is False
+
+
+def test_validate_import_rows_future_date_non_strict_warns():
+    rows = [{"date": "2099-01-15", "amount": 5.0, "description": "Coffee", "expense_type": "EXPENSE", "currency": "USD"}]
+    result = validate_import_rows(rows, strict=False)
+    assert result.error_rows == 0
+    assert result.warning_rows == 1
+    assert result.ready_to_import is True
+
+
+def test_validate_import_rows_very_old_date_warns():
+    rows = [{"date": "1980-01-01", "amount": 5.0, "description": "Coffee", "expense_type": "EXPENSE", "currency": "USD"}]
+    result = validate_import_rows(rows)
+    assert result.warning_rows == 1
+    assert any("very old" in w.lower() for w in result.row_results[0].warnings)
+
+
+def test_validate_import_rows_large_amount_warns():
+    rows = [{"date": "2026-01-15", "amount": 500_000.0, "description": "Car", "expense_type": "EXPENSE", "currency": "USD"}]
+    result = validate_import_rows(rows)
+    assert result.warning_rows == 1
+    assert any("large amount" in w.lower() or "500000" in w for w in result.row_results[0].warnings)
+
+
+def test_validate_import_rows_empty_list():
+    result = validate_import_rows([])
+    assert result.total_rows == 0
+    assert result.valid_rows == 0
+    assert result.ready_to_import is False
+
+
+def test_parse_date_various_formats():
+    assert _parse_date("2026-01-15") == date(2026, 1, 15)
+    assert _parse_date("01/15/2026") == date(2026, 1, 15)
+    assert _parse_date("15/01/2026") == date(2026, 1, 15)
+    assert _parse_date("20260115") == date(2026, 1, 15)
+    assert _parse_date("NOT-A-DATE") is None
+    assert _parse_date(None) is None
+
+
+def test_parse_float_various_formats():
+    assert _parse_float(5.0) == 5.0
+    assert _parse_float("5.0") == 5.0
+    assert _parse_float("$5.00") == 5.0
+    assert _parse_float("(5.00)") == -5.0
+    assert _parse_float("NOT-A-NUMBER") is None
+    assert _parse_float(None) is None

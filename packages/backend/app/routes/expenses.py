@@ -270,9 +270,47 @@ def import_preview():
     except Exception as exc:  # pragma: no cover
         logger.exception("Import preview failed user=%s", uid)
         return jsonify(error=f"failed to parse statement: {exc}"), 500
-    duplicates = sum(1 for t in transactions if _is_duplicate(uid, t))
+    # Validate rows for errors, warnings, and auto-corrections
+    strict = request.args.get("strict", "").lower() in ("1", "true")
+    validation = expense_import.validate_import_rows(transactions, strict=strict)
+
+    # Duplicate detection using existing duplicate check
+    duplicate_indices: set[int] = set()
+    for idx, t in enumerate(transactions):
+        if _is_duplicate(uid, t):
+            duplicate_indices.add(idx)
+
+    # Merge duplicate info into validation results
+    for vr in validation.row_results:
+        if vr.row_index in duplicate_indices:
+            vr.warnings.append(
+                f"Row {vr.row_index + 1}: Possible duplicate — "
+                "same date, amount, and description already exist"
+            )
+        # Apply auto-corrections to the transaction
+        if vr.corrections:
+            for k, v in vr.corrections.items():
+                if k in transactions[vr.row_index]:
+                    transactions[vr.row_index][k] = v
+
     return jsonify(
-        total=len(transactions), duplicates=duplicates, transactions=transactions
+        total=validation.total_rows,
+        duplicates=len(duplicate_indices),
+        valid_rows=validation.valid_rows,
+        warning_rows=validation.warning_rows,
+        error_rows=validation.error_rows,
+        ready_to_import=validation.ready_to_import,
+        transactions=transactions,
+        row_validations=[
+            {
+                "row_index": vr.row_index,
+                "is_valid": vr.is_valid,
+                "has_errors": vr.has_errors,
+                "warnings": vr.warnings,
+                "corrections": vr.corrections,
+            }
+            for vr in validation.row_results
+        ],
     )
 
 
