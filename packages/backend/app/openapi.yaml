@@ -12,6 +12,7 @@ tags:
   - name: Bills
   - name: Reminders
   - name: Insights
+  - name: GDPR
 paths:
   /auth/register:
     post:
@@ -443,6 +444,217 @@ paths:
                 type: object
                 properties:
                   created: { type: integer }
+
+  /gdpr/export:
+    get:
+      summary: Export all personal data (GDPR)
+      tags: [GDPR]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: JSON package with all user data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  export_generated_at: { type: string, format: date-time }
+                  user: { type: object }
+                  categories: { type: array, items: { type: object } }
+                  expenses: { type: array, items: { type: object } }
+                  recurring_expenses: { type: array, items: { type: object } }
+                  bills: { type: array, items: { type: object } }
+                  reminders: { type: array, items: { type: object } }
+                  subscriptions: { type: array, items: { type: object } }
+                  audit_logs: { type: array, items: { type: object } }
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /gdpr/delete:
+    post:
+      summary: Request account deletion (30-day grace period)
+      tags: [GDPR]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [password]
+              properties:
+                password: { type: string }
+                reason: { type: string, nullable: true }
+      responses:
+        '202':
+          description: Deletion request created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string }
+                  scheduled_at: { type: string, format: date-time }
+                  grace_period_days: { type: integer }
+                  message: { type: string }
+        '400':
+          description: Missing password
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '403':
+          description: Wrong password
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /gdpr/delete/cancel:
+    post:
+      summary: Cancel pending deletion request
+      tags: [GDPR]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Deletion cancelled
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string }
+                  message: { type: string }
+        '404':
+          description: No pending request
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /gdpr/delete/confirm:
+    post:
+      summary: Confirm immediate irreversible account deletion
+      tags: [GDPR]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [password]
+              properties:
+                password: { type: string }
+      responses:
+        '200':
+          description: Account permanently deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string }
+                  message: { type: string }
+        '400':
+          description: Missing password
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '403':
+          description: Wrong password
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /gdpr/delete/status:
+    get:
+      summary: Check deletion request status
+      tags: [GDPR]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Deletion status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  pending: { type: boolean }
+                  scheduled_at: { type: string, format: date-time, nullable: true }
+                  requested_at: { type: string, format: date-time, nullable: true }
+
+  /gdpr/anonymize:
+    post:
+      summary: Anonymize personal data (keep financial records)
+      tags: [GDPR]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [password]
+              properties:
+                password: { type: string }
+      responses:
+        '200':
+          description: Data anonymized
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string }
+                  message: { type: string }
+        '403':
+          description: Wrong password
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /gdpr/audit-logs:
+    get:
+      summary: List GDPR audit logs (admin only)
+      tags: [GDPR]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: user_id
+          required: false
+          schema: { type: integer }
+        - in: query
+          name: page
+          required: false
+          schema: { type: integer, default: 1 }
+        - in: query
+          name: page_size
+          required: false
+          schema: { type: integer, default: 50 }
+      responses:
+        '200':
+          description: Audit log entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id: { type: integer }
+                    user_id: { type: integer }
+                    action: { type: string }
+                    status: { type: string }
+                    ip_address: { type: string, nullable: true }
+                    user_agent: { type: string, nullable: true }
+                    details: { type: object, nullable: true }
+                    created_at: { type: string, format: date-time }
+        '403':
+          description: Admin access required
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
 
   /insights/budget-suggestion:
     get:

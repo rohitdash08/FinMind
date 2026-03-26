@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
@@ -19,6 +20,7 @@ const SUPPORTED_CURRENCIES = [
 
 export default function Account() {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [currency, setCurrencyState] = useState('INR');
   const [loading, setLoading] = useState(true);
@@ -107,6 +109,20 @@ export default function Account() {
             </div>
           </>
         )}
+      </div>
+
+      {/* Privacy & Data link */}
+      <div className="card card-interactive space-y-3 fade-in-up">
+        <h2 className="text-lg font-semibold">Privacy &amp; Data</h2>
+        <p className="text-sm text-muted-foreground">
+          Export your data, anonymize your account, or request permanent
+          deletion in compliance with GDPR.
+        </p>
+        <div className="flex justify-end">
+          <Button variant="outline" onClick={() => navigate('/privacy')}>
+            Manage Privacy
+          </Button>
+        </div>
       </div>
     </div>
   );
