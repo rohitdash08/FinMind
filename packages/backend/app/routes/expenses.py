@@ -5,9 +5,10 @@ from decimal import Decimal, InvalidOperation
 from flask import Blueprint, current_app, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..extensions import db
-from ..models import Expense, RecurringCadence, RecurringExpense, User
+from ..models import Expense, RecurringCadence, RecurringExpense, User, WebhookEvent
 from ..services.cache import cache_delete_patterns, monthly_summary_key
 from ..services import expense_import
+from ..services.webhook import emit_webhook
 import logging
 
 bp = Blueprint("expenses", __name__)
@@ -83,6 +84,20 @@ def create_expense():
             monthly_summary_key(uid, e.spent_at.strftime("%Y-%m")),
             f"insights:{uid}:*",
         ]
+    )
+    # Emit webhook
+    emit_webhook(
+        user_id=uid,
+        event_type=WebhookEvent.EXPENSE_CREATED,
+        data={
+            "id": e.id,
+            "amount": float(e.amount),
+            "currency": e.currency,
+            "expense_type": e.expense_type,
+            "category_id": e.category_id,
+            "description": e.notes or "",
+            "date": e.spent_at.isoformat(),
+        },
     )
     return jsonify(_expense_to_dict(e)), 201
 
@@ -231,6 +246,19 @@ def update_expense(expense_id: int):
         e.spent_at = date.fromisoformat(raw_date)
     db.session.commit()
     _invalidate_expense_cache(uid, e.spent_at.isoformat())
+    emit_webhook(
+        user_id=uid,
+        event_type=WebhookEvent.EXPENSE_UPDATED,
+        data={
+            "id": e.id,
+            "amount": float(e.amount),
+            "currency": e.currency,
+            "expense_type": e.expense_type,
+            "category_id": e.category_id,
+            "description": e.notes or "",
+            "date": e.spent_at.isoformat(),
+        },
+    )
     return jsonify(_expense_to_dict(e))
 
 
@@ -242,9 +270,24 @@ def delete_expense(expense_id: int):
     if not e or e.user_id != uid:
         return jsonify(error="not found"), 404
     spent_at = e.spent_at.isoformat()
+    # Capture data before deletion for webhook
+    expense_data = {
+        "id": e.id,
+        "amount": float(e.amount),
+        "currency": e.currency,
+        "expense_type": e.expense_type,
+        "category_id": e.category_id,
+        "description": e.notes or "",
+        "date": e.spent_at.isoformat(),
+    }
     db.session.delete(e)
     db.session.commit()
     _invalidate_expense_cache(uid, spent_at)
+    emit_webhook(
+        user_id=uid,
+        event_type=WebhookEvent.EXPENSE_DELETED,
+        data=expense_data,
+    )
     return jsonify(message="deleted")
 
 

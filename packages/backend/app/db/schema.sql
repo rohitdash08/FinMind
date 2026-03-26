@@ -123,3 +123,83 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   action VARCHAR(100) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+DO $$ BEGIN
+  CREATE TYPE bank_conn_status AS ENUM ('active', 'error', 'disconnected');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
+
+CREATE TABLE IF NOT EXISTS bank_connections (
+  id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  connector_name VARCHAR(50) NOT NULL,
+  display_name VARCHAR(200) NOT NULL,
+  status bank_conn_status NOT NULL DEFAULT 'active',
+  config_encrypted TEXT,
+  last_refresh_at TIMESTAMP,
+  last_error TEXT,
+  institution_name VARCHAR(200),
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_bank_connections_user ON bank_connections(user_id);
+CREATE INDEX IF NOT EXISTS idx_bank_connections_connector ON bank_connections(connector_name);
+
+CREATE TABLE IF NOT EXISTS bank_connection_accounts (
+  id SERIAL PRIMARY KEY,
+  bank_connection_id INT NOT NULL REFERENCES bank_connections(id) ON DELETE CASCADE,
+  external_account_id VARCHAR(100) NOT NULL,
+  account_name VARCHAR(200) NOT NULL,
+  account_type VARCHAR(50) NOT NULL DEFAULT 'UNKNOWN',
+  currency VARCHAR(10) NOT NULL DEFAULT 'USD',
+  current_balance NUMERIC(12,2),
+  mask VARCHAR(10),
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  metadata JSONB DEFAULT '{}',
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_bca_connection ON bank_connection_accounts(bank_connection_id);
+
+CREATE TABLE IF NOT EXISTS bank_import_runs (
+  id SERIAL PRIMARY KEY,
+  bank_connection_id INT NOT NULL REFERENCES bank_connections(id) ON DELETE CASCADE,
+  account_id INT NOT NULL REFERENCES bank_connection_accounts(id) ON DELETE CASCADE,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  imported_count INT NOT NULL DEFAULT 0,
+  duplicate_count INT NOT NULL DEFAULT 0,
+  status VARCHAR(20) NOT NULL DEFAULT 'started',
+  error_message TEXT,
+  started_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  completed_at TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_bank_import_runs_connection ON bank_import_runs(bank_connection_id);
+CREATE INDEX IF NOT EXISTS idx_bank_import_runs_user ON bank_import_runs(user_id);
+
+-- Webhook subscriptions
+CREATE TABLE IF NOT EXISTS webhook_subscriptions (
+  id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  url VARCHAR(2048) NOT NULL,
+  secret VARCHAR(255) NOT NULL,
+  events TEXT NOT NULL,  -- JSON array of event types
+  active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_webhook_subscriptions_user ON webhook_subscriptions(user_id);
+
+-- Webhook deliveries (for retry tracking)
+CREATE TABLE IF NOT EXISTS webhook_deliveries (
+  id SERIAL PRIMARY KEY,
+  subscription_id INT NOT NULL REFERENCES webhook_subscriptions(id) ON DELETE CASCADE,
+  event_type VARCHAR(100) NOT NULL,
+  payload TEXT NOT NULL,  -- JSON payload
+  status VARCHAR(20) NOT NULL DEFAULT 'pending',  -- pending, success, failed
+  attempts INT NOT NULL DEFAULT 0,
+  last_attempt_at TIMESTAMP,
+  response_status INT,
+  response_body TEXT,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_subscription ON webhook_deliveries(subscription_id);
+CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_status ON webhook_deliveries(status);

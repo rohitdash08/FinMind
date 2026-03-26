@@ -2,9 +2,10 @@ from datetime import datetime, time, timedelta
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..extensions import db
-from ..models import Bill, Reminder
+from ..models import Bill, Reminder, WebhookEvent
 from ..observability import track_reminder_event
 from ..services.reminders import send_reminder
+from ..services.webhook import emit_webhook
 import logging
 
 bp = Blueprint("reminders", __name__)
@@ -174,6 +175,17 @@ def run_due():
         send_reminder(r)
         r.sent = True
         track_reminder_event(event="sent", channel=r.channel)
+        emit_webhook(
+            user_id=uid,
+            event_type=WebhookEvent.REMINDER_SENT,
+            data={
+                "id": r.id,
+                "message": r.message,
+                "send_at": r.send_at.isoformat(),
+                "channel": r.channel,
+                "bill_id": r.bill_id,
+            },
+        )
     db.session.commit()
     logger.info("Processed due reminders user=%s count=%s", uid, len(items))
     return jsonify(processed=len(items))
