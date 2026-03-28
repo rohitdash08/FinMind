@@ -8,8 +8,11 @@ import { logout as logoutApi } from '@/api/auth';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard' },
+  { name: 'Accounts', href: '/accounts' },
   { name: 'Budgets', href: '/budgets' },
   { name: 'Bills', href: '/bills' },
+  { name: 'Savings', href: '/savings-goals' },
+  { name: 'Weekly', href: '/weekly-summary' },
   { name: 'Reminders', href: '/reminders' },
   { name: 'Expenses', href: '/expenses' },
   { name: 'Analytics', href: '/analytics' },
