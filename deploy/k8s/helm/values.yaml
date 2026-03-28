@@ -194,8 +194,8 @@ monitoring:
 secrets:
   # Set to false to manage secrets externally (e.g., via Vault / ESO)
   create: true
-  postgresPassword: Y2hhbmdlLW1lLXN0cm9uZw==      # change-me-strong
-  jwtSecret: Y2hhbmdlLW1lLWxvbmctcmFuZG9tLXNlY3JldA==  # change-me-long-random-secret
+  postgresPassword: CHANGEME-strong-password
+  jwtSecret: CHANGEME-long-random-secret-min-32-chars
   geminiApiKey: ""
-  grafanaAdminUser: ZmluZW1pbmRfYWRtaW4=            # finmind_admin
-  grafanaAdminPassword: Y2hhbmdlLW1lLWFkbWluLXBhc3N3b3Jk  # change-me-admin-password
+  grafanaAdminUser: finmind_admin
+  grafanaAdminPassword: CHANGEME-admin-password
