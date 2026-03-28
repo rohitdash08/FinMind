@@ -123,3 +123,20 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   action VARCHAR(100) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+-- Login anomaly detection
+CREATE TABLE IF NOT EXISTS login_events (
+  id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  ip_address VARCHAR(45),
+  user_agent VARCHAR(512),
+  success BOOLEAN NOT NULL DEFAULT TRUE,
+  anomaly_score NUMERIC(4, 2) NOT NULL DEFAULT 0.0,
+  anomaly_reasons VARCHAR(512),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_login_events_user_id ON login_events(user_id);
+CREATE INDEX IF NOT EXISTS idx_login_events_created_at ON login_events(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_login_events_anomaly ON login_events(user_id, anomaly_score)
+  WHERE anomaly_score > 0;
