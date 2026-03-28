@@ -55,8 +55,9 @@ See `backend/app/db/schema.sql`. Key tables:
   - `user:{id}:categories` — 24h TTL
   - `user:{id}:upcoming_bills` — 15 min TTL
   - `insights:{id}` — 24h TTL (invalidate on new expense/bill)
+  - `user:{id}:weekly_digest:{yyyy-mm-dd}` — 1h TTL (invalidate on expense changes)
 - Invalidation
-  - On expense/bill create/update/delete -> delete affected monthly_summary, upcoming_bills, insights
+  - On expense/bill create/update/delete -> delete affected monthly_summary, upcoming_bills, insights, weekly_digest
 - Rate limiting (optional): `rl:{userId}:{endpoint}:{minute}` with short TTL
 
 ## API Endpoints
@@ -66,6 +67,32 @@ OpenAPI: `backend/app/openapi.yaml`
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
 - Insights: `/insights/monthly`, `/insights/budget-suggestion`
+- Digest: `/digest` (weekly summary), `/digest/weeks` (available weeks)
+
+## Weekly Digest Feature
+The Smart Digest provides weekly financial summaries with trends and insights:
+
+### Backend (`/digest`)
+- **`GET /digest?week_start=YYYY-MM-DD`** — Returns a comprehensive weekly summary including:
+  - Period info (week start/end dates)
+  - Summary totals (income, expenses, net flow, transaction count)
+  - Week-over-week comparison (percentage change vs. previous week)
+  - Category breakdown with share percentages
+  - Daily spending breakdown (all 7 days, zero-filled)
+  - Top 5 largest transactions
+  - Auto-generated insights (spending trends, savings, peak days, top categories)
+- **`GET /digest/weeks?count=N`** — Lists weeks that have expense data for navigation
+- Results are cached in Redis (1h TTL) and auto-invalidated on expense changes
+- Service layer in `packages/backend/app/services/digest.py`
+
+### Frontend (`/digest`)
+- Full-page digest view accessible via the "Digest" nav link
+- Week navigation with prev/next controls
+- Summary cards for net flow, income, expenses, and week comparison
+- Visual daily spending bar chart
+- Top transactions list
+- Category breakdown with progress bars
+- Numbered insights panel
 
 ## MVP UI/UX Plan
 - Auth screens: register/login.
@@ -108,6 +135,7 @@ finmind/
         __init__.py
         ai.py
         cache.py
+        digest.py
         reminders.py
       db/
         schema.sql
