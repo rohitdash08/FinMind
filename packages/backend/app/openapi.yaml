@@ -12,6 +12,7 @@ tags:
   - name: Bills
   - name: Reminders
   - name: Insights
+  - name: Digest
 paths:
   /auth/register:
     post:
@@ -475,6 +476,108 @@ paths:
                   wants: 360
                   savings: 240
                 tips: ["Cap dining spend to 80% of last month", "Automate weekly transfer to savings"]
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /digest:
+    get:
+      summary: Get weekly financial digest
+      tags: [Digest]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: week_start
+          in: query
+          required: false
+          description: ISO date of the Monday to report on. Defaults to last completed week.
+          schema: { type: string, format: date, example: '2026-03-16' }
+      responses:
+        '200':
+          description: Weekly digest payload
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  period:
+                    type: object
+                    properties:
+                      week_start: { type: string, format: date }
+                      week_end: { type: string, format: date }
+                  summary:
+                    type: object
+                    properties:
+                      total_income: { type: number }
+                      total_expenses: { type: number }
+                      net_flow: { type: number }
+                      transaction_count: { type: integer }
+                  comparison:
+                    type: object
+                    properties:
+                      prev_week_expenses: { type: number }
+                      prev_week_income: { type: number }
+                      week_over_week_change_pct: { type: number }
+                  category_breakdown:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        category_id: { type: integer, nullable: true }
+                        category_name: { type: string }
+                        amount: { type: number }
+                        share_pct: { type: number }
+                  daily_spending:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        date: { type: string, format: date }
+                        amount: { type: number }
+                  top_transactions:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: integer }
+                        amount: { type: number }
+                        description: { type: string }
+                        date: { type: string, format: date }
+                        category_id: { type: integer, nullable: true }
+                  insights:
+                    type: array
+                    items: { type: string }
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /digest/weeks:
+    get:
+      summary: List available digest weeks
+      tags: [Digest]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: count
+          in: query
+          required: false
+          description: Number of past weeks to scan (max 52)
+          schema: { type: integer, default: 12 }
+      responses:
+        '200':
+          description: List of weeks with data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    week_start: { type: string, format: date }
+                    week_end: { type: string, format: date }
         '401':
           description: Unauthorized
           content:
