@@ -16,6 +16,10 @@ import NotFound from "./pages/NotFound";
 import { Landing } from "./pages/Landing";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
 import Account from "./pages/Account";
+import { SavingsGoals } from "./pages/SavingsGoals";
+import { WeeklySummaryPage } from "./pages/WeeklySummary";
+import { Accounts } from "./pages/Accounts";
+import { Jobs } from "./pages/Jobs";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -88,6 +92,38 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Account />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="savings-goals"
+              element={
+                <ProtectedRoute>
+                  <SavingsGoals />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="weekly-summary"
+              element={
+                <ProtectedRoute>
+                  <WeeklySummaryPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="accounts"
+              element={
+                <ProtectedRoute>
+                  <Accounts />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="jobs"
+              element={
+                <ProtectedRoute>
+                  <Jobs />
                 </ProtectedRoute>
               }
             />
