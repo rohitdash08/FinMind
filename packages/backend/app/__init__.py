@@ -36,7 +36,7 @@ def create_app(settings: Settings | None = None) -> Flask:
     )
 
     # Logging
-    log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+    log_level = (os.environ.get("LOG_LEVEL") or "INFO").upper()
     configure_logging(log_level)
     logger = logging.getLogger("finmind")
     logger.info("Starting FinMind backend with log level %s", log_level)
@@ -110,10 +110,29 @@ def _ensure_schema_compatibility(app: Flask) -> None:
             NOT NULL DEFAULT 'INR'
             """
         )
+        # Create login_events table if it doesn't exist (for existing deployments)
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS login_events (
+                id SERIAL PRIMARY KEY,
+                user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                ip_address VARCHAR(45),
+                user_agent VARCHAR(512),
+                success BOOLEAN NOT NULL DEFAULT TRUE,
+                anomaly_score NUMERIC(4, 2) NOT NULL DEFAULT 0.0,
+                anomaly_reasons VARCHAR(512),
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+            """
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_login_events_user_id "
+            "ON login_events(user_id)"
+        )
         conn.commit()
     except Exception:
         app.logger.exception(
-            "Schema compatibility patch failed for users.preferred_currency"
+            "Schema compatibility patch failed"
         )
         conn.rollback()
     finally:

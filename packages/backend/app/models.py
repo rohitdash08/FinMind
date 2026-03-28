@@ -133,3 +133,19 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class LoginEvent(db.Model):
+    """Records every login attempt with anomaly-detection metadata."""
+
+    __tablename__ = "login_events"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    ip_address = db.Column(db.String(45), nullable=True)   # supports IPv6
+    user_agent = db.Column(db.String(512), nullable=True)
+    success = db.Column(db.Boolean, nullable=False, default=True)
+    anomaly_score = db.Column(db.Numeric(4, 2), nullable=False, default=0.0)
+    anomaly_reasons = db.Column(db.String(512), nullable=True)
+    created_at = db.Column(
+        db.DateTime(timezone=True), default=datetime.utcnow, nullable=False
+    )
