@@ -1,0 +1,119 @@
+# FinMind — Azure Container Apps deployment
+# Deploy:
+#   az containerapp env create -n finmind-env -g finmind-rg --location eastus
+#   az containerapp create --yaml deploy/platforms/azure/containerapps.yaml \
+#     -g finmind-rg -n finmind-backend
+# Docs: https://learn.microsoft.com/en-us/azure/container-apps/azure-resource-manager-api-spec
+
+# ---------------------------------------------------------------------------
+# Backend Container App
+# ---------------------------------------------------------------------------
+type: Microsoft.App/containerApps
+name: finmind-backend
+location: eastus
+properties:
+  managedEnvironmentId: /subscriptions/SUBSCRIPTION_ID/resourceGroups/finmind-rg/providers/Microsoft.App/managedEnvironments/finmind-env
+  configuration:
+    activeRevisionsMode: Single
+    ingress:
+      external: true
+      targetPort: 8000
+      transport: auto
+      allowInsecure: false
+      traffic:
+        - latestRevision: true
+          weight: 100
+    secrets:
+      - name: database-url
+        keyVaultUrl: https://finmind-kv.vault.azure.net/secrets/DATABASE-URL
+        identity: system
+      - name: redis-url
+        keyVaultUrl: https://finmind-kv.vault.azure.net/secrets/REDIS-URL
+        identity: system
+      - name: jwt-secret
+        keyVaultUrl: https://finmind-kv.vault.azure.net/secrets/JWT-SECRET
+        identity: system
+      - name: gemini-api-key
+        keyVaultUrl: https://finmind-kv.vault.azure.net/secrets/GEMINI-API-KEY
+        identity: system
+  template:
+    initContainers:
+      - name: db-migrate
+        image: ghcr.io/rohitdash08/finmind-backend:latest
+        command: ["flask", "init-db"]
+        env:
+          - name: DATABASE_URL
+            secretRef: database-url
+    containers:
+      - name: backend
+        image: ghcr.io/rohitdash08/finmind-backend:latest
+        command:
+          - sh
+          - -c
+          - |
+            mkdir -p /tmp/prometheus_multiproc
+            export PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus_multiproc
+            exec gunicorn -w 2 -k gthread --threads 4 -b 0.0.0.0:8000 wsgi:app
+        env:
+          - name: DATABASE_URL
+            secretRef: database-url
+          - name: REDIS_URL
+            secretRef: redis-url
+          - name: JWT_SECRET
+            secretRef: jwt-secret
+          - name: GEMINI_API_KEY
+            secretRef: gemini-api-key
+          - name: LOG_LEVEL
+            value: INFO
+          - name: GEMINI_MODEL
+            value: gemini-1.5-flash
+        resources:
+          cpu: 0.5
+          memory: 512Mi
+        probes:
+          - type: readiness
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          - type: liveness
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 20
+            periodSeconds: 20
+    scale:
+      minReplicas: 1
+      maxReplicas: 10
+      rules:
+        - name: http-scale
+          http:
+            metadata:
+              concurrentRequests: "50"
+---
+# ---------------------------------------------------------------------------
+# Frontend Container App
+# ---------------------------------------------------------------------------
+type: Microsoft.App/containerApps
+name: finmind-frontend
+location: eastus
+properties:
+  managedEnvironmentId: /subscriptions/SUBSCRIPTION_ID/resourceGroups/finmind-rg/providers/Microsoft.App/managedEnvironments/finmind-env
+  configuration:
+    activeRevisionsMode: Single
+    ingress:
+      external: true
+      targetPort: 80
+      transport: auto
+      allowInsecure: false
+  template:
+    containers:
+      - name: frontend
+        image: ghcr.io/rohitdash08/finmind-frontend:latest
+        resources:
+          cpu: 0.25
+          memory: 128Mi
+    scale:
+      minReplicas: 1
+      maxReplicas: 5

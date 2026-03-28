@@ -1,0 +1,130 @@
+# =============================================================================
+# FinMind — Tiltfile for local Kubernetes development
+# Usage: tilt up   (requires: tilt, kubectl, helm)
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# Settings
+# ---------------------------------------------------------------------------
+NAMESPACE = "finmind"
+BACKEND_PORT  = 8000
+FRONTEND_PORT = 5173
+GRAFANA_PORT  = 3000
+
+# Load Helm extension
+load('ext://helm_resource', 'helm_resource', 'helm_repo')
+load('ext://namespace', 'namespace_create', 'namespace_inject')
+
+# Ensure namespace exists
+namespace_create(NAMESPACE)
+
+# ---------------------------------------------------------------------------
+# Build images locally with hot-reload
+# ---------------------------------------------------------------------------
+docker_build(
+    'ghcr.io/rohitdash08/finmind-backend',
+    context='../../packages/backend',
+    dockerfile='../../packages/backend/Dockerfile',
+    live_update=[
+        # Sync Python source files without rebuilding
+        sync('../../packages/backend/app', '/app/app'),
+        sync('../../packages/backend/wsgi.py', '/app/wsgi.py'),
+        # Reinstall deps if requirements change
+        run(
+            'pip install -r /app/requirements.txt',
+            trigger=['../../packages/backend/requirements.txt'],
+        ),
+        # Restart gunicorn after code changes
+        run('kill -HUP $(cat /tmp/gunicorn.pid) 2>/dev/null || true'),
+    ],
+)
+
+docker_build(
+    'ghcr.io/rohitdash08/finmind-frontend',
+    context='../../app',
+    dockerfile='../../app/Dockerfile',
+    target='builder',      # use the build stage for dev (hot-reload via port-forward)
+    live_update=[
+        sync('../../app/src', '/app/src'),
+        sync('../../app/public', '/app/public'),
+        run(
+            'npm install',
+            trigger=['../../app/package.json', '../../app/package-lock.json'],
+        ),
+    ],
+)
+
+# ---------------------------------------------------------------------------
+# Deploy via Helm (uses locally built images)
+# ---------------------------------------------------------------------------
+helm_resource(
+    'finmind',
+    chart='../k8s/helm',
+    namespace=NAMESPACE,
+    flags=[
+        '--set', 'global.imagePullPolicy=Never',   # use locally built images
+        '--set', 'ingress.enabled=false',           # use port-forwards in dev
+        '--set', 'secrets.create=true',
+        '--values', '../k8s/helm/values.yaml',
+    ],
+    image_deps=[
+        'ghcr.io/rohitdash08/finmind-backend',
+        'ghcr.io/rohitdash08/finmind-frontend',
+    ],
+    image_keys=[
+        ('backend.image.repository', 'backend.image.tag'),
+        ('frontend.image.repository', 'frontend.image.tag'),
+    ],
+)
+
+# ---------------------------------------------------------------------------
+# Port forwards for local access
+# ---------------------------------------------------------------------------
+k8s_resource(
+    'finmind',
+    port_forwards=[
+        port_forward(BACKEND_PORT,  BACKEND_PORT,  name='backend-api'),
+        port_forward(FRONTEND_PORT, 80,             name='frontend'),
+        port_forward(GRAFANA_PORT,  GRAFANA_PORT,   name='grafana'),
+        port_forward(9090,          9090,           name='prometheus'),
+    ],
+)
+
+# ---------------------------------------------------------------------------
+# Local resource: run backend tests on file change
+# ---------------------------------------------------------------------------
+local_resource(
+    'backend-tests',
+    cmd='cd ../../packages/backend && python -m pytest tests/ -q --tb=short 2>&1 | tail -20',
+    deps=['../../packages/backend/app', '../../packages/backend/tests'],
+    trigger_mode=TRIGGER_MODE_MANUAL,
+    labels=['tests'],
+)
+
+# ---------------------------------------------------------------------------
+# Local resource: lint frontend
+# ---------------------------------------------------------------------------
+local_resource(
+    'frontend-lint',
+    cmd='cd ../../app && npm run lint 2>&1 | tail -20',
+    deps=['../../app/src'],
+    trigger_mode=TRIGGER_MODE_MANUAL,
+    labels=['tests'],
+)
+
+# ---------------------------------------------------------------------------
+# Useful links shown in Tilt UI
+# ---------------------------------------------------------------------------
+config.define_string_list('to-run', args=True)
+cfg = config.parse()
+
+print("""
+╔══════════════════════════════════════════╗
+║  FinMind — Tilt Dev Environment Ready   ║
+╠══════════════════════════════════════════╣
+║  Backend API : http://localhost:8000     ║
+║  Frontend    : http://localhost:5173     ║
+║  Grafana     : http://localhost:3000     ║
+║  Prometheus  : http://localhost:9090     ║
+╚══════════════════════════════════════════╝
+""")

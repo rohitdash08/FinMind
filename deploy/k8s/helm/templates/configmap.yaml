@@ -1,0 +1,56 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: finmind-config
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app.kubernetes.io/name: finmind
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+data:
+  LOG_LEVEL: {{ .Values.backend.env.LOG_LEVEL | quote }}
+  GEMINI_MODEL: {{ .Values.backend.env.GEMINI_MODEL | quote }}
+  REDIS_URL: "redis://redis:{{ .Values.redis.port }}/0"
+  DATABASE_URL: "postgresql://finmind:$(POSTGRES_PASSWORD)@postgres:{{ .Values.postgresql.port }}/{{ .Values.postgresql.database }}"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-config
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app.kubernetes.io/name: finmind-nginx
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+data:
+  default.conf: |
+    upstream backend {
+        server backend:{{ .Values.backend.port }};
+    }
+    server {
+        listen {{ .Values.nginx.port }};
+        server_name _;
+
+        location /api/ {
+            proxy_pass         http://backend;
+            proxy_set_header   Host              $host;
+            proxy_set_header   X-Real-IP         $remote_addr;
+            proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+            proxy_set_header   X-Forwarded-Proto $scheme;
+            proxy_read_timeout 60s;
+            proxy_connect_timeout 10s;
+        }
+
+        location /health {
+            proxy_pass http://backend/health;
+        }
+
+        location /metrics {
+            proxy_pass http://backend/metrics;
+        }
+
+        location / {
+            proxy_pass http://frontend:{{ .Values.frontend.port }};
+            proxy_set_header Host $host;
+        }
+    }

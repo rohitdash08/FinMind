@@ -1,0 +1,43 @@
+# FinMind — Railway deployment configuration
+# Docs: https://docs.railway.app/reference/railway-toml
+
+[build]
+builder = "dockerfile"
+dockerfilePath = "packages/backend/Dockerfile"
+
+[deploy]
+startCommand = "gunicorn -w 2 -k gthread --threads 4 -b 0.0.0.0:$PORT wsgi:app"
+healthcheckPath = "/health"
+healthcheckTimeout = 30
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
+
+[[services]]
+name = "backend"
+source = "packages/backend"
+
+  [services.build]
+  builder = "dockerfile"
+  dockerfilePath = "packages/backend/Dockerfile"
+
+  [services.deploy]
+  startCommand = "flask init-db && gunicorn -w 2 -k gthread --threads 4 -b 0.0.0.0:$PORT wsgi:app"
+  healthcheckPath = "/health"
+
+  [[services.variables]]
+  # These are set in the Railway dashboard under Variables
+  # DATABASE_URL  — provided by Railway PostgreSQL plugin
+  # REDIS_URL     — provided by Railway Redis plugin
+  # JWT_SECRET    — set manually
+  # GEMINI_API_KEY — set manually
+
+[[services]]
+name = "frontend"
+source = "app"
+
+  [services.build]
+  builder = "dockerfile"
+  dockerfilePath = "app/Dockerfile"
+
+  [services.deploy]
+  healthcheckPath = "/"
