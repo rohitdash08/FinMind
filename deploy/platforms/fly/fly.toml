@@ -1,0 +1,63 @@
+# FinMind — Fly.io deployment configuration
+# Deploy: fly launch --config deploy/platforms/fly/fly.toml
+# Docs: https://fly.io/docs/reference/configuration/
+
+app = "finmind-backend"
+primary_region = "iad"
+kill_signal = "SIGTERM"
+kill_timeout = "30s"
+
+[build]
+  dockerfile = "packages/backend/Dockerfile"
+  build-target = ""
+
+[env]
+  PORT = "8000"
+  LOG_LEVEL = "INFO"
+  GEMINI_MODEL = "gemini-1.5-flash"
+
+[deploy]
+  release_command = "flask init-db"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+  [http_service.concurrency]
+    type = "requests"
+    hard_limit = 250
+    soft_limit = 200
+
+[[http_service.checks]]
+  grace_period = "10s"
+  interval = "15s"
+  method = "GET"
+  path = "/health"
+  timeout = "5s"
+
+[metrics]
+  port = 8000
+  path = "/metrics"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 512
+
+[mounts]
+  # Uncomment if you want a persistent scratch volume
+  # source = "finmind_data"
+  # destination = "/data"
+
+# ---------------------------------------------------------------------------
+# Secrets — set via: fly secrets set KEY=value
+# ---------------------------------------------------------------------------
+# Required secrets (set before first deploy):
+#   fly secrets set DATABASE_URL="postgresql://..."
+#   fly secrets set REDIS_URL="redis://..."
+#   fly secrets set JWT_SECRET="$(openssl rand -hex 32)"
+#   fly secrets set GEMINI_API_KEY="your-key"

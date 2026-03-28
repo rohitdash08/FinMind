@@ -1,0 +1,124 @@
+# FinMind — Google Cloud Run service definition
+# Deploy: gcloud run services replace deploy/platforms/gcp/cloudrun-service.yaml
+# Docs: https://cloud.google.com/run/docs/reference/yaml/v1
+
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: finmind-backend
+  namespace: PROJECT_ID
+  labels:
+    app: finmind
+    managed-by: gcloud
+  annotations:
+    run.googleapis.com/launch-stage: GA
+    run.googleapis.com/ingress: all
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: "1"
+        autoscaling.knative.dev/maxScale: "10"
+        run.googleapis.com/cpu-throttling: "false"
+        run.googleapis.com/execution-environment: gen2
+        run.googleapis.com/cloudsql-instances: PROJECT_ID:REGION:finmind-db
+    spec:
+      containerConcurrency: 80
+      timeoutSeconds: 300
+      serviceAccountName: finmind-sa@PROJECT_ID.iam.gserviceaccount.com
+      containers:
+        - image: ghcr.io/rohitdash08/finmind-backend:latest
+          name: backend
+          ports:
+            - name: http1
+              containerPort: 8000
+          command:
+            - sh
+            - -c
+            - |
+              flask init-db
+              mkdir -p /tmp/prometheus_multiproc
+              export PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus_multiproc
+              exec gunicorn -w 2 -k gthread --threads 4 -b 0.0.0.0:8000 wsgi:app
+          env:
+            - name: LOG_LEVEL
+              value: INFO
+            - name: GEMINI_MODEL
+              value: gemini-1.5-flash
+            - name: PORT
+              value: "8000"
+            # Secrets from Secret Manager
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  key: latest
+                  name: finmind-database-url
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  key: latest
+                  name: finmind-redis-url
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: latest
+                  name: finmind-jwt-secret
+            - name: GEMINI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: latest
+                  name: finmind-gemini-api-key
+          resources:
+            limits:
+              cpu: "1"
+              memory: 512Mi
+            requests:
+              cpu: 100m
+              memory: 256Mi
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 20
+  traffic:
+    - percent: 100
+      latestRevision: true
+---
+# Frontend Cloud Run service
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: finmind-frontend
+  namespace: PROJECT_ID
+  labels:
+    app: finmind
+  annotations:
+    run.googleapis.com/ingress: all
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: "1"
+        autoscaling.knative.dev/maxScale: "5"
+    spec:
+      containers:
+        - image: ghcr.io/rohitdash08/finmind-frontend:latest
+          name: frontend
+          ports:
+            - name: http1
+              containerPort: 80
+          resources:
+            limits:
+              cpu: "0.5"
+              memory: 128Mi
+  traffic:
+    - percent: 100
+      latestRevision: true

@@ -1,0 +1,96 @@
+# FinMind — DigitalOcean App Platform spec
+# Deploy: doctl apps create --spec deploy/platforms/digitalocean/app.yaml
+# Docs: https://docs.digitalocean.com/products/app-platform/reference/app-spec/
+
+name: finmind
+region: nyc
+
+# ---------------------------------------------------------------------------
+# Backend service
+# ---------------------------------------------------------------------------
+services:
+  - name: backend
+    dockerfile_path: packages/backend/Dockerfile
+    source_dir: packages/backend
+    github:
+      repo: rohitdash08/FinMind
+      branch: main
+      deploy_on_push: true
+    http_port: 8000
+    instance_count: 1
+    instance_size_slug: basic-xs
+    run_command: >
+      flask init-db &&
+      gunicorn -w 2 -k gthread --threads 4 -b 0.0.0.0:8080 wsgi:app
+    health_check:
+      http_path: /health
+      initial_delay_seconds: 15
+      period_seconds: 10
+      timeout_seconds: 5
+      failure_threshold: 3
+    envs:
+      - key: DATABASE_URL
+        scope: RUN_TIME
+        value: ${db.DATABASE_URL}
+      - key: REDIS_URL
+        scope: RUN_TIME
+        value: ${redis.REDIS_URL}
+      - key: JWT_SECRET
+        scope: RUN_AND_BUILD_TIME
+        type: SECRET
+      - key: GEMINI_API_KEY
+        scope: RUN_TIME
+        type: SECRET
+      - key: LOG_LEVEL
+        scope: RUN_TIME
+        value: INFO
+      - key: GEMINI_MODEL
+        scope: RUN_TIME
+        value: gemini-1.5-flash
+    alerts:
+      - rule: CPU_UTILIZATION
+        operator: GREATER_THAN
+        value: 80
+        window: FIVE_MINUTES
+      - rule: MEM_UTILIZATION
+        operator: GREATER_THAN
+        value: 80
+        window: FIVE_MINUTES
+
+  # -------------------------------------------------------------------------
+  # Frontend static site
+  # -------------------------------------------------------------------------
+  - name: frontend
+    dockerfile_path: app/Dockerfile
+    source_dir: app
+    github:
+      repo: rohitdash08/FinMind
+      branch: main
+      deploy_on_push: true
+    http_port: 80
+    instance_count: 1
+    instance_size_slug: basic-xs
+    health_check:
+      http_path: /
+    envs:
+      - key: VITE_API_URL
+        scope: BUILD_TIME
+        value: ${backend.PUBLIC_URL}
+
+# ---------------------------------------------------------------------------
+# Managed databases
+# ---------------------------------------------------------------------------
+databases:
+  - name: db
+    engine: PG
+    version: "16"
+    size: db-s-1vcpu-1gb
+    num_nodes: 1
+    production: false
+
+  - name: redis
+    engine: REDIS
+    version: "7"
+    size: db-s-1vcpu-1gb
+    num_nodes: 1
+    eviction_policy: allkeys_lru

@@ -1,0 +1,2 @@
+web: cd packages/backend && flask init-db && gunicorn -w 2 -k gthread --threads 4 -b 0.0.0.0:$PORT wsgi:app
+release: cd packages/backend && flask init-db

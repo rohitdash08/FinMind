@@ -1,0 +1,60 @@
+{
+  "name": "FinMind",
+  "description": "AI-powered personal finance manager — Flask + React + PostgreSQL + Redis",
+  "repository": "https://github.com/rohitdash08/FinMind",
+  "logo": "",
+  "keywords": ["finance", "flask", "react", "ai"],
+  "stack": "container",
+
+  "buildpacks": [],
+
+  "env": {
+    "LOG_LEVEL": {
+      "description": "Logging level (DEBUG, INFO, WARNING, ERROR)",
+      "value": "INFO"
+    },
+    "GEMINI_MODEL": {
+      "description": "Google Gemini model to use for AI features",
+      "value": "gemini-1.5-flash"
+    },
+    "JWT_SECRET": {
+      "description": "Secret key for JWT token signing (auto-generated)",
+      "generator": "secret"
+    },
+    "GEMINI_API_KEY": {
+      "description": "Google Gemini API key for AI features",
+      "required": false
+    }
+  },
+
+  "formation": {
+    "web": {
+      "quantity": 1,
+      "size": "basic"
+    }
+  },
+
+  "addons": [
+    {
+      "plan": "heroku-postgresql:essential-0",
+      "as": "DATABASE"
+    },
+    {
+      "plan": "heroku-redis:mini",
+      "as": "REDIS"
+    }
+  ],
+
+  "scripts": {
+    "postdeploy": "cd packages/backend && flask init-db"
+  },
+
+  "environments": {
+    "test": {
+      "addons": ["heroku-postgresql:essential-0"],
+      "scripts": {
+        "test": "cd packages/backend && python -m pytest tests/ -q"
+      }
+    }
+  }
+}

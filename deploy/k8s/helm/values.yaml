@@ -1,0 +1,201 @@
+# =============================================================================
+# FinMind Helm Chart — Default Values
+# Override with: helm install finmind ./deploy/k8s/helm -f my-values.yaml
+# =============================================================================
+
+global:
+  namespace: finmind
+  imageRegistry: ghcr.io/rohitdash08
+  imagePullPolicy: IfNotPresent
+  storageClass: ""          # "" uses cluster default
+
+# ---------------------------------------------------------------------------
+# Backend (Flask/Gunicorn)
+# ---------------------------------------------------------------------------
+backend:
+  image:
+    repository: ghcr.io/rohitdash08/finmind-backend
+    tag: latest
+    pullPolicy: IfNotPresent
+  replicaCount: 2
+  port: 8000
+  gunicornWorkers: 2
+  gunicornThreads: 4
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+  probes:
+    readiness:
+      path: /health
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      failureThreshold: 3
+    liveness:
+      path: /health
+      initialDelaySeconds: 20
+      periodSeconds: 20
+      failureThreshold: 3
+  env:
+    LOG_LEVEL: INFO
+    GEMINI_MODEL: gemini-1.5-flash
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# ---------------------------------------------------------------------------
+# Frontend (Nginx serving React build)
+# ---------------------------------------------------------------------------
+frontend:
+  image:
+    repository: ghcr.io/rohitdash08/finmind-frontend
+    tag: latest
+    pullPolicy: IfNotPresent
+  replicaCount: 2
+  port: 80
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 70
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# ---------------------------------------------------------------------------
+# PostgreSQL
+# ---------------------------------------------------------------------------
+postgresql:
+  image:
+    repository: postgres
+    tag: "16"
+  replicaCount: 1
+  port: 5432
+  database: finmind
+  username: finmind
+  # password is sourced from secret: finmind-secrets
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClass: ""
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# ---------------------------------------------------------------------------
+# Redis
+# ---------------------------------------------------------------------------
+redis:
+  image:
+    repository: redis
+    tag: "7"
+  replicaCount: 1
+  port: 6379
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+# ---------------------------------------------------------------------------
+# Nginx reverse proxy
+# ---------------------------------------------------------------------------
+nginx:
+  image:
+    repository: nginx
+    tag: 1.27-alpine
+  replicaCount: 1
+  port: 8080
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+# ---------------------------------------------------------------------------
+# Ingress
+# ---------------------------------------------------------------------------
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    api: api.finmind.example.com
+    app: app.finmind.example.com
+    grafana: grafana.finmind.example.com
+  tls:
+    enabled: true
+    secretName: finmind-tls
+
+# ---------------------------------------------------------------------------
+# Monitoring
+# ---------------------------------------------------------------------------
+monitoring:
+  enabled: true
+  prometheus:
+    image:
+      repository: prom/prometheus
+      tag: v2.54.1
+    port: 9090
+    retention: 14d
+    retentionSize: 1GB
+    persistence:
+      enabled: true
+      size: 5Gi
+  loki:
+    image:
+      repository: grafana/loki
+      tag: 2.9.10
+    port: 3100
+    retention: 168h
+    persistence:
+      enabled: true
+      size: 5Gi
+  grafana:
+    image:
+      repository: grafana/grafana
+      tag: 11.1.5
+    port: 3000
+    persistence:
+      enabled: true
+      size: 2Gi
+    # admin credentials sourced from secret: finmind-secrets
+
+# ---------------------------------------------------------------------------
+# Secrets (values here are base64-encoded defaults for dev — CHANGE IN PROD)
+# ---------------------------------------------------------------------------
+secrets:
+  # Set to false to manage secrets externally (e.g., via Vault / ESO)
+  create: true
+  postgresPassword: CHANGEME-strong-password
+  jwtSecret: CHANGEME-long-random-secret-min-32-chars
+  geminiApiKey: ""
+  grafanaAdminUser: finmind_admin
+  grafanaAdminPassword: CHANGEME-admin-password
