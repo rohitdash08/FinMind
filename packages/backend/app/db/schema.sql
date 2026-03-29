@@ -123,3 +123,29 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   action VARCHAR(100) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+-- Job execution tracking for resilient retry & monitoring
+DO $$ BEGIN
+  CREATE TYPE job_status AS ENUM ('PENDING','RUNNING','SUCCESS','FAILED','RETRYING','DEAD');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
+
+CREATE TABLE IF NOT EXISTS job_executions (
+  id SERIAL PRIMARY KEY,
+  job_id VARCHAR(200) NOT NULL,
+  job_name VARCHAR(200) NOT NULL,
+  status job_status NOT NULL DEFAULT 'PENDING',
+  attempt INT NOT NULL DEFAULT 1,
+  max_retries INT NOT NULL DEFAULT 3,
+  error_message TEXT,
+  error_traceback TEXT,
+  started_at TIMESTAMP,
+  finished_at TIMESTAMP,
+  next_retry_at TIMESTAMP,
+  duration_ms INT,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_job_executions_job_id ON job_executions(job_id);
+CREATE INDEX IF NOT EXISTS idx_job_executions_status ON job_executions(status);
+CREATE INDEX IF NOT EXISTS idx_job_executions_created ON job_executions(created_at DESC);
