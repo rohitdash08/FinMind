@@ -133,3 +133,58 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class LoginAttempt(db.Model):
+    """Tracks all login attempts for anomaly detection."""
+    __tablename__ = "login_attempts"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    email = db.Column(db.String(255), nullable=False)
+    ip_address = db.Column(db.String(45), nullable=False)
+    user_agent = db.Column(db.String(500), nullable=True)
+    device_fingerprint = db.Column(db.String(64), nullable=True)
+    success = db.Column(db.Boolean, default=False, nullable=False)
+    failure_reason = db.Column(db.String(100), nullable=True)
+    country = db.Column(db.String(2), nullable=True)
+    city = db.Column(db.String(100), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class UserDevice(db.Model):
+    """Known devices for each user."""
+    __tablename__ = "user_devices"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    device_fingerprint = db.Column(db.String(64), nullable=False)
+    device_name = db.Column(db.String(200), nullable=True)
+    ip_address = db.Column(db.String(45), nullable=False)
+    user_agent = db.Column(db.String(500), nullable=True)
+    country = db.Column(db.String(2), nullable=True)
+    city = db.Column(db.String(100), nullable=True)
+    first_seen = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    last_seen = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    is_trusted = db.Column(db.Boolean, default=False, nullable=False)
+    is_revoked = db.Column(db.Boolean, default=False, nullable=False)
+
+
+class LoginAnomalyType(str, Enum):
+    """Types of login anomalies."""
+    NEW_DEVICE = "new_device"
+    NEW_LOCATION = "new_location"
+    UNUSUAL_TIME = "unusual_time"
+    MULTIPLE_FAILURES = "multiple_failures"
+    SUSPICIOUS_IP = "suspicious_ip"
+
+
+class LoginAnomaly(db.Model):
+    """Recorded login anomalies."""
+    __tablename__ = "login_anomalies"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    login_attempt_id = db.Column(db.Integer, db.ForeignKey("login_attempts.id"), nullable=True)
+    anomaly_type = db.Column(SAEnum(LoginAnomalyType), nullable=False)
+    severity = db.Column(db.String(20), default="medium", nullable=False)  # low, medium, high
+    details = db.Column(db.Text, nullable=True)  # JSON details
+    acknowledged = db.Column(db.Boolean, default=False, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)

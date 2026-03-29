@@ -10,6 +10,10 @@ from flask_jwt_extended import (
 )
 from ..extensions import db, redis_client
 from ..models import User
+from ..services.login_anomaly import (
+    detector,
+    get_login_context,
+)
 import logging
 import time
 
@@ -56,14 +60,51 @@ def login():
     email = data.get("email")
     password = data.get("password")
     user = db.session.query(User).filter_by(email=email).first()
+    
     if not user or not check_password_hash(user.password_hash, password):
+        # Record failed login attempt
+        context = get_login_context(request, user.id if user else None, email)
+        detector.process_login(context, success=False, failure_reason="invalid_credentials")
+        db.session.commit()
         logger.warning("Login failed for email=%s", email)
         return jsonify(error="invalid credentials"), 401
+    
+    # Process successful login with anomaly detection
+    context = get_login_context(request, user.id, email)
+    attempt, anomalies = detector.process_login(context, success=True)
+    db.session.commit()
+    
     access = create_access_token(identity=str(user.id))
     refresh = create_refresh_token(identity=str(user.id))
     _store_refresh_session(refresh, str(user.id))
+    
     logger.info("Login success user_id=%s", user.id)
-    return jsonify(access_token=access, refresh_token=refresh)
+    
+    # Include anomaly alerts in response
+    anomaly_alerts = []
+    if anomalies:
+        anomaly_alerts = [
+            {
+                "type": a.anomaly_type.value,
+                "severity": a.severity,
+            }
+            for a in anomalies
+        ]
+        logger.warning(
+            "Login anomalies detected for user_id=%s: %s",
+            user.id,
+            [a.anomaly_type.value for a in anomalies]
+        )
+    
+    response = {
+        "access_token": access,
+        "refresh_token": refresh,
+    }
+    
+    if anomaly_alerts:
+        response["security_alerts"] = anomaly_alerts
+    
+    return jsonify(response)
 
 
 @bp.get("/me")
