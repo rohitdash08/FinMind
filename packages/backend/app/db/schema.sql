@@ -117,6 +117,45 @@ CREATE TABLE IF NOT EXISTS user_subscriptions (
   started_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
+-- Savings Goals
+DO $$ BEGIN
+  CREATE TYPE savings_goal_category AS ENUM ('EMERGENCY','VACATION','EDUCATION','HOME','CAR','RETIREMENT','INVESTMENT','OTHER');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
+
+CREATE TABLE IF NOT EXISTS savings_goals (
+  id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name VARCHAR(200) NOT NULL,
+  target_amount NUMERIC(12,2) NOT NULL,
+  current_amount NUMERIC(12,2) NOT NULL DEFAULT 0,
+  currency VARCHAR(10) NOT NULL DEFAULT 'INR',
+  deadline DATE,
+  category savings_goal_category NOT NULL DEFAULT 'OTHER',
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_savings_goals_user ON savings_goals(user_id);
+
+CREATE TABLE IF NOT EXISTS savings_goal_milestones (
+  id SERIAL PRIMARY KEY,
+  goal_id INT NOT NULL REFERENCES savings_goals(id) ON DELETE CASCADE,
+  percentage INT NOT NULL,
+  reached BOOLEAN NOT NULL DEFAULT FALSE,
+  reached_at TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_savings_goal_milestones_goal ON savings_goal_milestones(goal_id);
+
+CREATE TABLE IF NOT EXISTS savings_goal_contributions (
+  id SERIAL PRIMARY KEY,
+  goal_id INT NOT NULL REFERENCES savings_goals(id) ON DELETE CASCADE,
+  amount NUMERIC(12,2) NOT NULL,
+  note VARCHAR(500),
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_savings_goal_contributions_goal ON savings_goal_contributions(goal_id);
+
 CREATE TABLE IF NOT EXISTS audit_logs (
   id SERIAL PRIMARY KEY,
   user_id INT REFERENCES users(id) ON DELETE SET NULL,
