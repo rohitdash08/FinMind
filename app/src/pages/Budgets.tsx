@@ -1,8 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { FinancialCard, FinancialCardContent, FinancialCardDescription, FinancialCardFooter, FinancialCardHeader, FinancialCardTitle } from '@/components/ui/financial-card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, DollarSign, Plus, PieChart, TrendingDown, TrendingUp, Target, AlertCircle, Settings } from 'lucide-react';
+import { Calendar, DollarSign, Plus, PieChart, TrendingDown, TrendingUp, Target, AlertCircle, Settings, Loader2, Trash2 } from 'lucide-react';
+import { listSavingsGoals, createSavingsGoal, deleteSavingsGoal, updateSavingsGoal } from '@/api/savings-goals';
+import type { SavingsGoal as SavingsGoalType } from '@/api/savings-goals';
 
 const budgetCategories = [
   {
@@ -67,38 +69,50 @@ const budgetCategories = [
   }
 ];
 
-const budgetGoals = [
-  {
-    id: 1,
-    title: 'Emergency Fund',
-    target: 10000,
-    current: 7250,
-    deadline: 'Dec 2025',
-    monthlyTarget: 458,
-    status: 'on-track'
-  },
-  {
-    id: 2,
-    title: 'Vacation Fund',
-    target: 3000,
-    current: 1850,
-    deadline: 'Jun 2025',
-    monthlyTarget: 383,
-    status: 'behind'
-  },
-  {
-    id: 3,
-    title: 'New Car',
-    target: 25000,
-    current: 15600,
-    deadline: 'Mar 2026',
-    monthlyTarget: 625,
-    status: 'ahead'
-  }
-];
-
 export function Budgets() {
   const [selectedPeriod] = useState('monthly');
+  const [savingsGoals, setSavingsGoals] = useState<SavingsGoalType[]>([]);
+  const [goalsLoading, setGoalsLoading] = useState(true);
+  const [showGoalForm, setShowGoalForm] = useState(false);
+  const [newGoal, setNewGoal] = useState({ title: '', target_amount: '', deadline: '' });
+
+  const fetchGoals = useCallback(async () => {
+    try {
+      const goals = await listSavingsGoals();
+      setSavingsGoals(goals);
+    } catch {
+      // silently handle - user may not be authenticated
+    } finally {
+      setGoalsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchGoals(); }, [fetchGoals]);
+
+  const handleCreateGoal = async () => {
+    if (!newGoal.title || !newGoal.target_amount) return;
+    try {
+      await createSavingsGoal({
+        title: newGoal.title,
+        target_amount: parseFloat(newGoal.target_amount),
+        deadline: newGoal.deadline || undefined,
+      });
+      setNewGoal({ title: '', target_amount: '', deadline: '' });
+      setShowGoalForm(false);
+      fetchGoals();
+    } catch {
+      // handle error silently
+    }
+  };
+
+  const handleDeleteGoal = async (id: number) => {
+    try {
+      await deleteSavingsGoal(id);
+      fetchGoals();
+    } catch {
+      // handle error silently
+    }
+  };
   
   const totalAllocated = budgetCategories.reduce((sum, cat) => sum + cat.allocated, 0);
   const totalSpent = budgetCategories.reduce((sum, cat) => sum + cat.spent, 0);
@@ -269,7 +283,7 @@ export function Budgets() {
               <FinancialCardHeader>
                 <div className="flex items-center justify-between">
                   <FinancialCardTitle className="section-title">Savings Goals</FinancialCardTitle>
-                  <Button variant="ghost" size="sm">
+                  <Button variant="ghost" size="sm" onClick={() => setShowGoalForm(!showGoalForm)}>
                     <Plus className="w-4 h-4" />
                   </Button>
                 </div>
@@ -278,51 +292,98 @@ export function Budgets() {
                 </FinancialCardDescription>
               </FinancialCardHeader>
               <FinancialCardContent>
+                {showGoalForm && (
+                  <div className="mb-4 p-3 rounded-lg border border-border space-y-2">
+                    <input
+                      className="w-full px-2 py-1 text-sm border border-border rounded bg-background text-foreground"
+                      placeholder="Goal title"
+                      value={newGoal.title}
+                      onChange={(e) => setNewGoal({ ...newGoal, title: e.target.value })}
+                    />
+                    <input
+                      className="w-full px-2 py-1 text-sm border border-border rounded bg-background text-foreground"
+                      placeholder="Target amount"
+                      type="number"
+                      value={newGoal.target_amount}
+                      onChange={(e) => setNewGoal({ ...newGoal, target_amount: e.target.value })}
+                    />
+                    <input
+                      className="w-full px-2 py-1 text-sm border border-border rounded bg-background text-foreground"
+                      placeholder="Deadline (YYYY-MM-DD)"
+                      type="date"
+                      value={newGoal.deadline}
+                      onChange={(e) => setNewGoal({ ...newGoal, deadline: e.target.value })}
+                    />
+                    <div className="flex gap-2">
+                      <Button variant="financial" size="sm" onClick={handleCreateGoal}>Save</Button>
+                      <Button variant="outline" size="sm" onClick={() => setShowGoalForm(false)}>Cancel</Button>
+                    </div>
+                  </div>
+                )}
                 <div className="space-y-4">
-                  {budgetGoals.map((goal) => {
-                    const percentage = (goal.current / goal.target) * 100;
-                    
-                    return (
-                      <div key={goal.id} className="interactive-row p-3 rounded-lg border border-border">
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="font-medium text-foreground text-sm">
-                            {goal.title}
+                  {goalsLoading ? (
+                    <div className="flex justify-center py-4">
+                      <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : savingsGoals.length === 0 ? (
+                    <div className="text-center text-sm text-muted-foreground py-4">
+                      No savings goals yet. Create one to get started!
+                    </div>
+                  ) : (
+                    savingsGoals.map((goal) => {
+                      const percentage = (goal.current_amount / goal.target_amount) * 100;
+                      const statusLabel = goal.status === 'ON_TRACK' ? 'On Track' :
+                        goal.status === 'AHEAD' ? 'Ahead' :
+                        goal.status === 'COMPLETED' ? 'Completed' : 'Behind';
+                      const statusVariant = goal.status === 'ON_TRACK' ? 'default' as const :
+                        goal.status === 'AHEAD' ? 'secondary' as const :
+                        goal.status === 'COMPLETED' ? 'secondary' as const : 'destructive' as const;
+
+                      return (
+                        <div key={goal.id} className="interactive-row p-3 rounded-lg border border-border">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="font-medium text-foreground text-sm">
+                              {goal.title}
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Badge variant={statusVariant} className="text-xs">
+                                {statusLabel}
+                              </Badge>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 w-6 p-0"
+                                onClick={() => handleDeleteGoal(goal.id)}
+                              >
+                                <Trash2 className="w-3 h-3 text-muted-foreground" />
+                              </Button>
+                            </div>
                           </div>
-                          <Badge 
-                            variant={
-                              goal.status === 'on-track' ? 'default' :
-                              goal.status === 'ahead' ? 'secondary' : 'destructive'
-                            }
-                            className="text-xs"
-                          >
-                            {goal.status === 'on-track' ? 'On Track' :
-                             goal.status === 'ahead' ? 'Ahead' : 'Behind'}
-                          </Badge>
+                          <div className="space-y-2">
+                            <div className="flex justify-between text-sm">
+                              <span className="text-muted-foreground">
+                                ${goal.current_amount.toLocaleString()} / ${goal.target_amount.toLocaleString()}
+                              </span>
+                              <span className="text-foreground font-medium">
+                                {percentage.toFixed(0)}%
+                              </span>
+                            </div>
+                            <div className="chart-track">
+                              <div className="chart-fill-success" style={{ width: `${Math.min(percentage, 100)}%` }} />
+                            </div>
+                            <div className="flex justify-between text-xs text-muted-foreground">
+                              {goal.deadline && <span>Target: {goal.deadline}</span>}
+                              {goal.monthly_target !== null && <span>${goal.monthly_target}/mo</span>}
+                            </div>
+                          </div>
                         </div>
-                        <div className="space-y-2">
-                          <div className="flex justify-between text-sm">
-                            <span className="text-muted-foreground">
-                              ${goal.current.toLocaleString()} / ${goal.target.toLocaleString()}
-                            </span>
-                            <span className="text-foreground font-medium">
-                              {percentage.toFixed(0)}%
-                            </span>
-                          </div>
-                          <div className="chart-track">
-                            <div className="chart-fill-success" style={{ width: `${Math.min(percentage, 100)}%` }} />
-                          </div>
-                          <div className="flex justify-between text-xs text-muted-foreground">
-                            <span>Target: {goal.deadline}</span>
-                            <span>${goal.monthlyTarget}/mo</span>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })
+                  )}
                 </div>
               </FinancialCardContent>
               <FinancialCardFooter>
-                <Button variant="financial" size="sm" className="w-full">
+                <Button variant="financial" size="sm" className="w-full" onClick={() => setShowGoalForm(true)}>
                   <Plus className="w-4 h-4" />
                   Add New Goal
                 </Button>
