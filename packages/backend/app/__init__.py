@@ -49,6 +49,11 @@ def create_app(settings: Settings | None = None) -> Flask:
     CORS(app, resources={r"*": {"origins": "*"}}, supports_credentials=True)
 
     # Redis (already global)
+    # Register default job alert callbacks
+    from .services.job_alerts import register_default_alerts
+
+    register_default_alerts()
+
     # Blueprint routes
     register_routes(app)
 

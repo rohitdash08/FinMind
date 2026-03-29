@@ -3,6 +3,9 @@ from enum import Enum
 from sqlalchemy import Enum as SAEnum
 from .extensions import db
 
+# Re-export job models so `import app.models` registers them with SQLAlchemy
+from .models.job_execution import JobExecution, JobStatus  # noqa: F401
+
 
 class Role(str, Enum):
     USER = "USER"
