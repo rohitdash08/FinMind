@@ -133,3 +133,45 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class JobStatus(str, Enum):
+    PENDING = "PENDING"
+    RUNNING = "RUNNING"
+    COMPLETED = "COMPLETED"
+    RETRYING = "RETRYING"
+    DEAD = "DEAD"
+    CANCELLED = "CANCELLED"
+
+
+class BackgroundJob(db.Model):
+    """Persistent background job with retry tracking."""
+    __tablename__ = "background_jobs"
+
+    id = db.Column(db.Integer, primary_key=True)
+    job_type = db.Column(db.String(100), nullable=False, index=True)
+    payload = db.Column(db.Text, nullable=True)
+    status = db.Column(db.String(20), default=JobStatus.PENDING.value, nullable=False, index=True)
+    attempt_count = db.Column(db.Integer, default=0, nullable=False)
+    max_retries = db.Column(db.Integer, default=3, nullable=False)
+    error_log = db.Column(db.Text, nullable=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    next_retry_at = db.Column(db.DateTime, nullable=True, index=True)
+    completed_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "job_type": self.job_type,
+            "status": self.status,
+            "attempt_count": self.attempt_count,
+            "max_retries": self.max_retries,
+            "error_log": self.error_log,
+            "user_id": self.user_id,
+            "next_retry_at": self.next_retry_at.isoformat() if self.next_retry_at else None,
+            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
