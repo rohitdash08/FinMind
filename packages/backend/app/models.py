@@ -127,6 +127,29 @@ class UserSubscription(db.Model):
     started_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
 
+class AccountType(str, Enum):
+    CHECKING = "CHECKING"
+    SAVINGS = "SAVINGS"
+    CREDIT_CARD = "CREDIT_CARD"
+    INVESTMENT = "INVESTMENT"
+    LOAN = "LOAN"
+    OTHER = "OTHER"
+
+
+class FinancialAccount(db.Model):
+    __tablename__ = "financial_accounts"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    name = db.Column(db.String(200), nullable=False)
+    account_type = db.Column(SAEnum(AccountType), nullable=False)
+    institution = db.Column(db.String(200), nullable=True)
+    balance = db.Column(db.Numeric(14, 2), default=0, nullable=False)
+    currency = db.Column(db.String(10), default="INR", nullable=False)
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+
 class AuditLog(db.Model):
     __tablename__ = "audit_logs"
     id = db.Column(db.Integer, primary_key=True)
