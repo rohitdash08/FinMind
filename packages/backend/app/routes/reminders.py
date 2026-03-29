@@ -2,9 +2,9 @@ from datetime import datetime, time, timedelta
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..extensions import db
-from ..models import Bill, Reminder
+from ..models import Bill, Reminder, ReminderDelivery
 from ..observability import track_reminder_event
-from ..services.reminders import send_reminder
+from ..services.reminders import send_reminder, deliver_reminder, get_delivery_metrics, get_failed_reminders
 import logging
 
 bp = Blueprint("reminders", __name__)
@@ -30,6 +30,10 @@ def list_reminders():
                 "send_at": r.send_at.isoformat(),
                 "sent": r.sent,
                 "channel": r.channel,
+                "delivered": r.delivered,
+                "delivery_attempts": r.delivery_attempts,
+                "last_attempt_at": r.last_attempt_at.isoformat() if r.last_attempt_at else None,
+                "error_message": r.error_message,
             }
             for r in items
         ]
@@ -52,6 +56,41 @@ def create_reminder():
     logger.info("Created reminder id=%s user=%s", r.id, uid)
     track_reminder_event(event="created", channel=r.channel)
     return jsonify(id=r.id), 201
+
+
+@bp.patch("/<int:reminder_id>")
+@jwt_required()
+def update_reminder(reminder_id: int):
+    uid = int(get_jwt_identity())
+    r = db.session.query(Reminder).filter_by(id=reminder_id, user_id=uid).first()
+    if not r:
+        return jsonify({"error": "Reminder not found"}), 404
+    
+    data = request.get_json() or {}
+    if "message" in data:
+        r.message = data["message"]
+    if "send_at" in data:
+        r.send_at = datetime.fromisoformat(data["send_at"])
+    if "channel" in data:
+        r.channel = data["channel"]
+    
+    db.session.commit()
+    logger.info("Updated reminder id=%s user=%s", r.id, uid)
+    return jsonify({"message": "Reminder updated"})
+
+
+@bp.delete("/<int:reminder_id>")
+@jwt_required()
+def delete_reminder(reminder_id: int):
+    uid = int(get_jwt_identity())
+    r = db.session.query(Reminder).filter_by(id=reminder_id, user_id=uid).first()
+    if not r:
+        return jsonify({"error": "Reminder not found"}), 404
+    
+    db.session.delete(r)
+    db.session.commit()
+    logger.info("Deleted reminder id=%s user=%s", reminder_id, uid)
+    return jsonify({"message": "Reminder deleted"})
 
 
 @bp.post("/bills/<int:bill_id>/schedule")
@@ -159,6 +198,7 @@ def autopay_result_followup(bill_id: int):
 @bp.post("/run")
 @jwt_required()
 def run_due():
+    """Process due reminders with delivery tracking and retry logic."""
     uid = int(get_jwt_identity())
     now = datetime.utcnow() + timedelta(minutes=1)
     items = (
@@ -170,13 +210,123 @@ def run_due():
         )
         .all()
     )
+    
+    processed = 0
+    delivered = 0
+    failed = 0
+    
     for r in items:
-        send_reminder(r)
-        r.sent = True
-        track_reminder_event(event="sent", channel=r.channel)
+        success = deliver_reminder(r)
+        processed += 1
+        if success:
+            delivered += 1
+        else:
+            failed += 1
+    
+    logger.info(
+        "Processed due reminders user=%s total=%s delivered=%s failed=%s",
+        uid, processed, delivered, failed
+    )
+    return jsonify({
+        "processed": processed,
+        "delivered": delivered,
+        "failed": failed,
+    })
+
+
+@bp.get("/metrics")
+@jwt_required()
+def get_metrics():
+    """Get delivery reliability metrics for the authenticated user."""
+    uid = int(get_jwt_identity())
+    days = request.args.get("days", 30, type=int)
+    
+    metrics = get_delivery_metrics(uid, days)
+    logger.info("Retrieved delivery metrics user=%s days=%s", uid, days)
+    return jsonify(metrics)
+
+
+@bp.get("/failed")
+@jwt_required()
+def list_failed():
+    """Get recent failed reminders that exhausted retry attempts."""
+    uid = int(get_jwt_identity())
+    limit = request.args.get("limit", 10, type=int)
+    
+    reminders = get_failed_reminders(uid, limit)
+    logger.info("Listed failed reminders user=%s count=%s", uid, len(reminders))
+    return jsonify([
+        {
+            "id": r.id,
+            "message": r.message,
+            "send_at": r.send_at.isoformat(),
+            "channel": r.channel,
+            "delivery_attempts": r.delivery_attempts,
+            "last_attempt_at": r.last_attempt_at.isoformat() if r.last_attempt_at else None,
+            "error_message": r.error_message,
+        }
+        for r in reminders
+    ])
+
+
+@bp.post("/<int:reminder_id>/retry")
+@jwt_required()
+def retry_reminder(reminder_id: int):
+    """Manually retry a failed reminder."""
+    uid = int(get_jwt_identity())
+    r = db.session.query(Reminder).filter_by(id=reminder_id, user_id=uid).first()
+    
+    if not r:
+        return jsonify({"error": "Reminder not found"}), 404
+    
+    if r.delivered:
+        return jsonify({"error": "Reminder was already delivered"}), 400
+    
+    # Reset for retry
+    r.delivery_attempts = 0
+    r.sent = False
+    r.send_at = datetime.utcnow()
     db.session.commit()
-    logger.info("Processed due reminders user=%s count=%s", uid, len(items))
-    return jsonify(processed=len(items))
+    
+    # Attempt delivery
+    success = deliver_reminder(r)
+    
+    logger.info("Manual retry reminder id=%s user=%s success=%s", reminder_id, uid, success)
+    return jsonify({
+        "success": success,
+        "delivered": r.delivered,
+        "attempts": r.delivery_attempts,
+    })
+
+
+@bp.get("/<int:reminder_id>/deliveries")
+@jwt_required()
+def get_reminder_deliveries(reminder_id: int):
+    """Get delivery history for a specific reminder."""
+    uid = int(get_jwt_identity())
+    r = db.session.query(Reminder).filter_by(id=reminder_id, user_id=uid).first()
+    
+    if not r:
+        return jsonify({"error": "Reminder not found"}), 404
+    
+    deliveries = (
+        db.session.query(ReminderDelivery)
+        .filter_by(reminder_id=reminder_id)
+        .order_by(ReminderDelivery.attempted_at.desc())
+        .all()
+    )
+    
+    return jsonify([
+        {
+            "id": d.id,
+            "attempted_at": d.attempted_at.isoformat(),
+            "success": d.success,
+            "channel": d.channel,
+            "error_message": d.error_message,
+            "response_time_ms": d.response_time_ms,
+        }
+        for d in deliveries
+    ])
 
 
 def _bill_channels(bill: Bill) -> list[str]:

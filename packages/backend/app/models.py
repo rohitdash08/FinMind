@@ -98,6 +98,24 @@ class Reminder(db.Model):
     send_at = db.Column(db.DateTime, nullable=False)
     sent = db.Column(db.Boolean, default=False, nullable=False)
     channel = db.Column(db.String(20), default="email", nullable=False)
+    # Delivery tracking fields
+    delivered = db.Column(db.Boolean, default=None, nullable=True)
+    delivery_attempts = db.Column(db.Integer, default=0, nullable=False)
+    last_attempt_at = db.Column(db.DateTime, nullable=True)
+    error_message = db.Column(db.String(500), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class ReminderDelivery(db.Model):
+    """Track individual delivery attempts for reliability metrics."""
+    __tablename__ = "reminder_deliveries"
+    id = db.Column(db.Integer, primary_key=True)
+    reminder_id = db.Column(db.Integer, db.ForeignKey("reminders.id"), nullable=False)
+    attempted_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    success = db.Column(db.Boolean, nullable=False)
+    channel = db.Column(db.String(20), nullable=False)
+    error_message = db.Column(db.String(500), nullable=True)
+    response_time_ms = db.Column(db.Integer, nullable=True)  # Delivery latency
 
 
 class AdImpression(db.Model):
