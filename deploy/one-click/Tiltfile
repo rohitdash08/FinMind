@@ -1,0 +1,27 @@
+# FinMind Universal One-Click Deployment via Tilt
+# Configured by Atlas (PDT Timezone Fixed)
+
+# 1. Frontend (Vite)
+docker_build('finmind-frontend', '../../app', 
+  dockerfile='../../app/Dockerfile',
+  live_update=[
+    sync('../../app/src', '/app/src'),
+    run('npm install', trigger='../../app/package.json')
+  ]
+)
+
+# 2. Backend (Flask)
+docker_build('finmind-backend', '../../packages/backend',
+  live_update=[
+    sync('../../packages/backend/app', '/app/app'),
+    run('pip install -r requirements.txt', trigger='../../packages/backend/requirements.txt')
+  ]
+)
+
+# 3. K8s Resources
+k8s_yaml(['../k8s/namespace.yaml', '../k8s/app-stack.yaml', '../k8s/monitoring-stack.yaml'])
+
+# 4. Port Forwards
+k8s_resource('frontend', port_forwards=5173)
+k8s_resource('backend', port_forwards=8000)
+k8s_resource('grafana', port_forwards=3000)
