@@ -1,0 +1,81 @@
+replicaCount: 1
+
+image:
+  backend:
+    repository: finmind-backend
+    tag: latest
+    pullPolicy: IfNotPresent
+  frontend:
+    repository: finmind-frontend
+    tag: latest
+    pullPolicy: IfNotPresent
+
+service:
+  backend:
+    type: ClusterIP
+    port: 8000
+  frontend:
+    type: ClusterIP
+    port: 3000
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: finmind.example.com
+      paths:
+        - path: /api
+          pathType: Prefix
+          service: backend
+        - path: /
+          pathType: Prefix
+          service: frontend
+  tls:
+    - secretName: finmind-tls
+      hosts:
+        - finmind.example.com
+
+autoscaling:
+  enabled: true
+  minReplicas: 1
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+resources:
+  backend:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  frontend:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+postgresql:
+  enabled: true
+  auth:
+    database: finmind
+    username: finmind
+    existingSecret: finmind-db-secret
+
+redis:
+  enabled: true
+  auth:
+    existingSecret: finmind-redis-secret
+
+env:
+  DEBUG: "false"
+  ALLOWED_HOSTS: "*"
+  CORS_ALLOWED_ORIGINS: ""
+
+secrets:
+  existingSecret: finmind-secrets

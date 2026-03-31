@@ -1,0 +1,15 @@
+apiVersion: v2
+name: finmind
+description: FinMind - Personal Finance Management Application
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - finance
+  - personal-finance
+  - budgeting
+home: https://github.com/rohitdash08/FinMind
+sources:
+  - https://github.com/rohitdash08/FinMind
+maintainers:
+  - name: FinMind Team
