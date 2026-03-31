@@ -1,0 +1,39 @@
+services:
+  - type: web
+    name: finmind-backend
+    runtime: docker
+    dockerfilePath: ./app/backend/Dockerfile
+    envVars:
+      - key: DEBUG
+        value: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: finmind-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: finmind-redis
+          property: connectionString
+    healthCheckPath: /api/health/
+
+  - type: web
+    name: finmind-frontend
+    runtime: docker
+    dockerfilePath: ./app/frontend/Dockerfile
+    envVars:
+      - key: NEXT_PUBLIC_API_URL
+        fromService:
+          type: web
+          name: finmind-backend
+          property: host
+
+databases:
+  - name: finmind-db
+    databaseName: finmind
+    user: finmind
+    plan: free
+
+  - name: finmind-redis
+    type: redis
+    plan: free
