@@ -59,6 +59,20 @@ See `backend/app/db/schema.sql`. Key tables:
   - On expense/bill create/update/delete -> delete affected monthly_summary, upcoming_bills, insights
 - Rate limiting (optional): `rl:{userId}:{endpoint}:{minute}` with short TTL
 
+## Response Compression
+All API responses are automatically compressed using gzip/deflate when the client
+sends `Accept-Encoding: gzip`. This typically reduces JSON payload sizes by
+60–80 %, improving load times especially for data-heavy endpoints like
+`/expenses`, `/dashboard`, and `/insights`.
+
+| Setting | Default | Description |
+|---|---|---|
+| `COMPRESS_MIN_SIZE` | `256` | Minimum response bytes before compressing |
+| `COMPRESS_LEVEL` | `6` | gzip compression level (1 = fast, 9 = best) |
+
+The implementation uses `flask-compress` when available (with optional brotli
+support) and falls back to a zero-dependency WSGI gzip middleware.
+
 ## API Endpoints
 OpenAPI: `backend/app/openapi.yaml`
 - Auth: `/auth/register`, `/auth/login`, `/auth/refresh`

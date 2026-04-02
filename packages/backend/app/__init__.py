@@ -8,6 +8,7 @@ from .observability import (
     finalize_request,
     init_request_context,
 )
+from .compression import init_compression
 from flask_cors import CORS
 import click
 import os
@@ -49,6 +50,9 @@ def create_app(settings: Settings | None = None) -> Flask:
     CORS(app, resources={r"*": {"origins": "*"}}, supports_credentials=True)
 
     # Redis (already global)
+    # Response compression (gzip/deflate)
+    init_compression(app)
+
     # Blueprint routes
     register_routes(app)
 
