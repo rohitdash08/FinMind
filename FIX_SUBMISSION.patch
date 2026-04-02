@@ -1,0 +1,50 @@
+```python
+import hmac
+import hashlib
+import json
+import requests
+
+# Define the webhook endpoint and secret
+WEBHOOK_ENDPOINT = "https://example.com/webhook"
+WEBHOOK_SECRET = "your_secret_here"
+
+# Define the event types
+EVENT_TYPES = {
+    "CREATE": "An object was created",
+    "UPDATE": "An object was updated",
+    "DELETE": "An object was deleted"
+}
+
+def emit_webhook(event_type, data):
+    # Create the webhook payload
+    payload = {
+        "event": event_type,
+        "data": data
+    }
+
+    # Generate the signature
+    signature = hmac.new(WEBHOOK_SECRET.encode(), json.dumps(payload).encode(), hashlib.sha256).hexdigest()
+
+    # Set the headers
+    headers = {
+        "Content-Type": "application/json",
+        "X-Hub-Signature": f"sha256={signature}"
+    }
+
+    # Send the webhook request
+    response = requests.post(WEBHOOK_ENDPOINT, headers=headers, data=json.dumps(payload))
+
+    # Handle retries and failures
+    if response.status_code != 200:
+        # Retry the request up to 3 times
+        for _ in range(3):
+            response = requests.post(WEBHOOK_ENDPOINT, headers=headers, data=json.dumps(payload))
+            if response.status_code == 200:
+                break
+        else:
+            # If all retries fail, log the error
+            print(f"Error sending webhook: {response.text}")
+
+# Example usage:
+emit_webhook("CREATE", {"id": 1, "name": "Example Object"})
+```
