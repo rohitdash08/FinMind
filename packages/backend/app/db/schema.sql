@@ -123,3 +123,18 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   action VARCHAR(100) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+
+-- GDPR Deletion Requests
+CREATE TABLE IF NOT EXISTS deletion_requests (
+  id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  requested_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  scheduled_deletion_date TIMESTAMP NOT NULL,
+  ip_address VARCHAR(45),
+  user_agent VARCHAR(500),
+  cancelled BOOLEAN NOT NULL DEFAULT FALSE,
+  cancelled_at TIMESTAMP,
+  cancellation_ip VARCHAR(45)
+);
+CREATE INDEX IF NOT EXISTS idx_deletion_requests_user ON deletion_requests(user_id, cancelled);

@@ -133,3 +133,17 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class DeletionRequest(db.Model):
+    """Track deletion requests for grace period management."""
+    __tablename__ = "deletion_requests"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    requested_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    scheduled_deletion_date = db.Column(db.DateTime, nullable=False)
+    ip_address = db.Column(db.String(45), nullable=True)
+    user_agent = db.Column(db.String(500), nullable=True)
+    cancelled = db.Column(db.Boolean, default=False, nullable=False)
+    cancelled_at = db.Column(db.DateTime, nullable=True)
+    cancellation_ip = db.Column(db.String(45), nullable=True)

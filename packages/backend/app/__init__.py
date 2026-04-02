@@ -41,7 +41,7 @@ def create_app(settings: Settings | None = None) -> Flask:
     logger = logging.getLogger("finmind")
     logger.info("Starting FinMind backend with log level %s", log_level)
 
-    # Extensions
+    # Extensions\n    from .extensions import init_redis\n    init_redis(cfg.redis_url)
     db.init_app(app)
     jwt.init_app(app)
     app.extensions["observability"] = Observability()
