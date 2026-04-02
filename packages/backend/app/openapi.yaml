@@ -12,6 +12,7 @@ tags:
   - name: Bills
   - name: Reminders
   - name: Insights
+  - name: Admin
 paths:
   /auth/register:
     post:
@@ -444,6 +445,55 @@ paths:
                 properties:
                   created: { type: integer }
 
+  /admin/reminders/metrics:
+    get:
+      summary: Get reminder processing metrics (admin only)
+      tags: [Admin]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Metrics summary
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total: { type: integer }
+                  by_status: { type: object, additionalProperties: { type: integer } }
+                  pending_retry: { type: integer }
+                  avg_retries_for_failed: { type: number }
+                  recent_failures: { type: array, items: { $ref: '#/components/schemas/Failure' } }
+        '403':
+          description: Admin access required
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /admin/reminders/failures:
+    get:
+      summary: List failed reminders (admin only)
+      tags: [Admin]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: limit
+          required: false
+          schema: { type: integer, default: 100 }
+      responses:
+        '200':
+          description: List of failed reminders
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FailureDetail'
+        '403':
+          description: Admin access required
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
   /insights/budget-suggestion:
     get:
       summary: Get monthly budget suggestion
@@ -580,6 +630,11 @@ components:
         send_at: { type: string, format: date-time }
         sent: { type: boolean }
         channel: { type: string, enum: [email, whatsapp] }
+        status: { type: string, enum: [pending, sent, failed, retrying] }
+        retry_count: { type: integer }
+        last_retry_at: { type: string, format: date-time, nullable: true }
+        next_retry_at: { type: string, format: date-time, nullable: true }
+        failure_reason: { type: string, nullable: true }
     NewReminder:
       type: object
       required: [message, send_at]
@@ -587,3 +642,24 @@ components:
         message: { type: string }
         send_at: { type: string, format: date-time }
         channel: { type: string, enum: [email, whatsapp], default: email }
+    Failure:
+      type: object
+      properties:
+        id: { type: integer }
+        user_id: { type: integer }
+        message: { type: string }
+        retry_count: { type: integer }
+        last_retry_at: { type: string, format: date-time, nullable: true }
+        failure_reason: { type: string, nullable: true }
+    FailureDetail:
+      type: object
+      properties:
+        id: { type: integer }
+        user_id: { type: integer }
+        bill_id: { type: integer, nullable: true }
+        message: { type: string }
+        channel: { type: string }
+        send_at: { type: string, format: date-time }
+        retry_count: { type: integer }
+        last_retry_at: { type: string, format: date-time, nullable: true }
+        failure_reason: { type: string, nullable: true }

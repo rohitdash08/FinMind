@@ -65,7 +65,72 @@ OpenAPI: `backend/app/openapi.yaml`
 - Expenses: CRUD `/expenses`
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
+  - Admin monitoring: `/admin/reminders/metrics`, `/admin/reminders/failures`
 - Insights: `/insights/monthly`, `/insights/budget-suggestion`
+- Digest: `/digest/weekly`, `/digest/weekly/send`, `/digest/weekly/preview`
+
+## Weekly Financial Digest
+
+FinMind provides a **Smart Weekly Financial Summary** that delivers actionable insights directly to users' inboxes.
+
+### Features
+- **Comprehensive Overview**: Total income, expenses, net flow, and savings rate for the week
+- **Week-over-Week Trends**: Compare spending and income changes from the previous week
+- **Category Breakdown**: Detailed spending analysis by category with percentages
+- **Notable Transactions**: Highlights of significant expenses and income
+- **Upcoming Bills**: Preview of bills due in the next 7 days
+- **Smart Insights**: AI-generated financial tips and recommendations
+
+### Endpoints
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/digest/weekly` | GET | Get weekly digest data (JSON) |
+| `/digest/weekly/send` | POST | Send digest email to current user |
+| `/digest/weekly/preview` | GET | Preview email subject and body |
+
+### Scheduled Delivery
+The weekly digest is automatically generated and sent to all users every **Sunday at 9:00 AM UTC** via APScheduler.
+
+### Manual Trigger (CLI)
+```bash
+# Generate digest for all users
+flask generate-digest
+
+# Generate for specific user with email
+flask generate-digest --user-id 1 --send-email
+```
+
+### Scheduler Status
+Check scheduler status at `/scheduler/status` endpoint.
+
+## Resilient Reminder Delivery & Monitoring
+
+FinMind's reminder system includes robust retry logic with exponential backoff to ensure reliable delivery even during transient failures.
+
+### Retry Mechanism
+- Each reminder tracks retry attempts with `retry_count`, `last_retry_at`, `next_retry_at`, `failure_reason`, and `status`.
+- When a reminder fails to send, it is automatically rescheduled with exponential backoff:
+  - Base delay: 5 minutes
+  - Multiplier: 2^(retry_count - 1)
+  - Maximum retries: 5
+- After max retries, the reminder status becomes `failed` and no further attempts are made.
+- Successful delivery clears all retry tracking fields and marks the reminder as `sent`.
+
+### Admin Monitoring Endpoints
+Administrators can monitor reminder health and failures via:
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/admin/reminders/metrics` | GET | Aggregate metrics: total, counts by status, pending retry count, average retries for failed, recent failure details |
+| `/admin/reminders/failures` | GET | List failed reminders (use `?limit=` to control page size) |
+
+These endpoints require admin role (JWT with `role=ADMIN`).
+
+### Reminder Status Values
+- `pending`: Not yet sent, waiting for scheduled time
+- `sent`: Successfully delivered
+- `retrying`: Failed, waiting for next retry attempt
+- `failed`: Permanent failure after exhausting all retries
 
 ## MVP UI/UX Plan
 - Auth screens: register/login.
@@ -104,11 +169,14 @@ finmind/
         bills.py
         reminders.py
         insights.py
+        digest.py
       services/
         __init__.py
         ai.py
         cache.py
         reminders.py
+        digest.py
+        scheduler.py
       db/
         schema.sql
       openapi.yaml
