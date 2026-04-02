@@ -91,7 +91,12 @@ CREATE TABLE IF NOT EXISTS reminders (
   message VARCHAR(500) NOT NULL,
   send_at TIMESTAMP NOT NULL,
   sent BOOLEAN NOT NULL DEFAULT FALSE,
-  channel VARCHAR(20) NOT NULL DEFAULT 'email'
+  channel VARCHAR(20) NOT NULL DEFAULT 'email',
+  retry_count INT NOT NULL DEFAULT 0,
+  last_retry_at TIMESTAMP,
+  next_retry_at TIMESTAMP,
+  failure_reason VARCHAR(500),
+  status VARCHAR(20) NOT NULL DEFAULT 'pending'
 );
 CREATE INDEX IF NOT EXISTS idx_reminders_due ON reminders(user_id, sent, send_at);
 

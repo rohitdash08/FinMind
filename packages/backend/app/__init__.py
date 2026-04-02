@@ -144,6 +144,7 @@ def _ensure_schema_compatibility(app: Flask) -> None:
     conn = db.engine.raw_connection()
     try:
         cur = conn.cursor()
+        # Add users.preferred_currency if missing
         cur.execute(
             """
             ALTER TABLE users
@@ -151,10 +152,21 @@ def _ensure_schema_compatibility(app: Flask) -> None:
             NOT NULL DEFAULT 'INR'
             """
         )
+        # Add reminders retry tracking columns if missing
+        cur.execute(
+            """
+            ALTER TABLE reminders
+            ADD COLUMN IF NOT EXISTS retry_count INT NOT NULL DEFAULT 0,
+            ADD COLUMN IF NOT EXISTS last_retry_at TIMESTAMP,
+            ADD COLUMN IF NOT EXISTS next_retry_at TIMESTAMP,
+            ADD COLUMN IF NOT EXISTS failure_reason VARCHAR(500),
+            ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'pending'
+            """
+        )
         conn.commit()
     except Exception:
         app.logger.exception(
-            "Schema compatibility patch failed for users.preferred_currency"
+            "Schema compatibility patch failed"
         )
         conn.rollback()
     finally:

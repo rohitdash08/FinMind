@@ -65,6 +65,7 @@ OpenAPI: `backend/app/openapi.yaml`
 - Expenses: CRUD `/expenses`
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
+  - Admin monitoring: `/admin/reminders/metrics`, `/admin/reminders/failures`
 - Insights: `/insights/monthly`, `/insights/budget-suggestion`
 - Digest: `/digest/weekly`, `/digest/weekly/send`, `/digest/weekly/preview`
 
@@ -101,6 +102,35 @@ flask generate-digest --user-id 1 --send-email
 
 ### Scheduler Status
 Check scheduler status at `/scheduler/status` endpoint.
+
+## Resilient Reminder Delivery & Monitoring
+
+FinMind's reminder system includes robust retry logic with exponential backoff to ensure reliable delivery even during transient failures.
+
+### Retry Mechanism
+- Each reminder tracks retry attempts with `retry_count`, `last_retry_at`, `next_retry_at`, `failure_reason`, and `status`.
+- When a reminder fails to send, it is automatically rescheduled with exponential backoff:
+  - Base delay: 5 minutes
+  - Multiplier: 2^(retry_count - 1)
+  - Maximum retries: 5
+- After max retries, the reminder status becomes `failed` and no further attempts are made.
+- Successful delivery clears all retry tracking fields and marks the reminder as `sent`.
+
+### Admin Monitoring Endpoints
+Administrators can monitor reminder health and failures via:
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/admin/reminders/metrics` | GET | Aggregate metrics: total, counts by status, pending retry count, average retries for failed, recent failure details |
+| `/admin/reminders/failures` | GET | List failed reminders (use `?limit=` to control page size) |
+
+These endpoints require admin role (JWT with `role=ADMIN`).
+
+### Reminder Status Values
+- `pending`: Not yet sent, waiting for scheduled time
+- `sent`: Successfully delivered
+- `retrying`: Failed, waiting for next retry attempt
+- `failed`: Permanent failure after exhausting all retries
 
 ## MVP UI/UX Plan
 - Auth screens: register/login.

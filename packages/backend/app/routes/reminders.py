@@ -4,7 +4,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..extensions import db
 from ..models import Bill, Reminder
 from ..observability import track_reminder_event
-from ..services.reminders import send_reminder
+from ..services.reminders import dispatch_reminder
 import logging
 
 bp = Blueprint("reminders", __name__)
@@ -30,6 +30,11 @@ def list_reminders():
                 "send_at": r.send_at.isoformat(),
                 "sent": r.sent,
                 "channel": r.channel,
+                "status": r.status,
+                "retry_count": r.retry_count,
+                "last_retry_at": r.last_retry_at.isoformat() if r.last_retry_at else None,
+                "next_retry_at": r.next_retry_at.isoformat() if r.next_retry_at else None,
+                "failure_reason": r.failure_reason,
             }
             for r in items
         ]
@@ -46,6 +51,7 @@ def create_reminder():
         message=data["message"],
         send_at=datetime.fromisoformat(data["send_at"]),
         channel=data.get("channel", "email"),
+        status="pending",
     )
     db.session.add(r)
     db.session.commit()
@@ -148,6 +154,7 @@ def autopay_result_followup(bill_id: int):
                 message=message,
                 send_at=now,
                 channel=channel,
+                status="pending",
             )
         )
         created += 1
@@ -160,7 +167,8 @@ def autopay_result_followup(bill_id: int):
 @jwt_required()
 def run_due():
     uid = int(get_jwt_identity())
-    now = datetime.utcnow() + timedelta(minutes=1)
+    now = datetime.utcnow()
+    # Fetch reminders that are due for sending or retry
     items = (
         db.session.query(Reminder)
         .filter(
@@ -170,13 +178,30 @@ def run_due():
         )
         .all()
     )
+    # Also include retrying reminders whose next_retry_at has arrived
+    retry_items = (
+        db.session.query(Reminder)
+        .filter(
+            Reminder.user_id == uid,
+            Reminder.sent.is_(False),
+            Reminder.status == "retrying",
+            Reminder.next_retry_at <= now,
+        )
+        .all()
+    )
+    # Merge and deduplicate by id
+    all_ids = {r.id for r in items}
+    for r in retry_items:
+        if r.id not in all_ids:
+            items.append(r)
+            all_ids.add(r.id)
+
+    processed = 0
     for r in items:
-        send_reminder(r)
-        r.sent = True
-        track_reminder_event(event="sent", channel=r.channel)
-    db.session.commit()
-    logger.info("Processed due reminders user=%s count=%s", uid, len(items))
-    return jsonify(processed=len(items))
+        dispatch_reminder(r.id)
+        processed += 1
+    logger.info("Processed due reminders user=%s count=%s", uid, processed)
+    return jsonify(processed=processed)
 
 
 def _bill_channels(bill: Bill) -> list[str]:
@@ -218,6 +243,7 @@ def _create_reminder_if_missing(
             channel=channel,
             send_at=send_at,
             message=message,
+            status="pending",
         )
     )
     return True
