@@ -133,3 +133,33 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class WebhookEndpoint(db.Model):
+    __tablename__ = "webhook_endpoints"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    url = db.Column(db.String(500), nullable=False)
+    # hmac secret for signing payloads — generated on create, shown once
+    secret = db.Column(db.String(64), nullable=False)
+    active = db.Column(db.Boolean, default=True, nullable=False)
+    # comma-separated event types this endpoint subscribes to
+    # e.g. "expense.created,bill.paid,reminder.sent"
+    events = db.Column(db.String(1000), nullable=False, default="*")
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class WebhookEvent(db.Model):
+    __tablename__ = "webhook_events"
+    id = db.Column(db.Integer, primary_key=True)
+    endpoint_id = db.Column(
+        db.Integer, db.ForeignKey("webhook_endpoints.id"), nullable=False
+    )
+    event_type = db.Column(db.String(100), nullable=False)
+    payload = db.Column(db.Text, nullable=False)  # json string
+    status = db.Column(db.String(20), default="pending", nullable=False)
+    # pending, delivered, failed
+    attempts = db.Column(db.Integer, default=0, nullable=False)
+    next_attempt_at = db.Column(db.DateTime, nullable=True)
+    last_error = db.Column(db.String(500), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
