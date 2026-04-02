@@ -133,3 +133,71 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class RuleField(str, Enum):
+    PAYEE = 'payee'
+    AMOUNT = 'amount'
+    DESCRIPTION = 'description'
+    NOTES = 'notes'
+
+class RuleOperator(str, Enum):
+    CONTAINS = 'contains'
+    EQUALS = 'equals'
+    REGEX = 'regex'
+    GT = 'gt'
+    LT = 'lt'
+    GTE = 'gte'
+    LTE = 'lte'
+    STARTSWITH = 'startswith'
+    ENDSWITH = 'endswith'
+
+class ConditionType(str, Enum):
+    AND = 'AND'
+    OR = 'OR'
+
+class CategorizationRule(db.Model):
+    __tablename__ = 'categorization_rules'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    name = db.Column(db.String(100), nullable=False)
+    field = db.Column(SAEnum(RuleField), nullable=False)
+    operator = db.Column(SAEnum(RuleOperator), nullable=False)
+    value = db.Column(db.String(500), nullable=False)
+    category_id = db.Column(db.Integer, db.ForeignKey('categories.id'), nullable=True)
+    tag = db.Column(db.String(100), nullable=True)
+    priority = db.Column(db.Integer, default=0, nullable=False)
+    condition_type = db.Column(SAEnum(ConditionType), default=ConditionType.AND, nullable=False)
+    active = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    def to_dict(self):
+        return {
+            'id': self.id, 'name': self.name,
+            'field': self.field.value if self.field else None,
+            'operator': self.operator.value if self.operator else None,
+            'value': self.value, 'category_id': self.category_id,
+            'tag': self.tag, 'priority': self.priority,
+            'condition_type': self.condition_type.value if self.condition_type else None,
+            'active': self.active,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+class RuleCondition(db.Model):
+    __tablename__ = 'rule_conditions'
+    id = db.Column(db.Integer, primary_key=True)
+    rule_id = db.Column(db.Integer, db.ForeignKey('categorization_rules.id', ondelete='CASCADE'), nullable=False)
+    field = db.Column(SAEnum(RuleField), nullable=False)
+    operator = db.Column(SAEnum(RuleOperator), nullable=False)
+    value = db.Column(db.String(500), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    def to_dict(self):
+        return {
+            'id': self.id, 'rule_id': self.rule_id,
+            'field': self.field.value if self.field else None,
+            'operator': self.operator.value if self.operator else None,
+            'value': self.value,
+        }

@@ -193,3 +193,22 @@ finmind/
 ---
 
 MIT Licensed. Built with ❤️.
+
+## Rule-Based Auto-Tagging
+
+Users can define rules to automatically categorize transactions.
+
+### Features
+- Rule Fields: payee, amount, description, notes
+- Operators: contains, equals, regex, gt, lt, gte, lte
+- Multi-Condition Rules with AND/OR logic
+- Priority Ordering
+- Auto-Apply on expense creation
+
+### API Endpoints
+- GET /rules - List all rules
+- POST /rules - Create a rule
+- PATCH /rules/{id} - Update a rule
+- DELETE /rules/{id} - Delete a rule
+- POST /rules/{id}/conditions - Add condition
+- POST /rules/apply/{expense_id} - Manually apply

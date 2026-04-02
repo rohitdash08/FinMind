@@ -123,3 +123,47 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   action VARCHAR(100) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+
+-- Rule-based auto-tagging
+DO \$\$ BEGIN
+  CREATE TYPE rule_field AS ENUM ('payee','amount','description','notes');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END \$\$;
+
+DO \$\$ BEGIN
+  CREATE TYPE rule_operator AS ENUM ('contains','equals','regex','gt','lt','gte','lte','startswith','endswith');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END \$\$;
+
+DO \$\$ BEGIN
+  CREATE TYPE condition_type AS ENUM ('AND','OR');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END \$\$;
+
+CREATE TABLE IF NOT EXISTS categorization_rules (
+  id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name VARCHAR(100) NOT NULL,
+  field rule_field NOT NULL,
+  operator rule_operator NOT NULL,
+  value VARCHAR(500) NOT NULL,
+  category_id INT REFERENCES categories(id) ON DELETE SET NULL,
+  tag VARCHAR(100),
+  priority INT NOT NULL DEFAULT 0,
+  condition_type condition_type NOT NULL DEFAULT 'AND',
+  active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_categorization_rules_user_priority ON categorization_rules(user_id, priority DESC);
+
+CREATE TABLE IF NOT EXISTS rule_conditions (
+  id SERIAL PRIMARY KEY,
+  rule_id INT NOT NULL REFERENCES categorization_rules(id) ON DELETE CASCADE,
+  field rule_field NOT NULL,
+  operator rule_operator NOT NULL,
+  value VARCHAR(500) NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_rule_conditions_rule ON rule_conditions(rule_id);
