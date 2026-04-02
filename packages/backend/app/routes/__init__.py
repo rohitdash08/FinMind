@@ -9,18 +9,18 @@ from .docs import bp as docs_bp
 from .dashboard import bp as dashboard_bp
 from .savings_opportunities import bp as savings_opportunities_bp
 from .rules import bp as rules_bp
-from .accounts import bp as accounts_bp
+from .analytics import bp as analytics_bp
 
 
 def register_routes(app: Flask):
-    app.register_blueprint(auth_bp, url_prefix="/auth")
-    app.register_blueprint(expenses_bp, url_prefix="/expenses")
-    app.register_blueprint(bills_bp, url_prefix="/bills")
-    app.register_blueprint(reminders_bp, url_prefix="/reminders")
-    app.register_blueprint(insights_bp, url_prefix="/insights")
-    app.register_blueprint(categories_bp, url_prefix="/categories")
-    app.register_blueprint(docs_bp, url_prefix="/docs")
-    app.register_blueprint(dashboard_bp, url_prefix="/dashboard")
-    app.register_blueprint(savings_opportunities_bp, url_prefix="/savings-opportunities")
-    app.register_blueprint(rules_bp, url_prefix="/rules")
-    app.register_blueprint(accounts_bp, url_prefix="/accounts")
+    app.register_blueprint(auth_bp, url_prefix='/auth')
+    app.register_blueprint(expenses_bp, url_prefix='/expenses')
+    app.register_blueprint(bills_bp, url_prefix='/bills')
+    app.register_blueprint(reminders_bp, url_prefix='/reminders')
+    app.register_blueprint(insights_bp, url_prefix='/insights')
+    app.register_blueprint(categories_bp, url_prefix='/categories')
+    app.register_blueprint(docs_bp, url_prefix='/docs')
+    app.register_blueprint(dashboard_bp, url_prefix='/dashboard')
+    app.register_blueprint(savings_opportunities_bp, url_prefix='/savings-opportunities')
+    app.register_blueprint(rules_bp, url_prefix='/rules')
+    app.register_blueprint(analytics_bp, url_prefix='/analytics')

@@ -80,7 +80,11 @@ def update_rule(rule_id):
     if 'value' in data: rule.value = (data.get('value') or '').strip() or rule.value
     if 'category_id' in data: rule.category_id = data.get('category_id')
     if 'tag' in data: rule.tag = data.get('tag')
-    if 'priority' in data: try: rule.priority = int(data.get('priority', 0)); except: pass
+    if 'priority' in data:
+            try:
+                rule.priority = int(data.get('priority', 0))
+            except:
+                pass
     if 'active' in data: rule.active = bool(data.get('active'))
     db.session.commit()
     return jsonify(rule.to_dict())
@@ -153,7 +157,15 @@ def _evaluate_condition(expense, field, operator, value):
     elif operator == RuleOperator.EQUALS: return value.lower() == fv.lower()
     elif operator == RuleOperator.STARTSWITH: return fv.lower().startswith(value.lower())
     elif operator == RuleOperator.ENDSWITH: return fv.lower().endswith(value.lower())
-    elif operator == RuleOperator.REGEX: try: return bool(re.search(value, fv, re.I)); except: return False
+    elif operator == RuleOperator.REGEX:
+
+        try:
+
+            return bool(re.search(value, fv, re.I))
+
+        except:
+
+            return False
     elif operator in (RuleOperator.GT, RuleOperator.LT, RuleOperator.GTE, RuleOperator.LTE):
         try:
             fn, vn = Decimal(fv), Decimal(value)
