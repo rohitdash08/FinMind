@@ -66,6 +66,41 @@ OpenAPI: `backend/app/openapi.yaml`
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
 - Insights: `/insights/monthly`, `/insights/budget-suggestion`
+- Digest: `/digest/weekly`, `/digest/weekly/send`, `/digest/weekly/preview`
+
+## Weekly Financial Digest
+
+FinMind provides a **Smart Weekly Financial Summary** that delivers actionable insights directly to users' inboxes.
+
+### Features
+- **Comprehensive Overview**: Total income, expenses, net flow, and savings rate for the week
+- **Week-over-Week Trends**: Compare spending and income changes from the previous week
+- **Category Breakdown**: Detailed spending analysis by category with percentages
+- **Notable Transactions**: Highlights of significant expenses and income
+- **Upcoming Bills**: Preview of bills due in the next 7 days
+- **Smart Insights**: AI-generated financial tips and recommendations
+
+### Endpoints
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/digest/weekly` | GET | Get weekly digest data (JSON) |
+| `/digest/weekly/send` | POST | Send digest email to current user |
+| `/digest/weekly/preview` | GET | Preview email subject and body |
+
+### Scheduled Delivery
+The weekly digest is automatically generated and sent to all users every **Sunday at 9:00 AM UTC** via APScheduler.
+
+### Manual Trigger (CLI)
+```bash
+# Generate digest for all users
+flask generate-digest
+
+# Generate for specific user with email
+flask generate-digest --user-id 1 --send-email
+```
+
+### Scheduler Status
+Check scheduler status at `/scheduler/status` endpoint.
 
 ## MVP UI/UX Plan
 - Auth screens: register/login.
@@ -104,11 +139,14 @@ finmind/
         bills.py
         reminders.py
         insights.py
+        digest.py
       services/
         __init__.py
         ai.py
         cache.py
         reminders.py
+        digest.py
+        scheduler.py
       db/
         schema.sql
       openapi.yaml
