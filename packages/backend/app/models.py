@@ -66,6 +66,43 @@ class RecurringExpense(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
 
+
+class SubscriptionCadence(str, Enum):
+    WEEKLY = "WEEKLY"
+    MONTHLY = "MONTHLY"
+    YEARLY = "YEARLY"
+
+
+class SubscriptionStatus(str, Enum):
+    DETECTED = "DETECTED"
+    CONFIRMED = "CONFIRMED"
+    DISMISSED = "DISMISSED"
+
+
+class Subscription(db.Model):
+    """Auto-detected subscription from recurring expense patterns."""
+    __tablename__ = "subscriptions"
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    merchant_name = db.Column(db.String(200), nullable=False)
+    category_id = db.Column(db.Integer, db.ForeignKey("categories.id"), nullable=True)
+    amount = db.Column(db.Numeric(12, 2), nullable=False)
+    currency = db.Column(db.String(10), default="INR", nullable=False)
+    detected_cadence = db.Column(SAEnum(SubscriptionCadence), nullable=False)
+    confidence_score = db.Column(db.Numeric(3, 2), nullable=False)  # 0.00 to 1.00
+    occurrence_count = db.Column(db.Integer, default=1, nullable=False)
+    first_occurrence_date = db.Column(db.Date, nullable=False)
+    last_occurrence_date = db.Column(db.Date, nullable=False)
+    next_predicted_date = db.Column(db.Date, nullable=True)
+    average_amount = db.Column(db.Numeric(12, 2), nullable=True)
+    amount_variance = db.Column(db.Numeric(12, 2), nullable=True)
+    status = db.Column(SAEnum(SubscriptionStatus), default=SubscriptionStatus.DETECTED, nullable=False)
+    notes = db.Column(db.String(500), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+
 class BillCadence(str, Enum):
     MONTHLY = "MONTHLY"
     WEEKLY = "WEEKLY"
