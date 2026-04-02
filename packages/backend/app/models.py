@@ -4,6 +4,42 @@ from sqlalchemy import Enum as SAEnum
 from .extensions import db
 
 
+class AccountType(str, Enum):
+    CHECKING = "CHECKING"
+    SAVINGS = "SAVINGS"
+    CREDIT = "CREDIT"
+    INVESTMENT = "INVESTMENT"
+    CASH = "CASH"
+    OTHER = "OTHER"
+
+
+class Account(db.Model):
+    """Financial account for multi-account tracking."""
+    __tablename__ = "accounts"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    name = db.Column(db.String(200), nullable=False)
+    account_type = db.Column(SAEnum(AccountType), default=AccountType.CHECKING, nullable=False)
+    balance = db.Column(db.Numeric(12, 2), default=0.00, nullable=False)
+    currency = db.Column(db.String(10), default="INR", nullable=False)
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "name": self.name,
+            "account_type": self.account_type.value if self.account_type else None,
+            "balance": float(self.balance or 0),
+            "currency": self.currency,
+            "is_active": self.is_active,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
 class Role(str, Enum):
     USER = "USER"
     ADMIN = "ADMIN"
@@ -32,6 +68,7 @@ class Expense(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     category_id = db.Column(db.Integer, db.ForeignKey("categories.id"), nullable=True)
+    account_id = db.Column(db.Integer, db.ForeignKey("accounts.id"), nullable=True)
     amount = db.Column(db.Numeric(12, 2), nullable=False)
     currency = db.Column(db.String(10), default="INR", nullable=False)
     expense_type = db.Column(db.String(20), default="EXPENSE", nullable=False)

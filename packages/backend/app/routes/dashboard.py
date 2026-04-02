@@ -4,7 +4,7 @@ from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from ..extensions import db
-from ..models import Bill, Expense, Category
+from ..models import Bill, Expense, Category, Account
 from ..services.cache import cache_get, cache_set, dashboard_summary_key
 
 bp = Blueprint("dashboard", __name__)
@@ -176,3 +176,115 @@ def _is_valid_month(ym: str) -> bool:
         return False
     m = int(month)
     return 1 <= m <= 12
+
+
+@bp.get("/overview")
+@jwt_required()
+def multi_account_overview():
+    """Get financial overview across all accounts."""
+    uid = int(get_jwt_identity())
+    
+    payload = {
+        "net_worth": {
+            "total_balance": 0.0,
+            "by_currency": {},
+        },
+        "accounts": [],
+        "recent_transactions": [],
+        "summary": {
+            "total_accounts": 0,
+            "active_accounts": 0,
+            "total_income_this_month": 0.0,
+            "total_expenses_this_month": 0.0,
+        },
+        "errors": [],
+    }
+    
+    today = date.today()
+    year, month = today.year, today.month
+    
+    # Get all accounts with their balances
+    try:
+        accounts = Account.query.filter(
+            Account.user_id == uid,
+            Account.is_active.is_(True)
+        ).order_by(Account.name).all()
+        
+        total_balance = 0.0
+        by_currency = {}
+        
+        for acc in accounts:
+            balance = float(acc.balance or 0)
+            total_balance += balance
+            curr = acc.currency or "INR"
+            by_currency[curr] = by_currency.get(curr, 0.0) + balance
+            
+            payload["accounts"].append({
+                "id": acc.id,
+                "name": acc.name,
+                "account_type": acc.account_type.value if acc.account_type else "CHECKING",
+                "balance": balance,
+                "currency": acc.currency,
+                "is_active": acc.is_active,
+            })
+        
+        payload["net_worth"]["total_balance"] = round(total_balance, 2)
+        payload["net_worth"]["by_currency"] = {k: round(v, 2) for k, v in by_currency.items()}
+        payload["summary"]["total_accounts"] = len(accounts)
+        payload["summary"]["active_accounts"] = sum(1 for a in accounts if a.is_active)
+    except Exception:
+        payload["errors"].append("accounts_unavailable")
+    
+    # Get recent transactions with account info
+    try:
+        rows = (
+            db.session.query(Expense)
+            .filter(Expense.user_id == uid)
+            .order_by(Expense.spent_at.desc(), Expense.id.desc())
+            .limit(10)
+            .all()
+        )
+        payload["recent_transactions"] = [
+            {
+                "id": e.id,
+                "description": e.notes or "Transaction",
+                "amount": float(e.amount),
+                "date": e.spent_at.isoformat(),
+                "type": e.expense_type,
+                "category_id": e.category_id,
+                "account_id": e.account_id,
+                "currency": e.currency,
+            }
+            for e in rows
+        ]
+    except Exception:
+        payload["errors"].append("recent_transactions_unavailable")
+    
+    # Get monthly income and expenses
+    try:
+        income = (
+            db.session.query(func.coalesce(func.sum(Expense.amount), 0))
+            .filter(
+                Expense.user_id == uid,
+                extract("year", Expense.spent_at) == year,
+                extract("month", Expense.spent_at) == month,
+                Expense.expense_type == "INCOME",
+            )
+            .scalar()
+        )
+        expenses = (
+            db.session.query(func.coalesce(func.sum(Expense.amount), 0))
+            .filter(
+                Expense.user_id == uid,
+                extract("year", Expense.spent_at) == year,
+                extract("month", Expense.spent_at) == month,
+                Expense.expense_type != "INCOME",
+            )
+            .scalar()
+        )
+        payload["summary"]["total_income_this_month"] = float(income or 0)
+        payload["summary"]["total_expenses_this_month"] = float(expenses or 0)
+    except Exception:
+        payload["errors"].append("monthly_summary_unavailable")
+    
+    return jsonify(payload), 200

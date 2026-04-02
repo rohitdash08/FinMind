@@ -46,6 +46,7 @@ flowchart LR
 ## PostgreSQL Schema (DDL)
 See `backend/app/db/schema.sql`. Key tables:
 - users, categories, expenses, bills, reminders
+- **accounts** (multi-account support: name, type, balance, currency)
 - ad_impressions, subscription_plans, user_subscriptions
 - refresh_tokens (optional if rotating), audit_logs
 
@@ -66,6 +67,8 @@ OpenAPI: `backend/app/openapi.yaml`
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
 - Insights: `/insights/monthly`, `/insights/budget-suggestion`
+- **Accounts**: CRUD `/accounts` (multi-account management)
+- **Dashboard**: `/dashboard/summary`, `/dashboard/overview` (multi-account financial overview)
 
 ## MVP UI/UX Plan
 - Auth screens: register/login.
@@ -183,6 +186,37 @@ finmind/
 - Primary: schedule via APScheduler in-process with persistence in Postgres (job table) and a simple daily trigger. Alternatively, use Railway/Render cron to hit `/reminders/run`.
 - Twilio WhatsApp free trial supports sandbox; email via SMTP (e.g., SendGrid free tier).
 
+## Multi-Account Dashboard
+
+FinMind supports tracking finances across multiple accounts (checking, savings, credit, investment, cash, etc.).
+
+### Account Types
+- `CHECKING` - Primary bank account for daily transactions
+- `SAVINGS` - Savings accounts
+- `CREDIT` - Credit card accounts (can have negative balance)
+- `INVESTMENT` - Investment/portfolio accounts
+- `CASH` - Physical cash tracking
+- `OTHER` - Custom account types
+
+### Dashboard Overview Endpoint
+`GET /dashboard/overview` returns:
+- `net_worth.total_balance` - Sum of all account balances
+- `net_worth.by_currency` - Balance breakdown by currency
+- `accounts` - List of all active accounts with balances
+- `recent_transactions` - Last 10 transactions with account associations
+- `summary` - Monthly income/expenses and account counts
+
+### Account Management
+- `GET /accounts/` - List all accounts (optionally include inactive)
+- `POST /accounts/` - Create new account
+- `GET /accounts/{id}` - Get specific account
+- `PUT /accounts/{id}` - Update account (name, type, balance)
+- `DELETE /accounts/{id}` - Soft delete (deactivate)
+- `DELETE /accounts/{id}/hard` - Permanent deletion
+
+### Linking Expenses to Accounts
+Expenses can optionally be linked to accounts via `account_id` field for detailed tracking per account.
+
 ## Security & Scalability
 - JWT access/refresh, secure cookies OR Authorization header.
 - RBAC-ready via roles on `users.role`.
@@ -193,22 +227,3 @@ finmind/
 ---
 
 MIT Licensed. Built with ❤️.
-
-## Rule-Based Auto-Tagging
-
-Users can define rules to automatically categorize transactions.
-
-### Features
-- Rule Fields: payee, amount, description, notes
-- Operators: contains, equals, regex, gt, lt, gte, lte
-- Multi-Condition Rules with AND/OR logic
-- Priority Ordering
-- Auto-Apply on expense creation
-
-### API Endpoints
-- GET /rules - List all rules
-- POST /rules - Create a rule
-- PATCH /rules/{id} - Update a rule
-- DELETE /rules/{id} - Delete a rule
-- POST /rules/{id}/conditions - Add condition
-- POST /rules/apply/{expense_id} - Manually apply
