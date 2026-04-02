@@ -4,7 +4,7 @@ Weekly Digest API Routes
 Endpoints for generating and retrieving weekly financial summaries.
 """
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
@@ -146,6 +146,3 @@ def preview_weekly_digest():
         logger.error("Error previewing weekly digest: %s", str(e))
         return jsonify(error="Failed to preview weekly digest"), 500
 
-
-# Import timedelta at module level
-from datetime import timedelta

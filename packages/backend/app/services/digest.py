@@ -456,6 +456,32 @@ class WeeklyDigestService:
         return insights
 
     @staticmethod
+    def get_currency_symbol(currency_code: str | None) -> str:
+        """Return a display symbol for a currency code."""
+        symbols = {
+            "USD": "$",
+            "EUR": "€",
+            "GBP": "£",
+            "JPY": "¥",
+            "CNY": "¥",
+            "INR": "₹",
+            "KRW": "₩",
+            "RUB": "₽",
+            "TRY": "₺",
+            "BRL": "R$",
+            "CAD": "C$",
+            "AUD": "A$",
+            "CHF": "CHF ",
+            "SEK": "kr ",
+            "NOK": "kr ",
+            "DKK": "kr ",
+            "PLN": "zł ",
+        }
+        if not currency_code:
+            return "$"
+        return symbols.get(currency_code.upper(), f"{currency_code.upper()} ")
+
+    @staticmethod
     def format_digest_email(
         summary: dict[str, Any], user: User
     ) -> tuple[str, str]:
@@ -473,6 +499,9 @@ class WeeklyDigestService:
         week_end = summary["period"]["week_end"]
 
         subject = f"Your Weekly Financial Summary ({week_start} to {week_end})"
+        currency_symbol = WeeklyDigestService.get_currency_symbol(
+            getattr(user, "preferred_currency", None)
+        )
 
         lines = [
             f"Hello {user.email},",
@@ -482,9 +511,9 @@ class WeeklyDigestService:
             "═══════════════════════════════════════════════════",
             "OVERVIEW",
             "═══════════════════════════════════════════════════",
-            f"  Total Income:      ${summary['summary']['total_income']:,.2f}",
-            f"  Total Expenses:    ${summary['summary']['total_expenses']:,.2f}",
-            f"  Net Flow:          ${summary['summary']['net_flow']:,.2f}",
+            f"  Total Income:      {currency_symbol}{summary['summary']['total_income']:,.2f}",
+            f"  Total Expenses:    {currency_symbol}{summary['summary']['total_expenses']:,.2f}",
+            f"  Net Flow:          {currency_symbol}{summary['summary']['net_flow']:,.2f}",
             f"  Savings Rate:      {summary['summary']['savings_rate']:.1f}%",
             f"  Transactions:      {summary['summary']['transaction_count']}",
             "",
@@ -497,7 +526,7 @@ class WeeklyDigestService:
         income_change_pct = summary["trends"]["income_change_pct"]
         income_emoji = "↑" if income_change >= 0 else "↓"
         lines.append(
-            f"  Income:   {income_emoji} ${abs(income_change):,.2f} "
+            f"  Income:   {income_emoji} {currency_symbol}{abs(income_change):,.2f} "
             f"({income_change_pct:+.1f}%)"
         )
 
@@ -505,7 +534,7 @@ class WeeklyDigestService:
         expense_change_pct = summary["trends"]["expense_change_pct"]
         expense_emoji = "↓" if expense_change <= 0 else "↑"
         lines.append(
-            f"  Expenses: {expense_emoji} ${abs(expense_change):,.2f} "
+            f"  Expenses: {expense_emoji} {currency_symbol}{abs(expense_change):,.2f} "
             f"({expense_change_pct:+.1f}%)"
         )
 
@@ -518,7 +547,7 @@ class WeeklyDigestService:
 
         for cat in summary["spending_by_category"][:5]:
             lines.append(
-                f"  • {cat['category_name']}: ${cat['amount']:,.2f} "
+                f"  • {cat['category_name']}: {currency_symbol}{cat['amount']:,.2f} "
                 f"({cat['share_pct']:.1f}%)"
             )
 
@@ -533,7 +562,7 @@ class WeeklyDigestService:
             for tx in summary["notable_transactions"][:5]:
                 tx_emoji = "💰" if tx["type"] == "INCOME" else "💸"
                 lines.append(
-                    f"  {tx_emoji} {tx['description']}: ${tx['amount']:,.2f} ({tx['date']})"
+                    f"  {tx_emoji} {tx['description']}: {currency_symbol}{tx['amount']:,.2f} ({tx['date']})"
                 )
 
         if summary["upcoming_bills"]:
@@ -548,7 +577,7 @@ class WeeklyDigestService:
                 days = bill["days_until_due"]
                 days_text = "today" if days == 0 else f"in {days} day(s)"
                 lines.append(
-                    f"  • {bill['name']}: ${bill['amount']:,.2f} (due {days_text})"
+                    f"  • {bill['name']}: {currency_symbol}{bill['amount']:,.2f} (due {days_text})"
                 )
 
         lines.extend([
