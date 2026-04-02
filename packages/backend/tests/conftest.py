@@ -1,16 +1,37 @@
 import os
 import pytest
+from unittest.mock import MagicMock, patch
+
+# Mock Redis BEFORE any app modules are imported
+_mock_redis = MagicMock()
+_mock_redis.get.return_value = None
+_mock_redis.set.return_value = True
+_mock_redis.setex.return_value = True
+_mock_redis.delete.return_value = True
+_mock_redis.scan.return_value = (0, [])
+_mock_redis.flushdb.return_value = True
+_mock_redis.keys.return_value = []
+
+# Patch redis.Redis.from_url to return our mock
+_original_from_url = __import__('redis').Redis.from_url
+
+def mock_from_url(url, **kwargs):
+    return _mock_redis
+
+# Apply the patch at import time
+import redis
+redis.Redis.from_url = mock_from_url
+
+# Now import app modules - they will get the mocked redis_client
 from app import create_app
 from app.config import Settings
-from app.extensions import db
-from app.extensions import redis_client
+from app.extensions import db, redis_client
 from app import models  # noqa: F401 - ensure models are registered
 
 
 class TestSettings(Settings):
-    # Override defaults for tests
     database_url: str = "sqlite+pysqlite:///:memory:"
-    redis_url: str = "redis://localhost:6379/15"  # not used in tests
+    redis_url: str = "redis://localhost:6379/15"
     jwt_secret: str = "test-secret"
 
 
@@ -21,7 +42,6 @@ def _setup_db(app):
 
 @pytest.fixture()
 def app_fixture():
-    # Ensure a clean env for tests
     os.environ.setdefault("FLASK_ENV", "testing")
     settings = TestSettings(
         database_url="sqlite+pysqlite:///:memory:",
@@ -31,18 +51,10 @@ def app_fixture():
     app = create_app(settings)
     app.config.update(TESTING=True)
     _setup_db(app)
-    try:
-        redis_client.flushdb()
-    except Exception:
-        pass
     yield app
     with app.app_context():
         db.session.remove()
         db.drop_all()
-    try:
-        redis_client.flushdb()
-    except Exception:
-        pass
 
 
 @pytest.fixture()
@@ -52,16 +64,11 @@ def client(app_fixture):
 
 @pytest.fixture()
 def auth_header(client):
-    # Register and login a default user, return auth header
     email = "test@example.com"
     password = "password123"
     r = client.post("/auth/register", json={"email": email, "password": password})
     register_debug = f"register failed: status={r.status_code}, body={r.get_json()}"
-    assert r.status_code in (
-        200,
-        201,
-        409,
-    ), register_debug  # 409 if already exists
+    assert r.status_code in (200, 201, 409), register_debug
     r = client.post("/auth/login", json={"email": email, "password": password})
     assert r.status_code == 200
     access = r.get_json()["access_token"]

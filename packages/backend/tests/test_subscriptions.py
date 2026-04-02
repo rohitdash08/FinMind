@@ -5,10 +5,33 @@ Tests for subscription detection and management.
 import pytest
 from datetime import date, timedelta
 from decimal import Decimal
+from unittest.mock import MagicMock
 
 from app import create_app
-from app.extensions import db
+from app.extensions import db, redis_client
 from app.models import Expense, Subscription, SubscriptionStatus, SubscriptionCadence, User, Category
+from app.services import cache
+
+
+@pytest.fixture(autouse=True)
+def mock_redis_operations(monkeypatch):
+    """Mock Redis operations to avoid connection errors in tests."""
+    # Mock redis_client methods
+    mock_redis = MagicMock()
+    mock_redis.get.return_value = None
+    mock_redis.set.return_value = True
+    mock_redis.setex.return_value = True
+    mock_redis.delete.return_value = True
+    mock_redis.scan.return_value = (0, [])
+    mock_redis.flushdb.return_value = True
+    
+    monkeypatch.setattr("app.extensions.redis_client", mock_redis)
+    
+    # Also mock cache functions
+    def mock_cache_delete_patterns(patterns):
+        pass
+    
+    monkeypatch.setattr(cache, "cache_delete_patterns", mock_cache_delete_patterns)
 
 
 def _create_user_and_auth(client, email="test@example.com", password="password123"):
