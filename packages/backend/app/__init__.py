@@ -14,6 +14,14 @@ import os
 import logging
 from datetime import timedelta
 
+# Scheduler imports
+from .services.scheduler import (
+    init_scheduler,
+    start_scheduler,
+    shutdown_scheduler,
+    get_scheduler_status,
+)
+
 
 def create_app(settings: Settings | None = None) -> Flask:
     app = Flask(__name__)
@@ -56,6 +64,12 @@ def create_app(settings: Settings | None = None) -> Flask:
     with app.app_context():
         _ensure_schema_compatibility(app)
 
+    # Initialize scheduler (but don't start automatically in testing)
+    if not app.config.get("TESTING"):
+        init_scheduler(app)
+        start_scheduler()
+        logger.info("Scheduler initialized and started")
+
     @app.before_request
     def _before_request():
         init_request_context()
@@ -72,6 +86,11 @@ def create_app(settings: Settings | None = None) -> Flask:
     def metrics():
         obs = app.extensions["observability"]
         return obs.metrics_response()
+
+    @app.get("/scheduler/status")
+    def scheduler_status():
+        """Get the current status of scheduled jobs."""
+        return jsonify(get_scheduler_status()), 200
 
     @app.errorhandler(500)
     def internal_error(_error):
@@ -92,6 +111,28 @@ def create_app(settings: Settings | None = None) -> Flask:
                 click.echo("Database initialized.")
             finally:
                 conn.close()
+
+    @app.cli.command("generate-digest")
+    @click.option("--user-id", type=int, default=None, help="Generate for specific user")
+    @click.option("--send-email", is_flag=True, help="Send email to user")
+    def generate_digest(user_id, send_email):
+        """Generate weekly digest for testing."""
+        from .services.digest import WeeklyDigestService
+
+        with app.app_context():
+            if user_id:
+                week_start, week_end = WeeklyDigestService.get_week_bounds()
+                summary = WeeklyDigestService.generate_weekly_summary(
+                    user_id, week_start, week_end
+                )
+                if send_email:
+                    success = WeeklyDigestService.send_digest_email(user_id, summary)
+                    click.echo(f"Digest sent: {success}")
+                else:
+                    click.echo(f"Digest generated: {summary}")
+            else:
+                results = WeeklyDigestService.generate_and_send_all_digests()
+                click.echo(f"Batch results: {results}")
 
     return app
 
