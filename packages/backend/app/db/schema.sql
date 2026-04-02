@@ -34,11 +34,11 @@ CREATE INDEX IF NOT EXISTS idx_expenses_user_spent_at ON expenses(user_id, spent
 ALTER TABLE expenses
   ADD COLUMN IF NOT EXISTS expense_type VARCHAR(20) NOT NULL DEFAULT 'EXPENSE';
 
-DO $$ BEGIN
+DO ` BEGIN
   CREATE TYPE recurring_cadence AS ENUM ('DAILY','WEEKLY','MONTHLY','YEARLY');
 EXCEPTION
   WHEN duplicate_object THEN NULL;
-END $$;
+END `;
 
 CREATE TABLE IF NOT EXISTS recurring_expenses (
   id SERIAL PRIMARY KEY,
@@ -59,11 +59,11 @@ CREATE INDEX IF NOT EXISTS idx_recurring_expenses_user_start ON recurring_expens
 ALTER TABLE expenses
   ADD COLUMN IF NOT EXISTS source_recurring_id INT REFERENCES recurring_expenses(id) ON DELETE SET NULL;
 
-DO $$ BEGIN
+DO ` BEGIN
   CREATE TYPE bill_cadence AS ENUM ('MONTHLY','WEEKLY','YEARLY','ONCE');
 EXCEPTION
   WHEN duplicate_object THEN NULL;
-END $$;
+END `;
 
 CREATE TABLE IF NOT EXISTS bills (
   id SERIAL PRIMARY KEY,
@@ -123,3 +123,24 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   action VARCHAR(100) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+-- Detected subscriptions table
+CREATE TABLE IF NOT EXISTS detected_subscriptions (
+  id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name VARCHAR(200) NOT NULL,
+  amount NUMERIC(12,2) NOT NULL,
+  currency VARCHAR(10) NOT NULL DEFAULT 'INR',
+  detected_cadence VARCHAR(20) NOT NULL,
+  next_expected_date DATE NOT NULL,
+  confidence NUMERIC(3,2) NOT NULL,
+  last_occurrence_date DATE NOT NULL,
+  occurrence_count INT NOT NULL DEFAULT 1,
+  pattern_description VARCHAR(500),
+  confirmed BOOLEAN NOT NULL DEFAULT FALSE,
+  dismissed BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_detected_subscriptions_user ON detected_subscriptions(user_id, dismissed, confirmed);
+CREATE INDEX IF NOT EXISTS idx_detected_subscriptions_pattern ON detected_subscriptions(user_id, pattern_description);
