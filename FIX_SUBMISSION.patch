@@ -1,0 +1,49 @@
+```python
+# bank_connector.py
+
+from abc import ABC, abstractmethod
+from typing import List
+
+class BankConnector(ABC):
+    @abstractmethod
+    def import_data(self) -> List[dict]:
+        """Import data from the bank"""
+        pass
+
+    @abstractmethod
+    def refresh_data(self) -> List[dict]:
+        """Refresh data from the bank"""
+        pass
+
+class MockBankConnector(BankConnector):
+    def import_data(self) -> List[dict]:
+        """Mock import data"""
+        return [
+            {"account": "12345", "balance": 1000.0},
+            {"account": "67890", "balance": 500.0}
+        ]
+
+    def refresh_data(self) -> List[dict]:
+        """Mock refresh data"""
+        return [
+            {"account": "12345", "balance": 1200.0},
+            {"account": "67890", "balance": 600.0}
+        ]
+
+class BankSyncConnector:
+    def __init__(self, connector: BankConnector):
+        self.connector = connector
+
+    def import_and_refresh(self) -> List[dict]:
+        """Import and refresh data using the provided connector"""
+        imported_data = self.connector.import_data()
+        refreshed_data = self.connector.refresh_data()
+        return imported_data + refreshed_data
+
+# Example usage:
+if __name__ == "__main__":
+    mock_connector = MockBankConnector()
+    bank_sync_connector = BankSyncConnector(mock_connector)
+    data = bank_sync_connector.import_and_refresh()
+    print(data)
+```
