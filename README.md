@@ -66,6 +66,25 @@ OpenAPI: `backend/app/openapi.yaml`
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
 - Insights: `/insights/monthly`, `/insights/budget-suggestion`
+- **Savings Opportunities**: `/savings-opportunities` (analyze spending patterns, detect trends, identify savings potential)
+
+## Savings Opportunity Detection
+
+The `/savings-opportunities` endpoint analyzes user spending to identify areas where they can reduce expenses:
+
+**Detection Types:**
+- **Increasing Trends**: Categories where spending is consistently increasing month-over-month
+- **High-Frequency Expenses**: Small recurring purchases that add up over time
+- **Potential Subscriptions**: Detected recurring charges that may be subscriptions
+- **Spending Spikes**: Unusual high-spending days that may warrant review
+
+**Query Parameters:**
+- `months`: Number of months to analyze (1-12, default: 6)
+- `min_confidence`: Filter by minimum confidence score (0-100, default: 50)
+
+**Response:**
+- `opportunities`: List of detected savings opportunities with type, category, description, potential savings amount, and confidence score
+- `summary`: Total analyzed transactions, total potential savings, analysis period
 
 ## MVP UI/UX Plan
 - Auth screens: register/login.
