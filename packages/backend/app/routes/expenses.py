@@ -75,6 +75,13 @@ def create_expense():
         spent_at=date.fromisoformat(raw_date) if raw_date else date.today(),
     )
     db.session.add(e)
+    # Auto-apply categorization rules if no category specified
+    if not e.category_id:
+        try:
+            from .rules import apply_rules
+            apply_rules(e, uid)
+        except Exception as ex:
+            logger.warning('Failed to auto-apply rules: %s', ex)
     db.session.commit()
     logger.info("Created expense id=%s user=%s amount=%s", e.id, uid, e.amount)
     # Invalidate caches
