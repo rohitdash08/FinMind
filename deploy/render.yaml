@@ -1,0 +1,38 @@
+services:
+  - type: web
+    name: finmind-backend
+    env: docker
+    dockerfilePath: packages/backend/Dockerfile
+    dockerContext: .
+    buildCommand: ""
+    startCommand: gunicorn --workers 4 --worker-class gthread --bind 0.0.0.0:$PORT wsgi:app
+    envVars:
+      - key: DATABASE_URL
+        value: ${postgres.URL}
+      - key: REDIS_URL
+        value: ${redis.URL}
+      - key: JWT_SECRET
+        value: ${JWT_SECRET}
+        generateValue: true
+      - key: FLASK_ENV
+        value: production
+      - key: LOG_LEVEL
+        value: INFO
+      - key: PROMETHEUS_MULTIPROC_DIR
+        value: /tmp/prometheus_multiproc
+    autoDeploy: true
+    healthCheck:
+      path: /health
+      port: 8000
+      intervalSeconds: 30
+      timeoutSeconds: 10
+      startupTimeoutSeconds: 120
+
+databases:
+  - name: postgres
+    plan: free
+    databaseName: finmind
+    user: finmind
+  - name: redis
+    plan: free
+    version: 7

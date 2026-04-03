@@ -1,0 +1,122 @@
+# FinMind Helm Values
+
+replicaCount: 2
+
+image:
+  repository: finmind/backend
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+nameOverride: ""
+fullnameOverride: ""
+
+# Backend configuration
+backend:
+  port: 8000
+  workers: 4
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 8000
+    initialDelaySeconds: 15
+    periodSeconds: 20
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: 8000
+    initialDelaySeconds: 5
+    periodSeconds: 10
+
+# PostgreSQL
+postgres:
+  enabled: true
+  image: postgres:16
+  port: 5432
+  database: finmind
+  username: finmind
+  password: ""  # Set via --set or secrets
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClass: ""
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+# Redis
+redis:
+  enabled: true
+  image: redis:7
+  port: 6379
+  password: ""  # Set via --set or secrets
+  persistence:
+    enabled: true
+    size: 5Gi
+    storageClass: ""
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+
+# Nginx
+nginx:
+  enabled: true
+  image: nginx:1.27-alpine
+  port: 80
+  resources:
+    requests:
+      cpu: 50m
+      memory: 32Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+# Ingress
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  hosts:
+    - host: finmind.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: finmind-tls
+      hosts:
+        - finmind.example.com
+
+# HPA
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 50
+  targetMemoryUtilizationPercentage: 70
+
+# Secrets
+secrets:
+  jwtSecret: ""  # REQUIRED - generate with: openssl rand -hex 32
+  databaseUrl: ""
+  redisUrl: ""
+
+# Environment variables
+env:
+  FLASK_ENV: production
+  LOG_LEVEL: INFO
