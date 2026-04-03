@@ -66,6 +66,17 @@ OpenAPI: `backend/app/openapi.yaml`
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
 - Insights: `/insights/monthly`, `/insights/budget-suggestion`
+- Subscriptions: `/subscriptions/cost-increases`, `/subscriptions/trends`
+
+## Subscription Cost Monitoring
+The `/subscriptions/cost-increases` endpoint detects when recurring expenses
+increase in price. `/subscriptions/trends` provides a historical cost trajectory
+for each subscription.
+
+| Parameter | Default | Description |
+|---|---|---|
+| `lookback_days` | `365` | Analysis window |
+| `min_change_percent` | `0.5` | Minimum % increase to flag |
 
 ## MVP UI/UX Plan
 - Auth screens: register/login.
