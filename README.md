@@ -66,6 +66,14 @@ OpenAPI: `backend/app/openapi.yaml`
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
 - Insights: `/insights/monthly`, `/insights/budget-suggestion`
+- Lifestyle: `/lifestyle-inflation`
+
+## Lifestyle Inflation Detection
+The `/lifestyle-inflation` endpoint analyzes spending over time to detect
+rising expenses. Returns overall trend, monthly growth rate, per-category
+trends, and human-readable insights.
+
+Query param: `months` (default 6, max 24).
 
 ## MVP UI/UX Plan
 - Auth screens: register/login.
