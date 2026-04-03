@@ -160,3 +160,4 @@ def all_anomalies():
         return jsonify(error="admin access required"), 403
     data = get_all_anomalies()
     return jsonify(anomalies=data)
+
