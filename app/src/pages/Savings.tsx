@@ -4,13 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, } from "@/components/ui/dialog";
 
 const API = import.meta.env.VITE_API_URL || "";
 
@@ -35,6 +29,8 @@ interface Goal {
 
 export default function Savings() {
   const [goals, setGoals] = useState<Goal[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [contributeOpen, setContributeOpen] = useState<number | null>(null);
   const [form, setForm] = useState({
@@ -52,54 +48,96 @@ export default function Savings() {
   }, []);
 
   const fetchGoals = async () => {
-    const res = await fetch(`${API}/savings`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API}/savings`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        throw new Error("Failed to fetch goals");
+      }
       const data = await res.json();
       setGoals(data.goals);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An error occurred");
+      console.error("fetchGoals error:", err);
+    } finally {
+      setLoading(false);
     }
   };
 
   const createGoal = async () => {
-    const res = await fetch(`${API}/savings`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(form),
-    });
-    if (res.ok) {
+    setError(null);
+    try {
+      const res = await fetch(`${API}/savings`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(form),
+      });
+      
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to create goal");
+      }
+      
       setOpen(false);
       setForm({ name: "", target_amount: "", currency: "EUR", deadline: "" });
       fetchGoals();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An error occurred");
+      console.error("createGoal error:", err);
     }
   };
 
   const addContribution = async (goalId: number) => {
-    const res = await fetch(`${API}/savings/${goalId}/contributions`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(contribution),
-    });
-    if (res.ok) {
+    setError(null);
+    try {
+      const res = await fetch(`${API}/savings/${goalId}/contributions`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(contribution),
+      });
+      
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to add contribution");
+      }
+      
       setContributeOpen(null);
       setContribution({ amount: "", notes: "" });
       fetchGoals();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An error occurred");
+      console.error("addContribution error:", err);
     }
   };
 
   const deleteGoal = async (id: number) => {
     if (!confirm("Delete this goal?")) return;
-    await fetch(`${API}/savings/${id}`, {
-      method: "DELETE",
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    fetchGoals();
+    
+    setError(null);
+    try {
+      const res = await fetch(`${API}/savings/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      
+      if (!res.ok) {
+        throw new Error("Failed to delete goal");
+      }
+      
+      fetchGoals();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An error occurred");
+      console.error("deleteGoal error:", err);
+    }
   };
 
   return (
@@ -124,14 +162,12 @@ export default function Savings() {
                 type="number"
                 placeholder="Target amount"
                 value={form.target_amount}
-                onChange={(e) =>
-                  setForm({ ...form, target_amount: e.target.value })
-                }
+                onChange={(e) => setForm({ ...form, target_amount: e.target.value })}
               />
               <Input
-                placeholder="Currency (EUR, USD, INR)"
+                placeholder="Currency (EUR, USD, INR, GBP)"
                 value={form.currency}
-                onChange={(e) => setForm({ ...form, currency: e.target.value })}
+                onChange={(e) => setForm({ ...form, currency: e.target.value.toUpperCase() })}
               />
               <Input
                 type="date"
@@ -146,7 +182,18 @@ export default function Savings() {
         </Dialog>
       </div>
 
-      {goals.length === 0 && (
+      {/* Fix #5: Error display */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+          {error}
+        </div>
+      )}
+
+      {loading && (
+        <p className="text-muted-foreground">Loading...</p>
+      )}
+
+      {!loading && goals.length === 0 && !error && (
         <p className="text-muted-foreground">
           No savings goals yet. Create one to start tracking!
         </p>
@@ -163,15 +210,11 @@ export default function Savings() {
               <div className="flex gap-1">
                 {goal.is_completed && (
                   <Badge variant="default" className="bg-green-600">
-                    ✅ Complete
+                    ✓ Complete
                   </Badge>
                 )}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => deleteGoal(goal.id)}
-                >
-                  ✕
+                <Button variant="ghost" size="sm" onClick={() => deleteGoal(goal.id)}>
+                  🗑
                 </Button>
               </div>
             </CardHeader>
@@ -181,9 +224,7 @@ export default function Savings() {
                   <span>
                     {goal.current_amount} / {goal.target_amount} {goal.currency}
                   </span>
-                  <span className="font-medium">
-                    {goal.progress_percent}%
-                  </span>
+                  <span className="font-medium">{goal.progress_percent}%</span>
                 </div>
                 <Progress value={goal.progress_percent} className="h-3" />
                 <div className="flex gap-1">
@@ -191,9 +232,7 @@ export default function Savings() {
                     <Badge
                       key={m.percent}
                       variant={m.reached ? "default" : "outline"}
-                      className={
-                        m.reached ? "bg-green-100 text-green-800" : "text-xs"
-                      }
+                      className={m.reached ? "bg-green-100 text-green-800" : "text-xs"}
                     >
                       {m.percent}%
                     </Badge>
@@ -215,9 +254,7 @@ export default function Savings() {
                   </DialogTrigger>
                   <DialogContent>
                     <DialogHeader>
-                      <DialogTitle>
-                        Add Contribution to {goal.name}
-                      </DialogTitle>
+                      <DialogTitle>Add Contribution to {goal.name}</DialogTitle>
                     </DialogHeader>
                     <div className="space-y-4">
                       <Input
@@ -225,26 +262,17 @@ export default function Savings() {
                         placeholder="Amount"
                         value={contribution.amount}
                         onChange={(e) =>
-                          setContribution({
-                            ...contribution,
-                            amount: e.target.value,
-                          })
+                          setContribution({ ...contribution, amount: e.target.value })
                         }
                       />
                       <Input
                         placeholder="Notes (optional)"
                         value={contribution.notes}
                         onChange={(e) =>
-                          setContribution({
-                            ...contribution,
-                            notes: e.target.value,
-                          })
+                          setContribution({ ...contribution, notes: e.target.value })
                         }
                       />
-                      <Button
-                        onClick={() => addContribution(goal.id)}
-                        className="w-full"
-                      >
+                      <Button onClick={() => addContribution(goal.id)} className="w-full">
                         Add
                       </Button>
                     </div>

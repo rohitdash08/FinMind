@@ -2,6 +2,7 @@ from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime, date
 from decimal import Decimal, InvalidOperation
+from sqlalchemy import text
 from ..extensions import db
 from ..models import SavingsGoal, SavingsContribution, User
 import logging
@@ -9,17 +10,26 @@ import logging
 bp = Blueprint("savings", __name__)
 logger = logging.getLogger("finmind.savings")
 
+# Currency whitelist
+ALLOWED_CURRENCIES = {"EUR", "USD", "INR", "GBP"}
+
 
 def _serialize_goal(goal):
     pct = 0
+    # Fix #3: Division-by-zero protection
     if goal.target_amount and float(goal.target_amount) > 0:
-        pct = round(min(100, float(goal.current_amount or 0) / float(goal.target_amount) * 100), 1)
+        current = float(goal.current_amount or 0)
+        target = float(goal.target_amount)
+        if target > 0:
+            pct = round(min(100, current / target * 100), 1)
+    
     milestones = []
     for m in [25, 50, 75, 100]:
         if pct >= m:
             milestones.append({"percent": m, "reached": True})
         else:
             milestones.append({"percent": m, "reached": False})
+    
     return {
         "id": goal.id,
         "name": goal.name,
@@ -49,29 +59,38 @@ def list_goals():
 def create_goal():
     uid = int(get_jwt_identity())
     data = request.get_json()
+    
     if not data or not data.get("name") or not data.get("target_amount"):
         return jsonify(error="name and target_amount required"), 400
+    
+    # Fix #2: Validate target_amount > 0
     try:
         target = Decimal(str(data["target_amount"]))
         if target <= 0:
             raise ValueError
     except (InvalidOperation, ValueError):
         return jsonify(error="target_amount must be a positive number"), 400
-
+    
+    # Fix #4: Validate currency against whitelist
+    currency = data.get("currency", "INR")
+    if currency not in ALLOWED_CURRENCIES:
+        return jsonify(error=f"currency must be one of: {', '.join(ALLOWED_CURRENCIES)}"), 400
+    
     current = Decimal(str(data.get("current_amount", 0)))
+    
     deadline = None
     if data.get("deadline"):
         try:
             deadline = date.fromisoformat(data["deadline"])
         except ValueError:
             return jsonify(error="invalid deadline format, use YYYY-MM-DD"), 400
-
+    
     goal = SavingsGoal(
         user_id=uid,
         name=data["name"][:200],
         target_amount=target,
         current_amount=current,
-        currency=data.get("currency", "INR"),
+        currency=currency,
         deadline=deadline,
         icon=data.get("icon"),
         is_completed=current >= target,
@@ -89,6 +108,7 @@ def get_goal(goal_id):
     goal = db.session.query(SavingsGoal).filter_by(id=goal_id, user_id=uid).first()
     if not goal:
         return jsonify(error="goal not found"), 404
+    
     contributions = db.session.query(SavingsContribution).filter_by(goal_id=goal_id).order_by(SavingsContribution.created_at.desc()).all()
     return jsonify(
         goal=_serialize_goal(goal),
@@ -108,27 +128,43 @@ def update_goal(goal_id):
     goal = db.session.query(SavingsGoal).filter_by(id=goal_id, user_id=uid).first()
     if not goal:
         return jsonify(error="goal not found"), 404
+    
     data = request.get_json()
     if not data:
         return jsonify(error="no data provided"), 400
+    
     if "name" in data:
         goal.name = data["name"][:200]
+    
+    # Fix #2: Validate target_amount > 0 in update_goal
     if "target_amount" in data:
         try:
-            goal.target_amount = Decimal(str(data["target_amount"]))
+            target = Decimal(str(data["target_amount"]))
+            if target <= 0:
+                raise ValueError
+            goal.target_amount = target
         except (InvalidOperation, ValueError):
-            return jsonify(error="invalid target_amount"), 400
+            return jsonify(error="target_amount must be a positive number"), 400
+    
+    # Fix #4: Validate currency against whitelist
+    if "currency" in data:
+        currency = data["currency"]
+        if currency not in ALLOWED_CURRENCIES:
+            return jsonify(error=f"currency must be one of: {', '.join(ALLOWED_CURRENCIES)}"), 400
+        goal.currency = currency
+    
     if "current_amount" in data:
         try:
             goal.current_amount = Decimal(str(data["current_amount"]))
         except (InvalidOperation, ValueError):
             return jsonify(error="invalid current_amount"), 400
+    
     if "deadline" in data:
         goal.deadline = date.fromisoformat(data["deadline"]) if data["deadline"] else None
+    
     if "icon" in data:
         goal.icon = data["icon"]
-    if "currency" in data:
-        goal.currency = data["currency"]
+    
     goal.is_completed = goal.current_amount >= goal.target_amount
     db.session.commit()
     return jsonify(_serialize_goal(goal))
@@ -141,6 +177,7 @@ def delete_goal(goal_id):
     goal = db.session.query(SavingsGoal).filter_by(id=goal_id, user_id=uid).first()
     if not goal:
         return jsonify(error="goal not found"), 404
+    
     db.session.query(SavingsContribution).filter_by(goal_id=goal_id).delete()
     db.session.delete(goal)
     db.session.commit()
@@ -151,27 +188,33 @@ def delete_goal(goal_id):
 @jwt_required()
 def add_contribution(goal_id):
     uid = int(get_jwt_identity())
-    goal = db.session.query(SavingsGoal).filter_by(id=goal_id, user_id=uid).first()
+    # Lock row to prevent race condition on concurrent contributions
+    goal = db.session.query(SavingsGoal).with_for_update().filter_by(id=goal_id, user_id=uid).first()
     if not goal:
         return jsonify(error="goal not found"), 404
+    
     data = request.get_json()
     if not data or not data.get("amount"):
         return jsonify(error="amount required"), 400
+    
     try:
         amount = Decimal(str(data["amount"]))
         if amount <= 0:
             raise ValueError
     except (InvalidOperation, ValueError):
         return jsonify(error="amount must be positive"), 400
-
+    
     contribution = SavingsContribution(
         goal_id=goal_id,
         user_id=uid,
         amount=amount,
         notes=data.get("notes"),
     )
+    
+    # Atomic update for current_amount (protected by row lock)
     goal.current_amount = (goal.current_amount or 0) + amount
     goal.is_completed = goal.current_amount >= goal.target_amount
+    
     db.session.add(contribution)
     db.session.commit()
     logger.info("User %s added %s to goal %s (now %s/%s)", uid, amount, goal.name, goal.current_amount, goal.target_amount)
@@ -190,16 +233,22 @@ def add_contribution(goal_id):
 @jwt_required()
 def delete_contribution(goal_id, contribution_id):
     uid = int(get_jwt_identity())
-    goal = db.session.query(SavingsGoal).filter_by(id=goal_id, user_id=uid).first()
+    # Lock row to prevent race condition
+    goal = db.session.query(SavingsGoal).with_for_update().filter_by(id=goal_id, user_id=uid).first()
     if not goal:
         return jsonify(error="goal not found"), 404
+    
     c = db.session.query(SavingsContribution).filter_by(id=contribution_id, goal_id=goal_id, user_id=uid).first()
     if not c:
         return jsonify(error="contribution not found"), 404
+    
+    # Atomic update (protected by row lock)
     goal.current_amount = (goal.current_amount or 0) - c.amount
     if goal.current_amount < 0:
         goal.current_amount = 0
     goal.is_completed = goal.current_amount >= goal.target_amount
+    
     db.session.delete(c)
     db.session.commit()
     return jsonify(goal=_serialize_goal(goal))
+
