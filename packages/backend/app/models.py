@@ -100,6 +100,31 @@ class Reminder(db.Model):
     channel = db.Column(db.String(20), default="email", nullable=False)
 
 
+class ReminderDeliveryStatus(str, Enum):
+    SENT = "SENT"
+    FAILED = "FAILED"
+    PENDING = "PENDING"
+    BOUNCED = "BOUNCED"
+
+
+class ReminderDeliveryLog(db.Model):
+    """Tracks each delivery attempt for a Reminder."""
+    __tablename__ = "reminder_delivery_logs"
+    id = db.Column(db.Integer, primary_key=True)
+    reminder_id = db.Column(db.Integer, db.ForeignKey("reminders.id"), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    status = db.Column(
+        SAEnum(ReminderDeliveryStatus),
+        default=ReminderDeliveryStatus.PENDING,
+        nullable=False,
+    )
+    channel = db.Column(db.String(20), nullable=False)
+    attempted_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    delivered_at = db.Column(db.DateTime, nullable=True)
+    error_message = db.Column(db.String(500), nullable=True)
+    latency_ms = db.Column(db.Integer, nullable=True)  # ms from send_at to delivered_at
+
+
 class AdImpression(db.Model):
     __tablename__ = "ad_impressions"
     id = db.Column(db.Integer, primary_key=True)
