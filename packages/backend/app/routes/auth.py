@@ -10,6 +10,11 @@ from flask_jwt_extended import (
 )
 from ..extensions import db, redis_client
 from ..models import User
+from ..services.login_anomaly import (
+    analyse_login,
+    check_account_locked,
+    record_login_attempt,
+)
 import logging
 import time
 
@@ -55,15 +60,53 @@ def login():
     data = request.get_json() or {}
     email = data.get("email")
     password = data.get("password")
+    ip_address = request.remote_addr or "unknown"
+    user_agent = request.headers.get("User-Agent")
+
+    # Check account lockout (brute-force protection)
+    if email and check_account_locked(email):
+        logger.warning("Login blocked – account locked for email=%s", email)
+        return jsonify(error="account temporarily locked, try again later"), 429
+
     user = db.session.query(User).filter_by(email=email).first()
     if not user or not check_password_hash(user.password_hash, password):
         logger.warning("Login failed for email=%s", email)
+        # Record failed attempt
+        attempt = record_login_attempt(
+            email=email or "",
+            ip_address=ip_address,
+            user_agent=user_agent,
+            success=False,
+            user_id=user.id if user else None,
+        )
+        analyse_login(attempt)
         return jsonify(error="invalid credentials"), 401
+
+    # Record successful attempt and run anomaly checks
+    attempt = record_login_attempt(
+        email=email,
+        ip_address=ip_address,
+        user_agent=user_agent,
+        success=True,
+        user_id=user.id,
+    )
+    alerts = analyse_login(attempt)
+
     access = create_access_token(identity=str(user.id))
     refresh = create_refresh_token(identity=str(user.id))
     _store_refresh_session(refresh, str(user.id))
     logger.info("Login success user_id=%s", user.id)
-    return jsonify(access_token=access, refresh_token=refresh)
+
+    response_body: dict = {
+        "access_token": access,
+        "refresh_token": refresh,
+    }
+    if alerts:
+        response_body["security_alerts"] = [
+            {"alert_type": a.alert_type, "severity": a.severity, "message": a.message}
+            for a in alerts
+        ]
+    return jsonify(response_body)
 
 
 @bp.get("/me")

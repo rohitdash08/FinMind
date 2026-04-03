@@ -444,6 +444,87 @@ paths:
                 properties:
                   created: { type: integer }
 
+  /auth/security/history:
+    get:
+      summary: Login history
+      tags: [Auth]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: limit
+          required: false
+          schema: { type: integer, default: 20, minimum: 1, maximum: 100 }
+      responses:
+        '200':
+          description: Recent login attempts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LoginAttempt'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /auth/security/alerts:
+    get:
+      summary: Login security alerts
+      tags: [Auth]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: include_acknowledged
+          required: false
+          schema: { type: string, enum: ['true', 'false'], default: 'false' }
+      responses:
+        '200':
+          description: Login alerts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LoginAlert'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /auth/security/alerts/{alertId}/acknowledge:
+    post:
+      summary: Acknowledge a login alert
+      tags: [Auth]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: alertId
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Acknowledged
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  alert_id: { type: integer }
+        '404':
+          description: Alert not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
   /insights/budget-suggestion:
     get:
       summary: Get monthly budget suggestion
@@ -587,3 +668,22 @@ components:
         message: { type: string }
         send_at: { type: string, format: date-time }
         channel: { type: string, enum: [email, whatsapp], default: email }
+    LoginAttempt:
+      type: object
+      properties:
+        id: { type: integer }
+        ip_address: { type: string }
+        user_agent: { type: string, nullable: true }
+        success: { type: boolean }
+        country: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+    LoginAlert:
+      type: object
+      properties:
+        id: { type: integer }
+        alert_type: { type: string, enum: [BRUTE_FORCE, NEW_IP, NEW_DEVICE, ODD_HOUR, IMPOSSIBLE_TRAVEL] }
+        severity: { type: string, enum: [LOW, MEDIUM, HIGH, CRITICAL] }
+        message: { type: string }
+        metadata: { type: object, nullable: true }
+        acknowledged: { type: boolean }
+        created_at: { type: string, format: date-time }

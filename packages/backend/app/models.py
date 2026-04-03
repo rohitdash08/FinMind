@@ -133,3 +133,37 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class LoginAttempt(db.Model):
+    __tablename__ = "login_attempts"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    email = db.Column(db.String(255), nullable=False)
+    ip_address = db.Column(db.String(45), nullable=False)
+    user_agent = db.Column(db.String(500), nullable=True)
+    success = db.Column(db.Boolean, nullable=False)
+    country = db.Column(db.String(100), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class AlertSeverity(str, Enum):
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+    CRITICAL = "CRITICAL"
+
+
+class LoginAlert(db.Model):
+    __tablename__ = "login_alerts"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    alert_type = db.Column(db.String(50), nullable=False)
+    severity = db.Column(db.String(10), nullable=False, default=AlertSeverity.MEDIUM.value)
+    message = db.Column(db.String(500), nullable=False)
+    metadata_json = db.Column(db.Text, nullable=True)
+    acknowledged = db.Column(db.Boolean, default=False, nullable=False)
+    login_attempt_id = db.Column(
+        db.Integer, db.ForeignKey("login_attempts.id"), nullable=True
+    )
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
