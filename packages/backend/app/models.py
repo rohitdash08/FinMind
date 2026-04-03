@@ -133,3 +133,39 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+ACCOUNT_TYPES = ("checking", "savings", "credit_card", "investment", "cash", "other")
+
+
+class FinancialAccount(db.Model):
+    """
+    Represents a named financial account (bank, credit card, investment, etc.).
+    Issue #132: Multi-account financial overview dashboard.
+    """
+    __tablename__ = "financial_accounts"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    name = db.Column(db.String(100), nullable=False)
+    account_type = db.Column(db.String(30), nullable=False, default="checking")
+    currency = db.Column(db.String(10), nullable=False, default="INR")
+    opening_balance = db.Column(db.Numeric(14, 2), nullable=False, default=0)
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+    color = db.Column(db.String(20), nullable=True)
+    icon = db.Column(db.String(50), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "account_type": self.account_type,
+            "currency": self.currency,
+            "opening_balance": float(self.opening_balance),
+            "is_active": self.is_active,
+            "color": self.color,
+            "icon": self.icon,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
