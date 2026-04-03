@@ -36,11 +36,11 @@ properties:
   configuration:
     secrets:
       - name: database-url
-        value: SET_YOUR_DATABASE_URL
+        value: ${DATABASE_URL}
       - name: redis-url
-        value: SET_YOUR_REDIS_URL
+        value: ${REDIS_URL}
       - name: jwt-secret
-        value: SET_YOUR_JWT_SECRET
+        value: ${JWT_SECRET_KEY}
     ingress:
       external: true
       targetPort: 8000

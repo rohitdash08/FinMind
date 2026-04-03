@@ -10,10 +10,10 @@ write_files:
   - path: /opt/finmind/.env
     content: |
       POSTGRES_USER=finmind
-      POSTGRES_PASSWORD=CHANGE_ME
+      POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-$(openssl rand -hex 32)}
       POSTGRES_DB=finmind
-      JWT_SECRET_KEY=CHANGE_ME
-      REDIS_PASSWORD=CHANGE_ME
+      JWT_SECRET_KEY=${JWT_SECRET_KEY:-$(openssl rand -hex 32)}
+      REDIS_PASSWORD=${REDIS_PASSWORD:-$(openssl rand -hex 32)}
     owner: root:root
     permissions: '0600'
   - path: /opt/finmind/deploy.sh
