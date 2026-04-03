@@ -7,9 +7,10 @@ import hashlib
 import hmac
 import json
 import logging
+import secrets
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 
 import requests
@@ -150,7 +151,7 @@ def process_retries():
     now = datetime.now(timezone.utc)
     pending = WebhookDelivery.query.filter(
         WebhookDelivery.success == False,  # noqa: E712
-        WebhookDelivery.attempts < MAX_RETRIES,
+        WebhookDelivery.attempts <= MAX_RETRIES,
         WebhookDelivery.next_retry_at <= now,
     ).all()
 
@@ -201,7 +202,6 @@ def _deliver(delivery: WebhookDelivery, endpoint: WebhookEndpoint):
         logger.warning("Webhook error: id=%s error=%s", delivery.id, exc)
 
     # Schedule retry if failed and retries remain
-    if not delivery.success and delivery.attempts < MAX_RETRIES:
-        from datetime import timedelta
+    if not delivery.success and delivery.attempts <= MAX_RETRIES:
         delay = RETRY_DELAYS[min(delivery.attempts - 1, len(RETRY_DELAYS) - 1)]
         delivery.next_retry_at = datetime.now(timezone.utc) + timedelta(seconds=delay)

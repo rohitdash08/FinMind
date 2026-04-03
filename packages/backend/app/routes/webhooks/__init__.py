@@ -45,6 +45,8 @@ def create_endpoint():
         return jsonify(error="url is required"), 400
     if not url.startswith(("https://", "http://")):
         return jsonify(error="url must start with https:// or http://"), 400
+    if len(url) > 2048:
+        return jsonify(error="url must not exceed 2048 characters"), 400
 
     endpoint = register_endpoint(uid, url, description)
     return jsonify(
