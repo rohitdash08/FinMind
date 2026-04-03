@@ -1,6 +1,7 @@
 import json
 import logging
 import threading
+from concurrent.futures import ThreadPoolExecutor
 import uuid
 from datetime import datetime, timedelta
 from decimal import Decimal
@@ -16,11 +17,13 @@ from ..models import (
     Category,
     UserSubscription,
     SubscriptionPlan,
+    AdImpression,
     AuditLog,
 )
 
 logger = logging.getLogger("finmind.gdpr")
 
+_GDPR_POOL = ThreadPoolExecutor(max_workers=2)
 
 def _serialize_model(obj: Any) -> Dict[str, Any]:
     """Convert SQLAlchemy model to dict with JSON-serializable values."""
@@ -109,13 +112,10 @@ def _enqueue_export_job(user_id: int) -> str:
 
     # Enqueue background job
     redis_client.rpush("gdpr:export:queue", f"{job_id}:{user_id}")
+    # Use bounded thread pool instead of unbounded Thread (prevents DoS)
+    _GDPR_POOL.submit(_export_worker, job_id, user_id)
 
-    # Start worker thread if not already running (simplified; in prod use Celery/RQ)
-    threading.Thread(
-        target=_export_worker,
-        args=(job_id, user_id),
-        daemon=True,
-    ).start()
+
 
     logger.info("Enqueued export job job_id=%s user_id=%s", job_id, user_id)
     return job_id
