@@ -66,6 +66,20 @@ OpenAPI: `backend/app/openapi.yaml`
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
 - Insights: `/insights/monthly`, `/insights/budget-suggestion`
+- Anomalies: `/anomalies`, `/anomalies/summary`
+
+## Recurring Transaction Anomaly Detection
+The `/anomalies` endpoint analyzes recurring expenses and transaction patterns
+to detect unexpected changes:
+
+| Anomaly Type | Description |
+|---|---|
+| `amount_change` | A generated expense differs from the recurring amount |
+| `missing_transaction` | An expected recurring occurrence has no matching expense |
+| `recurring_pattern_detected` | Non-recurring expenses that look like they should be recurring |
+
+Query parameters: `lookback_days` (default 90), `severity` filter, `type` filter.
+`/anomalies/summary` returns counts grouped by type and severity.
 
 ## MVP UI/UX Plan
 - Auth screens: register/login.
