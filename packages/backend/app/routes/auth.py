@@ -137,3 +137,27 @@ def _store_refresh_session(refresh_token: str, uid: str):
         return
     ttl = max(int(exp - time.time()), 1)
     redis_client.setex(_refresh_key(jti), ttl, uid)
+
+from ..services.anomaly import record_failed_login, record_successful_login, get_anomalies, get_all_anomalies
+
+
+@bp.get("/anomalies")
+@jwt_required()
+def anomalies():
+    """Get login anomalies for current user."""
+    uid = int(get_jwt_identity())
+    data = get_anomalies(uid)
+    return jsonify(anomalies=data)
+
+
+@bp.get("/anomalies/all")
+@jwt_required()
+def all_anomalies():
+    """Get all anomalies (admin only)."""
+    uid = int(get_jwt_identity())
+    claims = get_jwt()
+    if not claims.get("is_admin"):
+        return jsonify(error="admin access required"), 403
+    data = get_all_anomalies()
+    return jsonify(anomalies=data)
+
