@@ -4,6 +4,7 @@ Run as: python -m app.services.worker
 """
 
 import signal
+import threading
 import sys
 import time
 import logging
@@ -54,7 +55,24 @@ def run_worker(poll_interval: float = 1.0) -> None:
                 continue
 
             try:
-                result = handler(job.get("payload", {}))
+                # Execute with 30min timeout
+                job_timeout = 1800
+                handler_result = [None]
+                handler_error = [None]
+                def _run():
+                    try:
+                        handler_result[0] = handler(job.get("payload", {}))
+                    except Exception as exc:
+                        handler_error[0] = exc
+                t = threading.Thread(target=_run, daemon=True)
+                t.start()
+                t.join(timeout=job_timeout)
+                if t.is_alive():
+                    mark_failed(job["id"], f"Job timed out after {job_timeout}s")
+                    continue
+                if handler_error[0]:
+                    raise handler_error[0]
+                result = handler_result[0]
                 mark_success(job["id"])
                 logger.info("Job %s completed: %s", job["id"], task_name)
             except Exception as e:
@@ -87,3 +105,4 @@ register_task("generate_report", _example_generate_report)
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     run_worker()
+

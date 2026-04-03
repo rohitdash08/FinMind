@@ -56,6 +56,7 @@ PROCESSING_KEY = "finmind:jobs:processing"
 DEAD_LETTER_KEY = "finmind:jobs:dead"
 JOB_PREFIX = "finmind:job:"
 HISTORY_PREFIX = "finmind:jobs:history:"
+DELAYED_QUEUE_KEY = "finmind:jobs:delayed"
 
 
 def enqueue(
@@ -101,6 +102,17 @@ def enqueue(
 
 def dequeue(timeout: float = 5.0) -> Optional[dict]:
     """Get next job from queue (blocking). Returns job dict or None."""
+    # First, promote ready jobs from delayed queue
+    try:
+        now = time.time()
+        ready = redis_client.zrangebyscore(DELAYED_QUEUE_KEY, 0, now)
+        for job_id_bytes in ready:
+            jid = str(job_id_bytes)
+            redis_client.zrem(DELAYED_QUEUE_KEY, jid)
+            redis_client.rpush(QUEUE_KEY, jid)
+    except RedisError:
+        pass
+
     try:
         result = redis_client.blpop(QUEUE_KEY, timeout=int(timeout))
         if not result:
@@ -176,8 +188,10 @@ def mark_failed(job_id: str, error: str) -> None:
                     "updated_at": now,
                 },
             )
-            # Re-queue after delay (simple approach: immediate re-queue, worker checks timing)
-            redis_client.rpush(QUEUE_KEY, job_id)
+            # Remove from processing set and schedule delayed retry
+            redis_client.srem(PROCESSING_KEY, job_id)
+            next_retry_at = time.time() + delay
+            redis_client.zadd(DELAYED_QUEUE_KEY, {job_id: next_retry_at})
             logger.info(
                 "Job %s retrying (attempt %d/%d, delay=%.1fs): %s",
                 job_id, attempt, max_retries, delay, error,
@@ -296,12 +310,22 @@ def _add_to_history(job_id: str, status: JobStatus) -> None:
         pass
 
 
+def _safe_parse_payload(raw):
+    """Safely parse JSON payload."""
+    if not raw:
+        return {}
+    try:
+        return json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        return {}
+
+
 def _deserialize_job(data: dict) -> dict:
     """Convert Redis hash data to proper types."""
     return {
         "id": data.get("id", ""),
         "task_name": data.get("task_name", ""),
-        "payload": json.loads(data.get("payload", "{}")) if data.get("payload") and data["payload"].startswith("{") else data.get("payload", {}),
+        "payload": _safe_parse_payload(data.get("payload")),
         "status": data.get("status", "UNKNOWN"),
         "user_id": data.get("user_id"),
         "attempt": int(data.get("attempt", 0)),
@@ -312,3 +336,4 @@ def _deserialize_job(data: dict) -> dict:
         "started_at": data.get("started_at"),
         "finished_at": data.get("finished_at"),
     }
+

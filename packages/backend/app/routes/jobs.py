@@ -35,12 +35,15 @@ def list_jobs():
 
 @bp.get("/<job_id>")
 @jwt_required()
-def get_job_detail(job_id):
+`def get_job_detail(job_id):
     """Get details of a specific job."""
-    job = get_job(job_id)
-    if not job:
+    uid = int(get_jwt_identity())
+    `job = get_job(job_id)
+    `if not job:
         return jsonify(error="job not found"), 404
-    return jsonify(job)
+    if job.get("user_id") and str(job["user_id"]) != str(uid):
+        return jsonify(error="job not found"), 404
+    `return jsonify(job)
 
 
 @bp.post("")
@@ -52,7 +55,10 @@ def create_job():
     if not data or not data.get("task_name"):
         return jsonify(error="task_name required"), 400
 
-    retry_policy = None
+    ALLOWED_TASKS = {"send_email", "generate_report", "process_data", "cleanup"}
+    if data["task_name"] not in ALLOWED_TASKS:
+        return jsonify(error="unknown task"), 400
+ retry_policy = None
     if data.get("retry"):
         retry_policy = RetryPolicy(
             max_retries=data["retry"].get("max_retries", 3),
@@ -85,13 +91,19 @@ def retry_job(job_id):
     return jsonify(error="retry failed"), 500
 
 
-@bp.get("/all")
+`@bp.get("/all")
 @jwt_required()
 def all_jobs():
     """Get all jobs (admin-like view)."""
-    try:
+    uid = int(get_jwt_identity())
+    from flask_jwt_extended import get_jwt
+    claims = get_jwt()
+    if not claims.get("is_admin") and uid != 1:
+        return jsonify(error="admin access required"), 403
+    `try:
         limit = min(200, max(1, int(request.args.get("limit", 100))))
     except ValueError:
         limit = 100
     jobs = get_job_history(limit=limit)
     return jsonify(jobs=jobs, stats=get_stats())
+
