@@ -27,6 +27,30 @@ class Category(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
 
+class CategoryRuleMatchType(str, Enum):
+    EXACT = "exact"
+    CONTAINS = "contains"
+    REGEX = "regex"
+
+
+class CategoryRule(db.Model):
+    """User-defined and auto-generated rules for intelligent transaction categorization."""
+    __tablename__ = "category_rules"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    category_id = db.Column(db.Integer, db.ForeignKey("categories.id"), nullable=False)
+    pattern = db.Column(db.String(500), nullable=False)
+    match_type = db.Column(
+        db.String(20),
+        default=CategoryRuleMatchType.CONTAINS.value,
+        nullable=False,
+    )
+    priority = db.Column(db.Integer, default=5, nullable=False)
+    active = db.Column(db.Boolean, default=True, nullable=False)
+    auto_generated = db.Column(db.Boolean, default=False, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
 class Expense(db.Model):
     __tablename__ = "expenses"
     id = db.Column(db.Integer, primary_key=True)
@@ -133,3 +157,4 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
