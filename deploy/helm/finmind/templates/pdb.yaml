@@ -1,0 +1,12 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "finmind.fullname" . }}-backend
+  labels:
+    {{- include "finmind.labels" . | nindent 4 }}
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      {{- include "finmind.selectorLabels" . | nindent 6 }}
+      component: backend

@@ -1,5 +1,4 @@
-# FinMind Tilt Configuration
-# Local Kubernetes development workflow
+# FinMind Tilt Configuration - Local K8s Development
 
 # Build backend image
 docker_build(
@@ -11,8 +10,11 @@ docker_build(
     ]
 )
 
-# Apply Helm chart
-k8s_yaml('deploy/helm/finmind')
+# Render Helm chart and apply
+k8s_yaml(helm(
+    'deploy/helm/finmind',
+    values=['./deploy/helm/finmind/values.yaml'],
+))
 
 # Port forwards
 k8s_resource(
@@ -20,13 +22,11 @@ k8s_resource(
     port_forwards='8000',
 )
 
-# PostgreSQL
 k8s_resource(
     'finmind-postgres',
     port_forwards='5432',
 )
 
-# Redis
 k8s_resource(
     'finmind-redis',
     port_forwards='6379',

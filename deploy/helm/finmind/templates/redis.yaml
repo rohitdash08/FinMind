@@ -1,0 +1,67 @@
+{{- if .Values.redis.enabled }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "finmind.fullname" . }}-redis
+  labels:
+    {{- include "finmind.labels" . | nindent 4 }}
+    component: redis
+spec:
+  serviceName: {{ include "finmind.fullname" . }}-redis
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "finmind.selectorLabels" . | nindent 6 }}
+      component: redis
+  template:
+    metadata:
+      labels:
+        {{- include "finmind.selectorLabels" . | nindent 8 }}
+        component: redis
+    spec:
+      containers:
+        - name: redis
+          image: {{ .Values.redis.image }}
+          ports:
+            - containerPort: {{ .Values.redis.port }}
+          command: ["redis-server", "--appendonly", "yes"]
+          volumeMounts:
+            - name: redis-data
+              mountPath: /data
+          resources:
+            {{- toYaml .Values.redis.resources | nindent 12 }}
+          livenessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+  volumeClaimTemplates:
+    - metadata:
+        name: redis-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: {{ .Values.redis.persistence.size }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "finmind.fullname" . }}-redis
+  labels:
+    {{- include "finmind.labels" . | nindent 4 }}
+    component: redis
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.redis.port }}
+      targetPort: {{ .Values.redis.port }}
+  selector:
+    {{- include "finmind.selectorLabels" . | nindent 4 }}
+    component: redis
+{{- end }}

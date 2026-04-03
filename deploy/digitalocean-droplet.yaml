@@ -1,0 +1,34 @@
+#cloud-config
+package_update: true
+packages:
+  - docker.io
+  - docker-compose-plugin
+  - curl
+  - git
+
+write_files:
+  - path: /opt/finmind/.env
+    content: |
+      POSTGRES_USER=finmind
+      POSTGRES_PASSWORD=CHANGE_ME
+      POSTGRES_DB=finmind
+      JWT_SECRET_KEY=CHANGE_ME
+      REDIS_PASSWORD=CHANGE_ME
+    owner: root:root
+    permissions: '0600'
+  - path: /opt/finmind/deploy.sh
+    content: |
+      #!/bin/bash
+      set -e
+      cd /opt/finmind
+      git clone https://github.com/rohitdash08/FinMind.git repo
+      cd repo
+      docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+      echo "FinMind deployed! Health check: curl http://localhost/health"
+    owner: root:root
+    permissions: '0755'
+
+runcmd:
+  - systemctl enable docker
+  - systemctl start docker
+  - bash /opt/finmind/deploy.sh

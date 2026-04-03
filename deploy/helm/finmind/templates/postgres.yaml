@@ -1,0 +1,83 @@
+{{- if .Values.postgres.enabled }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "finmind.fullname" . }}-postgres
+  labels:
+    {{- include "finmind.labels" . | nindent 4 }}
+    component: postgres
+spec:
+  serviceName: {{ include "finmind.fullname" . }}-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "finmind.selectorLabels" . | nindent 6 }}
+      component: postgres
+  template:
+    metadata:
+      labels:
+        {{- include "finmind.selectorLabels" . | nindent 8 }}
+        component: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: {{ .Values.postgres.image }}
+          ports:
+            - containerPort: {{ .Values.postgres.port }}
+          env:
+            - name: POSTGRES_USER
+              value: {{ .Values.postgres.username | quote }}
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "finmind.fullname" . }}-secrets
+                  key: databaseUrl
+            - name: POSTGRES_DB
+              value: {{ .Values.postgres.database | quote }}
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data
+          {{- with .Values.postgres.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", {{ .Values.postgres.username | quote }}]
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", {{ .Values.postgres.username | quote }}]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+  volumeClaimTemplates:
+    - metadata:
+        name: postgres-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- if .Values.postgres.persistence.storageClass }}
+        storageClassName: {{ .Values.postgres.persistence.storageClass }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.postgres.persistence.size }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "finmind.fullname" . }}-postgres
+  labels:
+    {{- include "finmind.labels" . | nindent 4 }}
+    component: postgres
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.postgres.port }}
+      targetPort: {{ .Values.postgres.port }}
+  selector:
+    {{- include "finmind.selectorLabels" . | nindent 4 }}
+    component: postgres
+{{- end }}
