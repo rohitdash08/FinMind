@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from flask import Flask, jsonify
 from .config import Settings
 from .extensions import db, jwt

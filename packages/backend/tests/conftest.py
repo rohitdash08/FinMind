@@ -1,10 +1,27 @@
 import os
+import hashlib
 import pytest
 from app import create_app
 from app.config import Settings
 from app.extensions import db
 from app.extensions import redis_client
 from app import models  # noqa: F401 - ensure models are registered
+
+# Patch: macOS Python 3.9 may lack hashlib.scrypt used by Werkzeug's default
+# password hashing.  Monkey-patch the internal function so that all callers
+# (including those that imported generate_password_hash at module load)
+# transparently fall back to pbkdf2:sha256.
+if not hasattr(hashlib, "scrypt"):
+    import werkzeug.security as _ws
+
+    _orig_hash_internal = _ws._hash_internal
+
+    def _safe_hash_internal(method, salt, password):
+        if method.startswith("scrypt"):
+            method = "pbkdf2:sha256"
+        return _orig_hash_internal(method, salt, password)
+
+    _ws._hash_internal = _safe_hash_internal
 
 
 class TestSettings(Settings):
