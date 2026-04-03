@@ -1,2 +1,1 @@
-web: gunicorn --workers 4 --worker-class gthread --bind 0.0.0.0:$PORT --timeout 120 --access-logfile - --error-logfile - wsgi:app
-release: python -m flask --app wsgi:app init-db
+web: gunicorn --bind 0.0.0.0:$PORT --workers 4 "app:create_app()"

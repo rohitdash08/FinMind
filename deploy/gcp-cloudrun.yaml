@@ -1,0 +1,40 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: finmind
+  annotations:
+    run.googleapis.com/ingress: all
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: "1"
+        autoscaling.knative.dev/maxScale: "10"
+    spec:
+      containerConcurrency: 80
+      containers:
+        - image: gcr.io/PROJECT_ID/finmind:latest
+          ports:
+            - containerPort: 8000
+          env:
+            - name: FLASK_ENV
+              value: production
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: finmind-secrets
+                  key: databaseUrl
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: finmind-secrets
+                  key: redisUrl
+            - name: JWT_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: finmind-secrets
+                  key: jwtSecret
+          resources:
+            limits:
+              cpu: "1"
+              memory: 512Mi

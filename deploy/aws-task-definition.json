@@ -1,0 +1,37 @@
+{
+  "family": "finmind",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "256",
+  "memory": "512",
+  "containerDefinitions": [
+    {
+      "name": "backend",
+      "image": "finmind/backend:latest",
+      "essential": true,
+      "portMappings": [{ "containerPort": 8000, "protocol": "tcp" }],
+      "healthCheck": {
+        "command": ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"],
+        "intervalSeconds": 30,
+        "timeoutSeconds": 5,
+        "retries": 3
+      },
+      "environment": [
+        { "name": "FLASK_ENV", "value": "production" }
+      ],
+      "secrets": [
+        { "name": "DATABASE_URL", "valueFrom": "arn:aws:secretsmanager:REGION:ACCOUNT:secret:finmind/db-url" },
+        { "name": "REDIS_URL", "valueFrom": "arn:aws:secretsmanager:REGION:ACCOUNT:secret:finmind/redis-url" },
+        { "name": "JWT_SECRET_KEY", "valueFrom": "arn:aws:secretsmanager:REGION:ACCOUNT:secret:finmind/jwt-secret" }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/finmind",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      }
+    }
+  ]
+}
