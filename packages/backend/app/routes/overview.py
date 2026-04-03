@@ -1,14 +1,12 @@
 from datetime import date
 from flask import Blueprint, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from sqlalchemy import func
+from sqlalchemy import func, case
 
 from ..extensions import db
 from ..models import Expense, Bill, User
 
 bp = Blueprint("overview", __name__)
-
-ALLOWED_CURRENCIES = {"EUR", "USD", "INR", "GBP"}
 
 
 @bp.get("")
@@ -17,7 +15,9 @@ def financial_overview():
     """Multi-account financial overview aggregated across all data."""
     uid = int(get_jwt_identity())
     user = db.session.query(User).get(uid)
-    preferred = user.preferred_currency if user else "INR"
+    if not user:
+        return jsonify(error="user not found"), 404
+    preferred = user.preferred_currency or "INR"
 
     errors = []
 
@@ -72,45 +72,52 @@ def financial_overview():
         bills_by_currency = {}
         errors.append("bills_unavailable")
 
-    # Monthly trend (last 6 months)
+    # Monthly trend (last 6 months) - single query with GROUP BY
     try:
-        six_months_ago = date.today().replace(day=1)
         from dateutil.relativedelta import relativedelta
 
-        monthly = []
-        for i in range(6):
-            month_date = six_months_ago - relativedelta(months=i)
-            inc = (
-                db.session.query(func.coalesce(func.sum(Expense.amount), 0))
-                .filter(
-                    Expense.user_id == uid,
-                    Expense.expense_type == "INCOME",
-                    func.strftime("%Y-%m", Expense.spent_at) == month_date.strftime("%Y-%m"),
-                )
-                .scalar()
+        six_months_ago = (date.today() - relativedelta(months=5)).replace(day=1)
+        month_rows = (
+            db.session.query(
+                func.strftime("%Y-%m", Expense.spent_at).label("month"),
+                func.coalesce(
+                    func.sum(
+                        case(
+                            (Expense.expense_type == "INCOME", Expense.amount),
+                            else_=0,
+                        )
+                    ),
+                    0,
+                ).label("income"),
+                func.coalesce(
+                    func.sum(
+                        case(
+                            (Expense.expense_type != "INCOME", Expense.amount),
+                            else_=0,
+                        )
+                    ),
+                    0,
+                ).label("expenses"),
             )
-            exp = (
-                db.session.query(func.coalesce(func.sum(Expense.amount), 0))
-                .filter(
-                    Expense.user_id == uid,
-                    Expense.expense_type != "INCOME",
-                    func.strftime("%Y-%m", Expense.spent_at) == month_date.strftime("%Y-%m"),
-                )
-                .scalar()
-            )
-            monthly.append(
-                {
-                    "month": month_date.strftime("%Y-%m"),
-                    "income": float(inc or 0),
-                    "expenses": float(exp or 0),
-                    "net": float((inc or 0) - (exp or 0)),
-                }
-            )
+            .filter(Expense.user_id == uid, Expense.spent_at >= six_months_ago)
+            .group_by("month")
+            .order_by("month")
+            .all()
+        )
+        monthly = [
+            {
+                "month": r.month,
+                "income": float(r.income),
+                "expenses": float(r.expenses),
+                "net": float(r.income - r.expenses),
+            }
+            for r in month_rows
+        ]
     except Exception:
         monthly = []
         errors.append("monthly_trend_unavailable")
 
-    # Net worth calculation
+    # Net worth - by currency only, no cross-currency sum
     all_currencies = set(list(income_by_currency.keys()) + list(expenses_by_currency.keys()))
     net_worth_by_currency = {}
     for cur in all_currencies:
@@ -118,19 +125,17 @@ def financial_overview():
         exp = expenses_by_currency.get(cur, 0)
         net_worth_by_currency[cur] = round(inc - exp, 2)
 
-    total_net_worth = sum(net_worth_by_currency.values())
-
     return jsonify(
         {
             "net_worth": {
                 "by_currency": net_worth_by_currency,
-                "total": round(total_net_worth, 2),
                 "preferred_currency": preferred,
+                "preferred_net_worth": net_worth_by_currency.get(preferred, 0),
             },
             "income": income_by_currency,
             "expenses": expenses_by_currency,
             "upcoming_bills": bills_by_currency,
-            "monthly_trend": sorted(monthly, key=lambda x: x["month"]),
+            "monthly_trend": monthly,
             "currency_summary": {
                 "currencies": list(all_currencies),
                 "preferred": preferred,
