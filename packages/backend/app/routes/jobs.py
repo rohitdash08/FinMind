@@ -35,15 +35,15 @@ def list_jobs():
 
 @bp.get("/<job_id>")
 @jwt_required()
-`def get_job_detail(job_id):
+def get_job_detail(job_id):
     """Get details of a specific job."""
     uid = int(get_jwt_identity())
-    `job = get_job(job_id)
-    `if not job:
+job = get_job(job_id)
+if not job:
         return jsonify(error="job not found"), 404
     if job.get("user_id") and str(job["user_id"]) != str(uid):
         return jsonify(error="job not found"), 404
-    `return jsonify(job)
+return jsonify(job)
 
 
 @bp.post("")
@@ -91,7 +91,7 @@ def retry_job(job_id):
     return jsonify(error="retry failed"), 500
 
 
-`@bp.get("/all")
+@bp.get("/all")
 @jwt_required()
 def all_jobs():
     """Get all jobs (admin-like view)."""
@@ -100,7 +100,7 @@ def all_jobs():
     claims = get_jwt()
     if not claims.get("is_admin"):
         return jsonify(error="admin access required"), 403
-    `try:
+try:
         limit = min(200, max(1, int(request.args.get("limit", 100))))
     except ValueError:
         limit = 100
