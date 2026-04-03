@@ -276,23 +276,37 @@ def confirm_deletion(user_id: int) -> Dict[str, Any]:
 
 
 def _hard_delete_user_data(user_id: int):
-    """Delete all user data permanently. Order matters due to FK constraints."""
-    # First delete dependent records in reverse order of creation/links
-    Expense.query.filter_by(user_id=user_id).delete()
-    RecurringExpense.query.filter_by(user_id=user_id).delete()
-    Bill.query.filter_by(user_id=user_id).delete()
-    Reminder.query.filter_by(user_id=user_id).delete()
-    Category.query.filter_by(user_id=user_id).delete()
-    UserSubscription.query.filter_by(user_id=user_id).delete()
+    """Delete all user data permanently. Order respects FK constraints.
 
-    # Then delete the user
-    user = User.query.get(user_id)
-    if user:
-        db.session.delete(user)
+    Dependent records first (referencing categories), then categories,
+    then remaining tables. Wrapped in transaction for atomicity.
+    """
+    try:
+        # Records referencing categories (must be deleted before Category)
+        Expense.query.filter_by(user_id=user_id).delete(synchronize_session=False)
+        RecurringExpense.query.filter_by(user_id=user_id).delete(synchronize_session=False)
+        Bill.query.filter_by(user_id=user_id).delete(synchronize_session=False)
+        Reminder.query.filter_by(user_id=user_id).delete(synchronize_session=False)
 
-    db.session.commit()
-    logger.info("Hard delete completed user_id=%s", user_id)
+        # Now safe to delete categories (no more FK references)
+        Category.query.filter_by(user_id=user_id).delete(synchronize_session=False)
+        UserSubscription.query.filter_by(user_id=user_id).delete(synchronize_session=False)
 
+        # AdImpression and AuditLog cleanup
+        AdImpression.query.filter_by(user_id=user_id).delete(synchronize_session=False)
+        AuditLog.query.filter_by(user_id=user_id).delete(synchronize_session=False)
+
+        # Finally delete the user
+        user = User.query.get(user_id)
+        if user:
+            db.session.delete(user)
+
+        db.session.commit()
+        logger.info("Hard delete completed user_id=%s", user_id)
+    except Exception:
+        db.session.rollback()
+        logger.exception("Hard delete FAILED for user_id=%s - rolled back", user_id)
+        raise
 
 def get_deletion_status(user_id: int) -> Dict[str, Any]:
     """Get current GDPR deletion status."""
@@ -342,4 +356,5 @@ def cleanup_expired_grace_periods():
                 )
         except Exception as e:
             logger.exception("Cleanup failed for key %s", key)
+
 
