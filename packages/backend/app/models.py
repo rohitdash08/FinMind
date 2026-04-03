@@ -1,6 +1,6 @@
 from datetime import datetime, date
 from enum import Enum
-from sqlalchemy import Enum as SAEnum
+from sqlalchemy import Enum as SAEnum, Text
 from .extensions import db
 
 
@@ -25,6 +25,16 @@ class Category(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     name = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class FinancialEvent(db.Model):
+    """Persistent audit trail for financial activity events."""
+    __tablename__ = "financial_events"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    event_type = db.Column(db.String(50), nullable=False)
+    payload = db.Column(Text, nullable=True)
+    occurred_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
 
 class Expense(db.Model):
