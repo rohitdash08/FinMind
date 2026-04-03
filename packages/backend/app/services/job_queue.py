@@ -71,7 +71,7 @@ def enqueue(
     job = {
         "id": job_id,
         "task_name": task_name,
-        "payload": payload,
+        "payload": json.dumps(payload),
         "status": JobStatus.PENDING.value,
         "user_id": user_id,
         "attempt": 0,
@@ -106,7 +106,7 @@ def dequeue(timeout: float = 5.0) -> Optional[dict]:
         if not result:
             return None
         _, job_id = result
-        job_id = job_id if isinstance(job_id, str) else job_id.decode()
+        job_id = str(job_id)
 
         job_data = redis_client.hgetall(f"{JOB_PREFIX}{job_id}")
         if not job_data:
