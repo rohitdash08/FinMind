@@ -230,7 +230,7 @@ def get_job_history(user_id: Optional[int] = None, limit: int = 50) -> list[dict
     """Get job execution history, optionally filtered by user."""
     try:
         # Scan recent jobs
-        keys = redis_client.keys(f"{JOB_PREFIX}*")
+        keys = redis_client.scan_iter(match=f"{JOB_PREFIX}*")
         jobs = []
         for key in keys[:limit * 2]:
             job_data = redis_client.hgetall(key)
@@ -253,7 +253,7 @@ def get_stats() -> dict:
         dead_len = redis_client.llen(DEAD_LETTER_KEY)
 
         # Count by status
-        keys = redis_client.keys(f"{JOB_PREFIX}*")
+        keys = redis_client.scan_iter(match=f"{JOB_PREFIX}*")
         status_counts = {s.value: 0 for s in JobStatus}
         for key in keys:
             status = redis_client.hget(key, "status")
@@ -336,4 +336,5 @@ def _deserialize_job(data: dict) -> dict:
         "started_at": data.get("started_at"),
         "finished_at": data.get("finished_at"),
     }
+
 

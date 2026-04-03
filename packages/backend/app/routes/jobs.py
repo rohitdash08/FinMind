@@ -98,7 +98,7 @@ def all_jobs():
     uid = int(get_jwt_identity())
     from flask_jwt_extended import get_jwt
     claims = get_jwt()
-    if not claims.get("is_admin") and uid != 1:
+    if not claims.get("is_admin"):
         return jsonify(error="admin access required"), 403
     `try:
         limit = min(200, max(1, int(request.args.get("limit", 100))))
@@ -106,4 +106,5 @@ def all_jobs():
         limit = 100
     jobs = get_job_history(limit=limit)
     return jsonify(jobs=jobs, stats=get_stats())
+
 
