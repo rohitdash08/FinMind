@@ -1,0 +1,27 @@
+name: finmind
+services:
+  - name: backend
+    github:
+      repo: rohitdash08/FinMind
+      branch: main
+    dockerfile_path: packages/backend/Dockerfile
+    http_port: 8000
+    routes:
+      - path: /
+    envs:
+      - key: FLASK_ENV
+        value: production
+      - key: DATABASE_URL
+        value: ${db.DATABASE_URL}
+      - key: REDIS_URL
+        value: ${redis.REDIS_URL}
+      - key: JWT_SECRET_KEY
+        value: ${JWT_SECRET_KEY}
+        type: SECRET
+databases:
+  - name: db
+    engine: PG
+    version: "16"
+  - name: redis
+    engine: REDIS
+    version: "7"

@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: finmind
+  labels:
+    app.kubernetes.io/name: finmind
+    app.kubernetes.io/part-of: finmind

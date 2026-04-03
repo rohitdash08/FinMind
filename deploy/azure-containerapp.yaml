@@ -1,0 +1,46 @@
+properties:
+  template:
+    containers:
+      - name: backend
+        image: finmind/backend:latest
+        env:
+          - name: FLASK_ENV
+            value: production
+          - name: DATABASE_URL
+            secretRef: database-url
+          - name: REDIS_URL
+            secretRef: redis-url
+          - name: JWT_SECRET_KEY
+            secretRef: jwt-secret
+        probes:
+          - type: liveness
+            httpGet:
+              path: /health
+              port: 8000
+            periodSeconds: 20
+          - type: readiness
+            httpGet:
+              path: /health
+              port: 8000
+            periodSeconds: 10
+    scale:
+      minReplicas: 2
+      maxReplicas: 10
+      rules:
+        - name: cpu
+          custom:
+            type: Utilization
+            metadata:
+              type: Utilization
+              value: "50"
+  configuration:
+    secrets:
+      - name: database-url
+        value: ${DATABASE_URL}
+      - name: redis-url
+        value: ${REDIS_URL}
+      - name: jwt-secret
+        value: ${JWT_SECRET_KEY}
+    ingress:
+      external: true
+      targetPort: 8000

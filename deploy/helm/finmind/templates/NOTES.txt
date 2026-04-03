@@ -1,0 +1,16 @@
+FinMind has been deployed!
+
+Backend is available at:
+  http://{{ .Values.ingress.hosts[0].host | default "localhost" }}
+
+To get the backend URL:
+  export POD_NAME=$(kubectl get pods -l "app.kubernetes.io/instance={{ .Release.Name }}" -o jsonpath="{.items[0].metadata.name}")
+  kubectl port-forward $POD_NAME 8000:8000
+
+Health check:
+  curl http://localhost:8000/health
+
+Required environment:
+  JWT_SECRET_KEY - generate with: openssl rand -hex 32
+  DATABASE_URL   - PostgreSQL connection string
+  REDIS_URL      - Redis connection string

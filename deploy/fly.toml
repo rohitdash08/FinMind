@@ -1,0 +1,51 @@
+app = "finmind"
+primary_region = "fra"
+
+[build]
+  dockerfile = "packages/backend/Dockerfile"
+  build-target = "production"
+
+[deploy]
+  release_command = "python -m flask --app wsgi:app init-db"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 512
+  count = 1
+
+[[services]]
+  http_checks = []
+  internal_port = 8000
+  protocol = "tcp"
+
+  [[services.ports]]
+    port = 80
+    handlers = ["http"]
+
+  [[services.ports]]
+    port = 443
+    handlers = ["tls", "http"]
+
+  [[services.health_checks]]
+    path = "/health"
+    port = 8000
+    interval = 30
+    timeout = 10
+    grace_period = "40s"
+
+[env]
+  FLASK_ENV = "production"
+  LOG_LEVEL = "INFO"
+
+[metadata]
+  "finmind:description" = "FinMind - Personal Finance Tracker"
+
+[[volumes]]
+  name = "postgres_data"
+  size_gb = 1
+  mount_point = "/var/lib/postgresql/data"
+
+[[statics]]
+  guest_path = "/app/static"
+  url_prefix = "/static"
