@@ -12,7 +12,19 @@
     <meta property="og:description" content="Smart budget tracking and bill management with AI-powered insights to help you save more and stress less." />
     <meta property="og:type" content="website" />
   </head>
-
+  <!-- FOUC prevention: apply stored theme before page renders -->
+  <script>
+    (function() {
+      try {
+        var stored = localStorage.getItem("finmind-theme") || "system";
+        var resolved = stored === "dark" ? "dark"
+          : stored === "light" ? "light"
+          : window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        document.documentElement.classList.add(resolved);
+        document.documentElement.setAttribute("data-theme", resolved);
+      } catch(e) {}
+    })();
+  </script>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
