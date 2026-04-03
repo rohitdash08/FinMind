@@ -5,6 +5,7 @@ Supports retry with exponential backoff and failure tracking.
 """
 import hashlib
 import hmac
+import ipaddress
 import json
 import logging
 import secrets
@@ -12,6 +13,7 @@ import time
 import uuid
 from datetime import datetime, timedelta, timezone
 from enum import Enum
+from urllib.parse import urlparse
 
 import requests
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text
@@ -93,9 +95,36 @@ DELIVERY_TIMEOUT = 10  # seconds
 # Core Functions
 # ---------------------------------------------------------------------------
 
+
+def _is_safe_url(url: str) -> bool:
+    """Block private IPs, localhost, link-local, and cloud metadata endpoints."""
+    try:
+        parsed = urlparse(url)
+        hostname = parsed.hostname
+        if not hostname:
+            return False
+        # Resolve hostname to IP (blocks DNS rebinding on first call)
+        import socket
+        resolved = socket.getaddrinfo(hostname, parsed.port or 80, socket.AF_UNSPEC, socket.SOCK_STREAM)
+        for family, _, _, _, sockaddr in resolved:
+            ip = ipaddress.ip_address(sockaddr[0])
+            if ip.is_private or ip.is_loopback or ip.is_reserved or ip.is_link_local:
+                return False
+            # Block cloud metadata endpoints (AWS/GCP/Azure)
+            if str(ip) == "169.254.169.254":
+                return False
+    except (socket.gaierror, ValueError, OSError):
+        return False
+    return True
+
+
 def register_endpoint(user_id: int, url: str, description: str | None = None) -> WebhookEndpoint:
     """Create a new webhook endpoint for a user."""
     import secrets
+    if description and len(description) > 255:
+        raise ValueError("Description must not exceed 255 characters")
+    if not _is_safe_url(url):
+        raise ValueError("Webhook URL resolves to a private or blocked address")
     secret = f"whsec_{secrets.token_hex(32)}"
     endpoint = WebhookEndpoint(
         user_id=user_id,
@@ -105,7 +134,7 @@ def register_endpoint(user_id: int, url: str, description: str | None = None) ->
     )
     db.session.add(endpoint)
     db.session.commit()
-    logger.info("Webhook endpoint registered: user=%s url=%s", user_id, url)
+    logger.info("Webhook endpoint registered: user=%s endpoint_id=%%s", user_id)
     return endpoint
 
 
