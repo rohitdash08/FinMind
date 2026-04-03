@@ -2,6 +2,7 @@ from flask import Flask, jsonify
 from .config import Settings
 from .extensions import db, jwt
 from .routes import register_routes
+from .services.webhooks import WebhookEndpoint, WebhookDelivery  # noqa: F401
 from .observability import (
     Observability,
     configure_logging,
@@ -118,3 +119,4 @@ def _ensure_schema_compatibility(app: Flask) -> None:
         conn.rollback()
     finally:
         conn.close()
+

@@ -123,3 +123,31 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   action VARCHAR(100) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+-- Webhook system (Issue #77)
+CREATE TABLE IF NOT EXISTS webhook_endpoints (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    url VARCHAR(2048) NOT NULL,
+    secret VARCHAR(128) NOT NULL,
+    description VARCHAR(255),
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS webhook_deliveries (
+    id SERIAL PRIMARY KEY,
+    endpoint_id INTEGER NOT NULL REFERENCES webhook_endpoints(id) ON DELETE CASCADE,
+    event_type VARCHAR(100) NOT NULL,
+    payload TEXT NOT NULL,
+    status_code INTEGER,
+    response_body TEXT,
+    success BOOLEAN NOT NULL DEFAULT FALSE,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    last_attempt_at TIMESTAMP,
+    next_retry_at TIMESTAMP,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_webhook_deliveries_endpoint ON webhook_deliveries(endpoint_id);
+CREATE INDEX idx_webhook_deliveries_retry ON webhook_deliveries(next_retry_at) WHERE success = FALSE AND attempts < 5;
