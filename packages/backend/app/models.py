@@ -15,6 +15,7 @@ class User(db.Model):
     email = db.Column(db.String(255), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
     preferred_currency = db.Column(db.String(10), default="INR", nullable=False)
+    widget_prefs = db.Column(db.Text, nullable=True, default=None)
     role = db.Column(db.String(20), default=Role.USER.value, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
