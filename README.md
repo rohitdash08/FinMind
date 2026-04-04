@@ -2,6 +2,8 @@
 
 FinMind helps users control spending, track bills, and get smart financial insights. Built for free-tier friendly deployment with scalable architecture.
 
+- **Locale-aware formatting**: dates, currencies, and numbers adapt to the user's preferred locale (en-US, en-GB, en-IN, de-DE, ja-JP, fr-FR, ar-SA, zh-CN).
+
 ## System Architecture
 
 ```mermaid

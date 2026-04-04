@@ -4,6 +4,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { me, updateMe } from '@/api/auth';
 import { setCurrency } from '@/lib/auth';
+import { SUPPORTED_LOCALES, getLocale, setLocale, formatCurrency, formatDate } from '@/lib/locale';
 
 const SUPPORTED_CURRENCIES = [
   { code: 'INR', label: 'Indian Rupee (INR)' },
@@ -21,6 +22,7 @@ export default function Account() {
   const { toast } = useToast();
   const [email, setEmail] = useState('');
   const [currency, setCurrencyState] = useState('INR');
+  const [locale, setLocaleState] = useState(getLocale);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -95,6 +97,22 @@ export default function Account() {
                   </option>
                 ))}
               </select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="preferred_locale">Preferred Locale</Label>
+              <select
+                id="preferred_locale"
+                className="input"
+                value={locale}
+                onChange={(e) => { setLocale(e.target.value); setLocaleState(e.target.value); }}
+              >
+                {SUPPORTED_LOCALES.map((l) => (
+                  <option key={l} value={l}>{l}</option>
+                ))}
+              </select>
+              <p className="text-xs text-muted-foreground">
+                Preview: {formatCurrency(12345.67, currency)} | {formatDate(new Date())}
+              </p>
             </div>
             <div className="flex justify-end">
               <Button
