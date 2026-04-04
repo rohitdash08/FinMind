@@ -133,3 +133,19 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class Job(db.Model):
+    __tablename__ = "jobs"
+    id = db.Column(db.Integer, primary_key=True)
+    job_type = db.Column(db.String(100), nullable=False, index=True)
+    payload = db.Column(db.JSON, default=dict, nullable=False)
+    status = db.Column(db.String(20), default="PENDING", nullable=False, index=True)
+    max_retries = db.Column(db.Integer, default=5, nullable=False)
+    attempt = db.Column(db.Integer, default=0, nullable=False)
+    error_message = db.Column(db.String(500), nullable=True)
+    scheduled_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    next_retry_at = db.Column(db.DateTime, nullable=True)
+    completed_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
