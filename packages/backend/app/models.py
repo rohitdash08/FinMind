@@ -127,6 +127,19 @@ class UserSubscription(db.Model):
     started_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
 
+class BudgetLimit(db.Model):
+    __tablename__ = "budget_limits"
+    __table_args__ = (
+        db.UniqueConstraint("user_id", "category_id", "month", name="uq_budget_user_cat_month"),
+    )
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    category_id = db.Column(db.Integer, db.ForeignKey("categories.id"), nullable=True)
+    monthly_limit = db.Column(db.Numeric(12, 2), nullable=False)
+    month = db.Column(db.String(7), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
 class AuditLog(db.Model):
     __tablename__ = "audit_logs"
     id = db.Column(db.Integer, primary_key=True)

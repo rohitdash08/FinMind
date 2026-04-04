@@ -20,6 +20,7 @@ import {
   Plus,
 } from 'lucide-react';
 import { getDashboardSummary, type DashboardSummary } from '@/api/dashboard';
+import { getBudgetWarnings, type BudgetWarning } from '@/api/budgets';
 import { useNavigate } from 'react-router-dom';
 import { formatMoney } from '@/lib/currency';
 
@@ -33,6 +34,8 @@ export function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  const [budgetWarnings, setBudgetWarnings] = useState<BudgetWarning[]>([]);
+  const [warningsDismissed, setWarningsDismissed] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -47,6 +50,13 @@ export function Dashboard() {
         setLoading(false);
       }
     })();
+  }, [month]);
+
+  useEffect(() => {
+    getBudgetWarnings(month)
+      .then(w => setBudgetWarnings(w.filter(i => i.status === 'over' || i.status === 'critical')))
+      .catch(() => setBudgetWarnings([]));
+    setWarningsDismissed(false);
   }, [month]);
 
   const summary = useMemo(() => {
@@ -138,6 +148,28 @@ export function Dashboard() {
       {data?.errors && data.errors.length > 0 && (
         <div className="card mb-6 text-sm text-warning">
           Some widgets are temporarily unavailable: {data.errors.join(', ')}
+        </div>
+      )}
+
+      {!warningsDismissed && budgetWarnings.length > 0 && (
+        <div className="relative rounded-lg border border-yellow-400 bg-yellow-50 dark:bg-yellow-950/30 p-4 mb-6">
+          <button
+            className="absolute top-2 right-2 text-sm text-muted-foreground hover:text-foreground"
+            onClick={() => setWarningsDismissed(true)}
+            aria-label="Dismiss budget warnings"
+          >
+            ✕
+          </button>
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="w-5 h-5 text-yellow-600 mt-0.5 shrink-0" />
+            <div className="space-y-1">
+              {budgetWarnings.map(w => (
+                <p key={w.category_id ?? 'total'} className="text-sm text-foreground">
+                  <span className="font-medium">{w.category_name}</span> is at {w.pct_used}% of budget
+                </p>
+              ))}
+            </div>
+          </div>
         </div>
       )}
 
