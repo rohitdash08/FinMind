@@ -11,6 +11,7 @@ tags:
   - name: Expenses
   - name: Bills
   - name: Reminders
+  - name: Digest
   - name: Insights
 paths:
   /auth/register:
@@ -444,6 +445,79 @@ paths:
                 properties:
                   created: { type: integer }
 
+  /digest/weekly:
+    get:
+      summary: Weekly financial digest
+      description: >
+        Returns a comprehensive weekly financial summary including income/expense
+        totals, category breakdown, daily spending trend, top transactions,
+        upcoming bills, and AI-powered or heuristic insights.
+      tags: [Digest]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: week
+          required: false
+          schema: { type: string, pattern: '^\d{4}-W\d{1,2}$' }
+          description: ISO week in YYYY-Www format (e.g. 2026-W14). Defaults to current week.
+        - in: header
+          name: X-Gemini-Api-Key
+          required: false
+          schema: { type: string }
+          description: Optional user-supplied Gemini API key for AI insights.
+        - in: header
+          name: X-Insight-Persona
+          required: false
+          schema: { type: string }
+          description: Optional custom AI persona prompt.
+      responses:
+        '200':
+          description: Weekly digest
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WeeklyDigest'
+              example:
+                period:
+                  iso_year: 2026
+                  iso_week: 14
+                  start_date: "2026-03-30"
+                  end_date: "2026-04-05"
+                summary:
+                  total_income: 5000.00
+                  total_expenses: 1200.00
+                  net_flow: 3800.00
+                  week_over_week_change_pct: -10.5
+                  upcoming_bills_total: 149.98
+                  upcoming_bills_count: 2
+                category_breakdown:
+                  - { category_id: 1, category_name: Food, amount: 450.00, share_pct: 37.5 }
+                  - { category_id: 2, category_name: Transport, amount: 300.00, share_pct: 25.0 }
+                daily_spending:
+                  - { date: "2026-03-30", amount: 150.00 }
+                  - { date: "2026-03-31", amount: 200.00 }
+                top_transactions:
+                  - { id: 42, amount: 300.00, description: Groceries, date: "2026-03-30", category_id: 1, currency: INR }
+                upcoming_bills:
+                  - { id: 5, name: Internet, amount: 49.99, currency: INR, due_date: "2026-04-01" }
+                insights:
+                  highlights:
+                    - "Positive cash flow: earned 5000.00, spent 1200.00."
+                    - "Spending decreased 10.5% vs last week."
+                  risk_flag: null
+                  saving_tip: "Consider setting a budget cap on 'Food' to reduce spending by 10-15%."
+                method: heuristic
+        '400':
+          description: Invalid week parameter
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
   /insights/budget-suggestion:
     get:
       summary: Get monthly budget suggestion
@@ -587,3 +661,72 @@ components:
         message: { type: string }
         send_at: { type: string, format: date-time }
         channel: { type: string, enum: [email, whatsapp], default: email }
+    WeeklyDigest:
+      type: object
+      properties:
+        period:
+          type: object
+          properties:
+            iso_year: { type: integer }
+            iso_week: { type: integer }
+            start_date: { type: string, format: date }
+            end_date: { type: string, format: date }
+        summary:
+          type: object
+          properties:
+            total_income: { type: number, format: float }
+            total_expenses: { type: number, format: float }
+            net_flow: { type: number, format: float }
+            week_over_week_change_pct: { type: number, format: float }
+            upcoming_bills_total: { type: number, format: float }
+            upcoming_bills_count: { type: integer }
+        category_breakdown:
+          type: array
+          items:
+            type: object
+            properties:
+              category_id: { type: integer, nullable: true }
+              category_name: { type: string }
+              amount: { type: number, format: float }
+              share_pct: { type: number, format: float }
+        daily_spending:
+          type: array
+          items:
+            type: object
+            properties:
+              date: { type: string, format: date }
+              amount: { type: number, format: float }
+        top_transactions:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: integer }
+              amount: { type: number, format: float }
+              description: { type: string }
+              date: { type: string, format: date }
+              category_id: { type: integer, nullable: true }
+              currency: { type: string }
+        upcoming_bills:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: integer }
+              name: { type: string }
+              amount: { type: number, format: float }
+              currency: { type: string }
+              due_date: { type: string, format: date }
+        insights:
+          type: object
+          properties:
+            highlights:
+              type: array
+              items: { type: string }
+            risk_flag: { type: string, nullable: true }
+            saving_tip: { type: string }
+        method: { type: string, enum: [gemini, heuristic] }
+        persona: { type: string }
+        warnings:
+          type: array
+          items: { type: string }
