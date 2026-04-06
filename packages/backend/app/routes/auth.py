@@ -137,3 +137,25 @@ def _store_refresh_session(refresh_token: str, uid: str):
         return
     ttl = max(int(exp - time.time()), 1)
     redis_client.setex(_refresh_key(jti), ttl, uid)
+
+
+def verify_token(token: str) -> int | None:
+    """Verify a JWT access token and return user_id if valid.
+    
+    Used by GDPR endpoints for token verification.
+    
+    Args:
+        token: JWT access token string
+        
+    Returns:
+        User ID if token is valid, None otherwise
+    """
+    try:
+        from flask_jwt_extended import decode_token
+        payload = decode_token(token)
+        user_id = payload.get("sub")
+        if user_id:
+            return int(user_id)
+    except Exception:
+        return None
+    return None

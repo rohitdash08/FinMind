@@ -12,6 +12,7 @@ tags:
   - name: Bills
   - name: Reminders
   - name: Insights
+  - name: GDPR
 paths:
   /auth/register:
     post:
@@ -475,6 +476,172 @@ paths:
                   wants: 360
                   savings: 240
                 tips: ["Cap dining spend to 80% of last month", "Automate weekly transfer to savings"]
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /gdpr/info:
+    get:
+      summary: Get GDPR rights information
+      tags: [GDPR]
+      description: Public endpoint with information about GDPR rights and available endpoints
+      responses:
+        '200':
+          description: GDPR information
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  service: { type: string }
+                  gdpr_compliance: { type: object }
+                  data_retention: { type: object }
+
+  /gdpr/export:
+    get:
+      summary: Export all personal data (GDPR Right to Access)
+      tags: [GDPR]
+      security: [{ bearerAuth: [] }]
+      description: Downloads a ZIP file containing all user PII data
+      responses:
+        '200':
+          description: ZIP file with user data
+          content:
+            application/zip:
+              schema:
+                type: string
+                format: binary
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /gdpr/export/preview:
+    get:
+      summary: Preview data to be exported
+      tags: [GDPR]
+      security: [{ bearerAuth: [] }]
+      description: Returns a summary of what data will be exported
+      responses:
+        '200':
+          description: Export preview
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  preview_generated_at: { type: string, format: date-time }
+                  data_categories:
+                    type: object
+                    properties:
+                      profile: { type: boolean }
+                      categories: { type: integer }
+                      expenses: { type: integer }
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /gdpr/delete:
+    post:
+      summary: Delete all personal data (GDPR Right to be Forgotten)
+      tags: [GDPR]
+      security: [{ bearerAuth: [] }]
+      description: Permanently deletes all user data. Requires confirmation token.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [confirmation_token]
+              properties:
+                confirmation_token:
+                  type: string
+                  description: Must be 'DELETE_MY_DATA_PERMANENTLY'
+            example:
+              confirmation_token: DELETE_MY_DATA_PERMANENTLY
+      responses:
+        '200':
+          description: Data deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  deleted_user_email: { type: string }
+                  deletion_completed_at: { type: string, format: date-time }
+                  audit_log_id: { type: integer }
+        '400':
+          description: Invalid confirmation token
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /gdpr/delete/preview:
+    get:
+      summary: Preview data to be deleted
+      tags: [GDPR]
+      security: [{ bearerAuth: [] }]
+      description: Returns a summary of what data will be deleted
+      responses:
+        '200':
+          description: Deletion preview
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  warning: { type: string }
+                  user_email: { type: string }
+                  data_to_be_deleted:
+                    type: object
+                    properties:
+                      profile: { type: boolean }
+                      categories_count: { type: integer }
+                      expenses_count: { type: integer }
+                  required_confirmation: { type: string }
+                  consequences:
+                    type: array
+                    items: { type: string }
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /gdpr/audit-log:
+    get:
+      summary: Get GDPR audit log
+      tags: [GDPR]
+      security: [{ bearerAuth: [] }]
+      description: Returns audit trail of GDPR-related actions
+      responses:
+        '200':
+          description: Audit log entries
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  audit_entries:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: integer }
+                        action: { type: string }
+                        created_at: { type: string, format: date-time }
         '401':
           description: Unauthorized
           content:
