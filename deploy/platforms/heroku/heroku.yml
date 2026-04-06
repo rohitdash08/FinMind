@@ -1,0 +1,11 @@
+build:
+  docker:
+    web: packages/backend/Dockerfile
+run:
+  web: gunicorn --workers=2 --threads=4 --bind 0.0.0.0:$PORT wsgi:app
+release:
+  command:
+    - python -m flask --app wsgi:app init-db
+addons:
+  - plan: heroku-postgresql:mini
+  - plan: heroku-redis:mini

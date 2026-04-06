@@ -1,0 +1,18 @@
+version: 1.0
+runtime: python311
+build:
+  commands:
+    build:
+      - pip install -r packages/backend/requirements.txt
+  env:
+    - name: PYTHONPATH
+      value: "/app/packages/backend"
+run:
+  command: "cd packages/backend && python -m flask --app wsgi:app init-db && gunicorn --workers=2 --threads=4 --bind 0.0.0.0:8000 wsgi:app"
+  network:
+    port: 8000
+  env:
+    - name: LOG_LEVEL
+      value: INFO
+    - name: GEMINI_MODEL
+      value: gemini-1.5-flash

@@ -1,0 +1,2 @@
+web: gunicorn --workers=2 --threads=4 --bind 0.0.0.0:$PORT wsgi:app
+release: python -m flask --app wsgi:app init-db
