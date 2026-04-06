@@ -1,6 +1,8 @@
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.connectors import ConnectorType
+
 
 class Settings(BaseSettings):
     database_url: str = Field(
@@ -21,7 +23,11 @@ class Settings(BaseSettings):
     twilio_whatsapp_from: str | None = None
 
     email_from: str | None = None
-    smtp_url: str | None = None  # e.g. smtp+ssl://user:pass@mail:465
+    smtp_url: str | None = None  # e. g. smtp+ssl://user:pass@mail:465
+
+    # Bank connector configuration
+    default_connector: str = Field(default="mock")
+    connector_api_keys: dict[str, str] = Field(default_factory=dict)
 
     # pydantic-settings v2 configuration
     model_config = SettingsConfigDict(
@@ -29,3 +35,10 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore",
     )
+
+    def get_connector_type(self) -> ConnectorType:
+        """Get the configured connector type."""
+        try:
+            return ConnectorType(self.default_connector.lower())
+        except ValueError:
+            return ConnectorType.MOCK
