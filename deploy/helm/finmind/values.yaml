@@ -1,0 +1,142 @@
+global:
+  namespace: finmind
+  imagePullPolicy: IfNotPresent
+
+backend:
+  replicaCount: 2
+  image:
+    repository: ghcr.io/rohitdash08/finmind-backend
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8000
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+  healthCheck:
+    path: /health
+    initialDelaySeconds: 15
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+frontend:
+  replicaCount: 2
+  image:
+    repository: ghcr.io/rohitdash08/finmind-frontend
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 80
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 70
+
+postgres:
+  enabled: true
+  image:
+    repository: postgres
+    tag: "16"
+  storage:
+    size: 10Gi
+    storageClass: ""
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+redis:
+  enabled: true
+  image:
+    repository: redis
+    tag: "7"
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+nginx:
+  enabled: true
+  image:
+    repository: nginx
+    tag: 1.27-alpine
+  service:
+    type: ClusterIP
+    port: 80
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+  hosts:
+    - host: finmind.example.com
+      paths:
+        - path: /api
+          pathType: Prefix
+          service: backend
+          port: 8000
+        - path: /
+          pathType: Prefix
+          service: frontend
+          port: 80
+  tls:
+    - secretName: finmind-tls
+      hosts:
+        - finmind.example.com
+
+secrets:
+  postgresUser: finmind
+  postgresPassword: change-me-strong
+  postgresDb: finmind
+  jwtSecret: change-me-long-random-secret
+  geminiApiKey: ""
+  grafanaAdminUser: finmind_admin
+  grafanaAdminPassword: change-me-admin-password
+
+config:
+  logLevel: INFO
+  geminiModel: gemini-1.5-flash
+  redisUrl: redis://redis:6379/0
+
+monitoring:
+  enabled: true
+  prometheus:
+    enabled: true
+    retention: 14d
+    storage: 5Gi
+  grafana:
+    enabled: true
+    storage: 2Gi
+  loki:
+    enabled: true
+    storage: 5Gi

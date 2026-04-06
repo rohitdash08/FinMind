@@ -1,0 +1,52 @@
+steps:
+  # Build backend
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - gcr.io/$PROJECT_ID/finmind-backend:$COMMIT_SHA
+      - -f
+      - packages/backend/Dockerfile
+      - packages/backend
+  # Build frontend
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - gcr.io/$PROJECT_ID/finmind-frontend:$COMMIT_SHA
+      - -f
+      - app/Dockerfile
+      - app
+  # Push images
+  - name: gcr.io/cloud-builders/docker
+    args: [push, "gcr.io/$PROJECT_ID/finmind-backend:$COMMIT_SHA"]
+  - name: gcr.io/cloud-builders/docker
+    args: [push, "gcr.io/$PROJECT_ID/finmind-frontend:$COMMIT_SHA"]
+  # Deploy backend to Cloud Run
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - finmind-backend
+      - --image=gcr.io/$PROJECT_ID/finmind-backend:$COMMIT_SHA
+      - --region=us-central1
+      - --platform=managed
+      - --port=8000
+      - --allow-unauthenticated
+      - --set-env-vars=LOG_LEVEL=INFO,GEMINI_MODEL=gemini-1.5-flash
+  # Deploy frontend to Cloud Run
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - finmind-frontend
+      - --image=gcr.io/$PROJECT_ID/finmind-frontend:$COMMIT_SHA
+      - --region=us-central1
+      - --platform=managed
+      - --port=80
+      - --allow-unauthenticated
+images:
+  - gcr.io/$PROJECT_ID/finmind-backend:$COMMIT_SHA
+  - gcr.io/$PROJECT_ID/finmind-frontend:$COMMIT_SHA

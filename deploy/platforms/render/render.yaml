@@ -1,0 +1,52 @@
+services:
+  - type: web
+    name: finmind-backend
+    runtime: docker
+    dockerfilePath: packages/backend/Dockerfile
+    dockerContext: .
+    plan: starter
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: finmind-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: finmind-redis
+          type: redis
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: LOG_LEVEL
+        value: INFO
+      - key: GEMINI_MODEL
+        value: gemini-1.5-flash
+    buildCommand: ""
+    startCommand: "sh -c 'python -m flask --app wsgi:app init-db && gunicorn --workers=2 --threads=4 --bind 0.0.0.0:$PORT wsgi:app'"
+
+  - type: web
+    name: finmind-frontend
+    runtime: static
+    buildCommand: cd app && npm ci && npm run build
+    staticPublishPath: app/dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          name: finmind-backend
+          type: web
+          property: url
+
+databases:
+  - name: finmind-db
+    plan: starter
+    databaseName: finmind
+    user: finmind
+
+  - name: finmind-redis
+    type: redis
+    plan: starter
