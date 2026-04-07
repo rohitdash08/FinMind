@@ -179,6 +179,27 @@ finmind/
 ## Contribution Policy
 - See `CONTRIBUTING.md` for fork-first contribution flow and PR requirements.
 
+## Savings Goals
+FinMind supports goal-based savings tracking with milestones.
+
+### API Endpoints
+- `GET /savings-goals` - List all savings goals
+- `POST /savings-goals` - Create a new savings goal
+- `GET /savings-goals/:id` - Get goal details with milestones
+- `PUT /savings-goals/:id` - Update a goal
+- `DELETE /savings-goals/:id` - Delete a goal
+- `POST /savings-goals/:id/contribute` - Add money to a goal (auto-checks milestones)
+- `POST /savings-goals/:id/milestones` - Add a milestone
+- `PUT /savings-goals/:id/milestones/:mid` - Update milestone
+- `DELETE /savings-goals/:id/milestones/:mid` - Delete milestone
+
+### Model
+```
+SavingsGoal: name, description, target_amount, current_amount, currency,
+             start_date, target_date, status (active/completed/cancelled)
+SavingsMilestone: name, target_amount, achieved, achieved_at
+```
+
 ## Notes on Free-Tier Reminders
 - Primary: schedule via APScheduler in-process with persistence in Postgres (job table) and a simple daily trigger. Alternatively, use Railway/Render cron to hit `/reminders/run`.
 - Twilio WhatsApp free trial supports sandbox; email via SMTP (e.g., SendGrid free tier).

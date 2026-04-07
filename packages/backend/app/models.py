@@ -133,3 +133,51 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class SavingsGoalStatus(Enum):
+    ACTIVE = "active"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
+
+
+class SavingsGoal(db.Model):
+    __tablename__ = "savings_goals"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    name = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text, default="")
+    target_amount = db.Column(db.Numeric(14, 2), nullable=False)
+    current_amount = db.Column(db.Numeric(14, 2), default=0)
+    currency = db.Column(db.String(10), default="INR")
+    start_date = db.Column(db.Date, nullable=True)
+    target_date = db.Column(db.Date, nullable=True)
+    status = db.Column(SAEnum(SavingsGoalStatus), default=SavingsGoalStatus.ACTIVE, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    milestones = db.relationship(
+        "SavingsMilestone",
+        backref="goal",
+        cascade="all, delete-orphan",
+        lazy=True,
+    )
+
+    @property
+    def progress_pct(self) -> float:
+        if self.target_amount and self.target_amount > 0:
+            return round(float(self.current_amount) / float(self.target_amount) * 100, 2)
+        return 0.0
+
+
+class SavingsMilestone(db.Model):
+    __tablename__ = "savings_milestones"
+
+    id = db.Column(db.Integer, primary_key=True)
+    savings_goal_id = db.Column(db.Integer, db.ForeignKey("savings_goals.id"), nullable=False)
+    name = db.Column(db.String(200), nullable=False)
+    target_amount = db.Column(db.Numeric(14, 2), nullable=False)
+    achieved = db.Column(db.Boolean, default=False)
+    achieved_at = db.Column(db.Date, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
