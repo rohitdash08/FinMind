@@ -37,11 +37,17 @@ def cache_get(key: str):
 
 
 def cache_delete_patterns(patterns: Iterable[str]):
+    """
+    Deletes all keys matching the given patterns from Redis.
+    """
+    pipe = redis_client.pipeline()
     for pattern in patterns:
+        # Use SCAN to avoid blocking Redis for large key sets
         cursor = 0
         while True:
-            cursor, keys = redis_client.scan(cursor=cursor, match=pattern, count=100)
+            cursor, keys = redis_client.scan(cursor=cursor, match=pattern, count=1000) # Increased count for efficiency
             if keys:
-                redis_client.delete(*keys)
+                pipe.delete(*keys)
             if cursor == 0:
                 break
+    pipe.execute()
