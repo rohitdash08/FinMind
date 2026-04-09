@@ -123,3 +123,48 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   action VARCHAR(100) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS webhook_subscriptions (
+  id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  target_url VARCHAR(1000) NOT NULL,
+  secret VARCHAR(255) NOT NULL,
+  description VARCHAR(255),
+  active BOOLEAN NOT NULL DEFAULT TRUE,
+  subscribed_events JSONB NOT NULL DEFAULT '[]'::jsonb,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  last_success_at TIMESTAMP NULL,
+  last_failure_at TIMESTAMP NULL,
+  failure_count INT NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_webhook_subscriptions_user_active ON webhook_subscriptions(user_id, active);
+
+CREATE TABLE IF NOT EXISTS webhook_events (
+  id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  event_type VARCHAR(100) NOT NULL,
+  resource_type VARCHAR(50) NOT NULL,
+  resource_id INT NULL,
+  payload_json JSONB NOT NULL,
+  occurred_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_webhook_events_user_type ON webhook_events(user_id, event_type, occurred_at DESC);
+
+CREATE TABLE IF NOT EXISTS webhook_deliveries (
+  id SERIAL PRIMARY KEY,
+  event_id INT NOT NULL REFERENCES webhook_events(id) ON DELETE CASCADE,
+  subscription_id INT NOT NULL REFERENCES webhook_subscriptions(id) ON DELETE CASCADE,
+  status VARCHAR(30) NOT NULL,
+  attempt_count INT NOT NULL DEFAULT 0,
+  next_attempt_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  last_attempt_at TIMESTAMP NULL,
+  last_response_code INT NULL,
+  last_error TEXT NULL,
+  last_duration_ms INT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_ready ON webhook_deliveries(status, next_attempt_at);
+CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_subscription ON webhook_deliveries(subscription_id, created_at DESC);

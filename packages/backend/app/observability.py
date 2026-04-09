@@ -60,6 +60,25 @@ class Observability:
             ["event", "channel", "status"],
             registry=self.registry,
         )
+        self.webhook_events_total = Counter(
+            "finmind_webhook_events_total",
+            "Webhook events emitted by type.",
+            ["event_type"],
+            registry=self.registry,
+        )
+        self.webhook_deliveries_total = Counter(
+            "finmind_webhook_deliveries_total",
+            "Webhook delivery attempts by event type and result.",
+            ["event_type", "status_code_class", "result"],
+            registry=self.registry,
+        )
+        self.webhook_delivery_duration_seconds = Histogram(
+            "finmind_webhook_delivery_duration_seconds",
+            "Webhook delivery latency in seconds by event type.",
+            ["event_type"],
+            buckets=(0.01, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10),
+            registry=self.registry,
+        )
 
     def observe_http_request(
         self, method: str, endpoint: str, status_code: int, duration_seconds: float
@@ -78,6 +97,25 @@ class Observability:
         self.reminder_events_total.labels(
             event=event, channel=channel, status=status
         ).inc()
+
+    def record_webhook_event(self, event_type: str) -> None:
+        self.webhook_events_total.labels(event_type=event_type).inc()
+
+    def record_webhook_delivery(
+        self,
+        event_type: str,
+        status_code_class: str,
+        result: str,
+        duration_seconds: float,
+    ) -> None:
+        self.webhook_deliveries_total.labels(
+            event_type=event_type,
+            status_code_class=status_code_class,
+            result=result,
+        ).inc()
+        self.webhook_delivery_duration_seconds.labels(event_type=event_type).observe(
+            duration_seconds
+        )
 
     def metrics_response(self) -> Response:
         if self.multiprocess_enabled:
@@ -137,3 +175,27 @@ def track_reminder_event(event: str, channel: str, status: str = "ok") -> None:
     obs = current_app.extensions.get("observability")
     if obs:
         obs.record_reminder_event(event=event, channel=channel, status=status)
+
+
+def track_webhook_event(event_type: str) -> None:
+    obs = current_app.extensions.get("observability")
+    if obs:
+        obs.record_webhook_event(event_type=event_type)
+
+
+def track_webhook_delivery(
+    event_type: str, response_code: int | None, result: str, duration_ms: int
+) -> None:
+    obs = current_app.extensions.get("observability")
+    if not obs:
+        return
+    if response_code is None:
+        status_class = "error"
+    else:
+        status_class = f"{int(response_code) // 100}xx"
+    obs.record_webhook_delivery(
+        event_type=event_type,
+        status_code_class=status_class,
+        result=result,
+        duration_seconds=max(duration_ms, 0) / 1000.0,
+    )

@@ -4,6 +4,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..extensions import db
 from ..models import Bill, BillCadence, User
 from ..services.cache import cache_delete_patterns
+from ..services.webhooks import emit_event
 import logging
 
 bp = Blueprint("bills", __name__)
@@ -21,22 +22,7 @@ def list_bills():
         .all()
     )
     logger.info("List bills user=%s count=%s", uid, len(items))
-    return jsonify(
-        [
-            {
-                "id": b.id,
-                "name": b.name,
-                "amount": float(b.amount),
-                "currency": b.currency,
-                "next_due_date": b.next_due_date.isoformat(),
-                "cadence": b.cadence.value,
-                "autopay_enabled": b.autopay_enabled,
-                "channel_whatsapp": b.channel_whatsapp,
-                "channel_email": b.channel_email,
-            }
-            for b in items
-        ]
-    )
+    return jsonify([_bill_to_dict(b) for b in items])
 
 
 @bp.post("")
@@ -62,6 +48,14 @@ def create_bill():
     cache_delete_patterns(
         [f"user:{uid}:upcoming_bills*", f"user:{uid}:dashboard_summary:*"]
     )
+    emit_event(
+        user_id=uid,
+        event_type="bill.created",
+        resource_type="bill",
+        resource_id=b.id,
+        data=_bill_to_dict(b),
+    )
+    db.session.commit()
     return jsonify(id=b.id), 201
 
 
@@ -72,7 +66,7 @@ def mark_paid(bill_id: int):
     b = db.session.get(Bill, bill_id)
     if not b or b.user_id != uid:
         return jsonify(error="not found"), 404
-    # Move next due date based on cadence
+    previous_due_date = b.next_due_date
     if b.cadence == BillCadence.MONTHLY:
         b.next_due_date = b.next_due_date + timedelta(days=30)
     elif b.cadence == BillCadence.WEEKLY:
@@ -85,7 +79,32 @@ def mark_paid(bill_id: int):
     cache_delete_patterns(
         [f"user:{uid}:upcoming_bills*", f"user:{uid}:dashboard_summary:*"]
     )
+    payload = _bill_to_dict(b)
+    payload["previous_due_date"] = previous_due_date.isoformat()
+    emit_event(
+        user_id=uid,
+        event_type="bill.paid",
+        resource_type="bill",
+        resource_id=b.id,
+        data=payload,
+    )
+    db.session.commit()
     logger.info(
         "Marked bill paid id=%s user=%s next_due_date=%s", b.id, uid, b.next_due_date
     )
     return jsonify(message="updated")
+
+
+def _bill_to_dict(b: Bill) -> dict:
+    return {
+        "id": b.id,
+        "name": b.name,
+        "amount": float(b.amount),
+        "currency": b.currency,
+        "next_due_date": b.next_due_date.isoformat(),
+        "cadence": b.cadence.value,
+        "autopay_enabled": b.autopay_enabled,
+        "channel_whatsapp": b.channel_whatsapp,
+        "channel_email": b.channel_email,
+        "active": b.active,
+    }
