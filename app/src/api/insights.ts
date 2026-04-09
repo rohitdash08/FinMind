@@ -1,34 +1,26 @@
-import { api } from './client';
+import { api } from '@/api/index';
+import { API_BASE_URL } from '@/config';
 
-export type BudgetSuggestion = {
-  month: string;
-  suggested_total: number;
-  breakdown: {
-    needs: number;
-    wants: number;
-    savings: number;
-  };
-  tips?: string[];
-  analytics: {
-    month_over_month_change_pct: number;
-    current_month_expenses: number;
-    previous_month_expenses: number;
-    top_categories: Array<{ category_id: string; amount: number }>;
-  };
-  persona?: string;
-  method: 'gemini' | 'heuristic' | string;
-  warnings?: string[];
-  net_flow?: number;
-};
-
-export async function getBudgetSuggestion(params?: {
-  month?: string;
-  geminiApiKey?: string;
-  persona?: string;
-}): Promise<BudgetSuggestion> {
-  const monthQuery = params?.month ? `?month=${encodeURIComponent(params.month)}` : '';
-  const headers: Record<string, string> = {};
-  if (params?.geminiApiKey) headers['X-Gemini-Api-Key'] = params.geminiApiKey;
-  if (params?.persona) headers['X-Insight-Persona'] = params.persona;
-  return api<BudgetSuggestion>(`/insights/budget-suggestion${monthQuery}`, { headers });
+export interface HeatmapDataPoint {
+  date: string; // YYYY-MM-DD
+  total_amount: number;
 }
+
+export interface GetSpendingHeatmapParams {
+  startDate: string; // YYYY-MM-DD
+  endDate: string; // YYYY-MM-DD
+}
+
+export const getSpendingHeatmap = async (
+  params: GetSpendingHeatmapParams,
+): Promise<HeatmapDataPoint[]> => {
+  const queryParams = new URLSearchParams({
+    start_date: params.startDate,
+    end_date: params.endDate,
+  }).toString();
+
+  const response = await api.get<HeatmapDataPoint[]>(
+    `${API_BASE_URL}/insights/spending-heatmap?${queryParams}`,
+  );
+  return response.data;
+};
