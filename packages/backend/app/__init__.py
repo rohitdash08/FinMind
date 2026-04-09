@@ -1,120 +1,92 @@
-from flask import Flask, jsonify
-from .config import Settings
-from .extensions import db, jwt
-from .routes import register_routes
-from .observability import (
-    Observability,
-    configure_logging,
-    finalize_request,
-    init_request_context,
-)
-from flask_cors import CORS
-import click
-import os
 import logging
-from datetime import timedelta
+import os
+import time
+
+import sentry_sdk
+from flask import Flask, g, request
+from sentry_sdk.integrations.flask import FlaskIntegration
+from werkzeug.middleware.proxy_fix import ProxyFix
+
+from app.config import Settings
+from app.extensions import api, db, jwt, limiter, migrate, oauth, redis_client
+from app.routes.auth import auth_bp
+from app.routes.bills import bills_bp # New: Import bills blueprint
+from app.routes.categories import categories_bp # New: Import categories blueprint
+from app.routes.health import health_bp
+from app.routes.metrics import metrics_bp
+from app.routes.reminders import reminders_bp
 
 
-def create_app(settings: Settings | None = None) -> Flask:
+def create_app(settings: Settings = None):
     app = Flask(__name__)
-    cfg = settings or Settings()
 
-    # Config
-    app.config.update(
-        SQLALCHEMY_DATABASE_URI=cfg.database_url,
-        SQLALCHEMY_TRACK_MODIFICATIONS=False,
-        JWT_SECRET_KEY=cfg.jwt_secret,
-        JWT_ACCESS_TOKEN_EXPIRES=timedelta(minutes=cfg.jwt_access_minutes),
-        JWT_REFRESH_TOKEN_EXPIRES=timedelta(hours=cfg.jwt_refresh_hours),
-        OPENAI_API_KEY=cfg.openai_api_key,
-        GEMINI_API_KEY=cfg.gemini_api_key,
-        GEMINI_MODEL=cfg.gemini_model,
-        TWILIO_ACCOUNT_SID=cfg.twilio_account_sid,
-        TWILIO_AUTH_TOKEN=cfg.twilio_auth_token,
-        TWILIO_WHATSAPP_FROM=cfg.twilio_whatsapp_from,
-        EMAIL_FROM=cfg.email_from,
-    )
+    if settings is None:
+        settings = Settings()
 
-    # Logging
-    log_level = os.getenv("LOG_LEVEL", "INFO").upper()
-    configure_logging(log_level)
-    logger = logging.getLogger("finmind")
-    logger.info("Starting FinMind backend with log level %s", log_level)
+    app.config.from_object(settings)
 
-    # Extensions
+    # Initialize extensions
     db.init_app(app)
+    migrate.init_app(app, db)
     jwt.init_app(app)
-    app.extensions["observability"] = Observability()
-    # CORS for local dev frontend
-    CORS(app, resources={r"*": {"origins": "*"}}, supports_credentials=True)
+    limiter.init_app(app)
+    api.init_app(app)
+    oauth.init_app(app)
+    redis_client.init_app(app)
 
-    # Redis (already global)
-    # Blueprint routes
-    register_routes(app)
+    # Register blueprints
+    app.register_blueprint(health_bp)
+    app.register_blueprint(auth_bp)
+    app.register_blueprint(reminders_bp)
+    app.register_blueprint(metrics_bp)
+    app.register_blueprint(bills_bp) # New: Register bills blueprint
+    app.register_blueprint(categories_bp) # New: Register categories blueprint
 
-    # Backward-compatible schema patch for existing databases.
-    with app.app_context():
-        _ensure_schema_compatibility(app)
+    # Fix for Nginx proxy headers
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_host=1, x_proto=1, x_prefix=1)
 
+    # Request ID and latency logging
     @app.before_request
-    def _before_request():
-        init_request_context()
+    def before_request():
+        g.request_id = os.urandom(16).hex()
+        g.start_time = time.time()
+        # Exclude /metrics from logging by default, as it's noisy
+        if request.path != "/metrics":
+            app.logger.info(
+                "Request started: %s %s", request.method, request.path, extra={"request_id": g.request_id}
+            )
 
     @app.after_request
-    def _after_request(response):
-        return finalize_request(response)
+    def after_request(response):
+        response.headers["X-Request-ID"] = g.request_id
+        # Exclude /metrics from logging by default
+        if request.path != "/metrics":
+            response_time = time.time() - g.start_time
+            app.logger.info(
+                "Request finished: %s %s - Status %s - took %.2fms",
+                request.method,
+                request.path,
+                response.status_code,
+                response_time * 1000,
+                extra={"request_id": g.request_id},
+            )
+        return response
 
-    @app.get("/health")
-    def health():
-        return jsonify(status="ok"), 200
+    if settings.SENTRY_DSN:
+        sentry_sdk.init(
+            dsn=settings.SENTRY_DSN,
+            integrations=[
+                FlaskIntegration(),
+            ],
+            traces_sample_rate=1.0,
+            profiles_sample_rate=1.0,
+        )
 
-    @app.get("/metrics")
-    def metrics():
-        obs = app.extensions["observability"]
-        return obs.metrics_response()
+    # Configure logging
+    logging.basicConfig(level=logging.INFO)
 
-    @app.errorhandler(500)
-    def internal_error(_error):
-        return jsonify(error="internal server error"), 500
-
-    @app.cli.command("init-db")
-    def init_db():
-        """Initialize database schema from db/schema.sql"""
-        schema_path = os.path.join(os.path.dirname(__file__), "db", "schema.sql")
-        with app.app_context():
-            with open(schema_path, "r", encoding="utf-8") as f:
-                sql = f.read()
-            conn = db.engine.raw_connection()
-            try:
-                cur = conn.cursor()
-                cur.execute(sql)
-                conn.commit()
-                click.echo("Database initialized.")
-            finally:
-                conn.close()
+    # Import models to ensure they are registered with SQLAlchemy for migrations
+    from app import models  # noqa: F401
 
     return app
 
-
-def _ensure_schema_compatibility(app: Flask) -> None:
-    """Apply minimal compatibility ALTERs for existing deployments."""
-    if db.engine.dialect.name != "postgresql":
-        return
-    conn = db.engine.raw_connection()
-    try:
-        cur = conn.cursor()
-        cur.execute(
-            """
-            ALTER TABLE users
-            ADD COLUMN IF NOT EXISTS preferred_currency VARCHAR(10)
-            NOT NULL DEFAULT 'INR'
-            """
-        )
-        conn.commit()
-    except Exception:
-        app.logger.exception(
-            "Schema compatibility patch failed for users.preferred_currency"
-        )
-        conn.rollback()
-    finally:
-        conn.close()
