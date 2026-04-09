@@ -65,6 +65,7 @@ OpenAPI: `backend/app/openapi.yaml`
 - Expenses: CRUD `/expenses`
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
+- Webhooks: `/webhooks` for subscription CRUD, plus CLI runner `flask run-webhooks`
 - Insights: `/insights/monthly`, `/insights/budget-suggestion`
 
 ## MVP UI/UX Plan
@@ -173,8 +174,69 @@ finmind/
   - request count by endpoint/status
   - request duration histograms (latency, including dashboard p95 KPI)
   - reminder event counters (engagement KPI)
+  - webhook event counters
+  - webhook delivery counters + latency histograms
 - Logs are emitted as JSON with `request_id` and shipped to Loki via Promtail.
 - Pre-provisioned Grafana dashboard: `FinMind Operations and KPI`.
+
+## Outbound Webhooks
+FinMind supports signed outbound webhooks for key product events.
+
+### Supported events
+- `expense.created`
+- `expense.updated`
+- `expense.deleted`
+- `bill.created`
+- `bill.paid`
+- `reminder.created`
+- `reminder.sent`
+
+### Subscription API
+Create a subscription with `POST /webhooks`:
+
+```json
+{
+  "target_url": "https://example.com/hooks/finmind",
+  "secret": "whsec_test_123",
+  "description": "Zapier bridge",
+  "subscribed_events": ["expense.created", "bill.paid"]
+}
+```
+
+### Delivery semantics
+- FinMind uses **at-least-once delivery**.
+- Endpoints should treat `X-FinMind-Delivery-Id` as an idempotency key.
+- Deliveries are retried with backoff on non-2xx responses and network failures.
+- Use `python -m flask --app wsgi:app run-webhooks` (or the `run-webhooks` CLI command) from cron/worker context to process pending deliveries.
+
+### Signature verification
+Each request includes:
+- `X-FinMind-Event`
+- `X-FinMind-Event-Id`
+- `X-FinMind-Delivery-Id`
+- `X-FinMind-Timestamp`
+- `X-FinMind-Signature`
+
+Signature format:
+- signed payload = `<timestamp>.<raw_json_body>`
+- digest = `HMAC-SHA256(secret, signed payload)`
+- header = `sha256=<hex_digest>`
+
+Example verifier:
+
+```python
+import hashlib
+import hmac
+
+
+def verify_signature(secret: str, timestamp: str, raw_body: str, received: str) -> bool:
+    expected = hmac.new(
+        secret.encode("utf-8"),
+        f"{timestamp}.{raw_body}".encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+    return hmac.compare_digest(f"sha256={expected}", received)
+```
 
 ## Contribution Policy
 - See `CONTRIBUTING.md` for fork-first contribution flow and PR requirements.

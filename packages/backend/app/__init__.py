@@ -13,6 +13,7 @@ import click
 import os
 import logging
 from datetime import timedelta
+from .services.webhooks import run_pending_deliveries
 
 
 def create_app(settings: Settings | None = None) -> Flask:
@@ -92,6 +93,18 @@ def create_app(settings: Settings | None = None) -> Flask:
                 click.echo("Database initialized.")
             finally:
                 conn.close()
+
+    @app.cli.command("run-webhooks")
+    @click.option("--limit", default=100, type=int, show_default=True)
+    def run_webhooks(limit: int):
+        """Process pending outbound webhook deliveries."""
+        with app.app_context():
+            result = run_pending_deliveries(limit=limit)
+        click.echo(
+            "processed={processed} succeeded={succeeded} retried={retried} failed={failed}".format(
+                **result
+            )
+        )
 
     return app
 

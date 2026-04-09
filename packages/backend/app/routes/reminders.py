@@ -5,6 +5,7 @@ from ..extensions import db
 from ..models import Bill, Reminder
 from ..observability import track_reminder_event
 from ..services.reminders import send_reminder
+from ..services.webhooks import emit_event
 import logging
 
 bp = Blueprint("reminders", __name__)
@@ -22,18 +23,7 @@ def list_reminders():
         .all()
     )
     logger.info("List reminders user=%s count=%s", uid, len(items))
-    return jsonify(
-        [
-            {
-                "id": r.id,
-                "message": r.message,
-                "send_at": r.send_at.isoformat(),
-                "sent": r.sent,
-                "channel": r.channel,
-            }
-            for r in items
-        ]
-    )
+    return jsonify([_reminder_to_dict(r) for r in items])
 
 
 @bp.post("")
@@ -51,6 +41,14 @@ def create_reminder():
     db.session.commit()
     logger.info("Created reminder id=%s user=%s", r.id, uid)
     track_reminder_event(event="created", channel=r.channel)
+    emit_event(
+        user_id=uid,
+        event_type="reminder.created",
+        resource_type="reminder",
+        resource_id=r.id,
+        data=_reminder_to_dict(r),
+    )
+    db.session.commit()
     return jsonify(id=r.id), 201
 
 
@@ -170,13 +168,25 @@ def run_due():
         )
         .all()
     )
+    processed = 0
     for r in items:
-        send_reminder(r)
+        ok = send_reminder(r)
+        if not ok:
+            track_reminder_event(event="send_failed", channel=r.channel, status="error")
+            continue
         r.sent = True
+        processed += 1
         track_reminder_event(event="sent", channel=r.channel)
+        emit_event(
+            user_id=uid,
+            event_type="reminder.sent",
+            resource_type="reminder",
+            resource_id=r.id,
+            data=_reminder_to_dict(r),
+        )
     db.session.commit()
-    logger.info("Processed due reminders user=%s count=%s", uid, len(items))
-    return jsonify(processed=len(items))
+    logger.info("Processed due reminders user=%s count=%s", uid, processed)
+    return jsonify(processed=processed)
 
 
 def _bill_channels(bill: Bill) -> list[str]:
@@ -221,3 +231,13 @@ def _create_reminder_if_missing(
         )
     )
     return True
+
+
+def _reminder_to_dict(r: Reminder) -> dict:
+    return {
+        "id": r.id,
+        "message": r.message,
+        "send_at": r.send_at.isoformat(),
+        "sent": r.sent,
+        "channel": r.channel,
+    }

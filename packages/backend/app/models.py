@@ -133,3 +133,63 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class WebhookDeliveryStatus(str, Enum):
+    PENDING = "pending"
+    IN_PROGRESS = "in_progress"
+    RETRY_SCHEDULED = "retry_scheduled"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+
+
+class WebhookSubscription(db.Model):
+    __tablename__ = "webhook_subscriptions"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    target_url = db.Column(db.String(1000), nullable=False)
+    secret = db.Column(db.String(255), nullable=False)
+    description = db.Column(db.String(255), nullable=True)
+    active = db.Column(db.Boolean, default=True, nullable=False)
+    subscribed_events = db.Column(db.JSON, default=list, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(
+        db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+    )
+    last_success_at = db.Column(db.DateTime, nullable=True)
+    last_failure_at = db.Column(db.DateTime, nullable=True)
+    failure_count = db.Column(db.Integer, default=0, nullable=False)
+
+
+class WebhookEvent(db.Model):
+    __tablename__ = "webhook_events"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    event_type = db.Column(db.String(100), nullable=False)
+    resource_type = db.Column(db.String(50), nullable=False)
+    resource_id = db.Column(db.Integer, nullable=True)
+    payload_json = db.Column(db.JSON, nullable=False)
+    occurred_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class WebhookDelivery(db.Model):
+    __tablename__ = "webhook_deliveries"
+    id = db.Column(db.Integer, primary_key=True)
+    event_id = db.Column(db.Integer, db.ForeignKey("webhook_events.id"), nullable=False)
+    subscription_id = db.Column(
+        db.Integer, db.ForeignKey("webhook_subscriptions.id"), nullable=False
+    )
+    status = db.Column(
+        db.String(30), default=WebhookDeliveryStatus.PENDING.value, nullable=False
+    )
+    attempt_count = db.Column(db.Integer, default=0, nullable=False)
+    next_attempt_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    last_attempt_at = db.Column(db.DateTime, nullable=True)
+    last_response_code = db.Column(db.Integer, nullable=True)
+    last_error = db.Column(db.Text, nullable=True)
+    last_duration_ms = db.Column(db.Integer, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(
+        db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+    )
