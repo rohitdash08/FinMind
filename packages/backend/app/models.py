@@ -133,3 +133,28 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class GoalStatus(str, Enum):
+    ACTIVE = "ACTIVE"
+    COMPLETED = "COMPLETED"
+    PAUSED = "PAUSED"
+
+
+class SavingsGoal(db.Model):
+    __tablename__ = "savings_goals"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    title = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.String(500), nullable=True)
+    target_amount = db.Column(db.Numeric(12, 2), nullable=False)
+    current_amount = db.Column(db.Numeric(12, 2), default=0.0, nullable=False)
+    currency = db.Column(db.String(10), default="INR", nullable=False)
+    deadline = db.Column(db.Date, nullable=True)
+    status = db.Column(db.String(20), default=GoalStatus.ACTIVE.value, nullable=False)
+    monthly_target = db.Column(db.Numeric(12, 2), nullable=True)
+    icon = db.Column(db.String(50), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(
+        db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+    )
