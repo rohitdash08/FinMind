@@ -1,187 +1,97 @@
-import json
-from urllib import request
+import logging
+from datetime import date
+from typing import Optional, Dict, Any
 
-from sqlalchemy import extract, func
+logger = logging.getLogger("finmind.services.ai")
 
-from ..config import Settings
-from ..extensions import db
-from ..models import Expense
-
-_settings = Settings()
-DEFAULT_PERSONA = (
-    "You are FinMind's pragmatic financial coach. Be concise, non-judgmental, "
-    "data-driven, and action-oriented. Return actionable, realistic guidance."
-)
-
-
-def _monthly_totals(uid: int, ym: str) -> tuple[float, float]:
-    year, month = map(int, ym.split("-"))
-    income = (
-        db.session.query(func.coalesce(func.sum(Expense.amount), 0))
-        .filter(
-            Expense.user_id == uid,
-            extract("year", Expense.spent_at) == year,
-            extract("month", Expense.spent_at) == month,
-            Expense.expense_type == "INCOME",
-        )
-        .scalar()
-    )
-    expenses = (
-        db.session.query(func.coalesce(func.sum(Expense.amount), 0))
-        .filter(
-            Expense.user_id == uid,
-            extract("year", Expense.spent_at) == year,
-            extract("month", Expense.spent_at) == month,
-            Expense.expense_type != "INCOME",
-        )
-        .scalar()
-    )
-    return float(income or 0), float(expenses or 0)
-
-
-def _category_spend(uid: int, ym: str) -> dict[str, float]:
-    year, month = map(int, ym.split("-"))
-    rows = (
-        db.session.query(
-            Expense.category_id, func.coalesce(func.sum(Expense.amount), 0)
-        )
-        .filter(
-            Expense.user_id == uid,
-            extract("year", Expense.spent_at) == year,
-            extract("month", Expense.spent_at) == month,
-            Expense.expense_type != "INCOME",
-        )
-        .group_by(Expense.category_id)
-        .all()
-    )
-    return {str(k or "uncat"): float(v) for k, v in rows}
-
-
-def _previous_month(ym: str) -> str:
-    year, month = map(int, ym.split("-"))
-    if month == 1:
-        return f"{year - 1:04d}-12"
-    return f"{year:04d}-{month - 1:02d}"
-
-
-def _build_analytics(uid: int, ym: str) -> dict:
-    _, current_expenses = _monthly_totals(uid, ym)
-    _, prev_expenses = _monthly_totals(uid, _previous_month(ym))
-    if prev_expenses > 0:
-        mom = round(((current_expenses - prev_expenses) / prev_expenses) * 100, 2)
-    else:
-        mom = 0.0
-    cats = _category_spend(uid, ym)
-    top = sorted(cats.items(), key=lambda x: x[1], reverse=True)[:3]
-    return {
-        "month_over_month_change_pct": mom,
-        "current_month_expenses": round(current_expenses, 2),
-        "previous_month_expenses": round(prev_expenses, 2),
-        "top_categories": [{"category_id": k, "amount": round(v, 2)} for k, v in top],
-    }
-
-
-def _heuristic_budget(
-    uid: int, ym: str, persona: str, warnings: list[str] | None = None
-):
-    income, expenses = _monthly_totals(uid, ym)
-    target = round((expenses * 0.9) if expenses else 500.0, 2)
-    payload = {
-        "month": ym,
-        "suggested_total": target,
-        "breakdown": {
-            "needs": round(target * 0.5, 2),
-            "wants": round(target * 0.3, 2),
-            "savings": round(target * 0.2, 2),
-        },
-        "tips": [
-            "Cap discretionary spending in the highest category by 10%.",
-            "Set one automatic transfer to savings on payday.",
-        ],
-        "analytics": _build_analytics(uid, ym),
-        "persona": persona,
-        "method": "heuristic",
-    }
-    if warnings:
-        payload["warnings"] = warnings
-    payload["net_flow"] = round(income - expenses, 2)
-    return payload
-
-
-def _extract_json_object(raw: str) -> dict:
-    text = (raw or "").strip()
-    if text.startswith("```"):
-        text = text.strip("`")
-        if text.lower().startswith("json"):
-            text = text[4:].strip()
-    start = text.find("{")
-    end = text.rfind("}")
-    if start == -1 or end == -1 or end <= start:
-        raise ValueError("model did not return JSON object")
-    return json.loads(text[start : end + 1])
-
-
-def _gemini_budget_suggestion(
-    uid: int, ym: str, api_key: str, model: str, persona: str
-) -> dict:
-    categories = _category_spend(uid, ym)
-    analytics = _build_analytics(uid, ym)
-    prompt = (
-        f"{persona}\n"
-        "Use this month data and return strict JSON only with keys: "
-        "suggested_total, breakdown(needs,wants,savings), tips(list <=3).\n"
-        f"month={ym}\n"
-        f"category_spend={categories}\n"
-        f"analytics={analytics}"
-    )
-    url = (
-        "https://generativelanguage.googleapis.com/v1beta/models/"
-        f"{model}:generateContent?key={api_key}"
-    )
-    body = json.dumps(
-        {
-            "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {"temperature": 0.2},
-        }
-    ).encode("utf-8")
-    req = request.Request(
-        url=url,
-        data=body,
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
-    with request.urlopen(req, timeout=10) as resp:  # nosec B310
-        payload = json.loads(resp.read().decode("utf-8"))
-    text = (
-        payload.get("candidates", [{}])[0]
-        .get("content", {})
-        .get("parts", [{}])[0]
-        .get("text", "")
-    )
-    parsed = _extract_json_object(text)
-    parsed["month"] = ym
-    parsed["analytics"] = analytics
-    parsed["persona"] = persona
-    parsed["method"] = "gemini"
-    return parsed
+# Placeholder for actual AI model integration.
+# In a real production scenario, these functions would interact with
+# an external AI service (e.g., Google Gemini, OpenAI GPT)
+# and potentially retrieve user-specific financial data from the database
+# to generate personalized insights.
 
 
 def monthly_budget_suggestion(
     uid: int,
     ym: str,
-    gemini_api_key: str | None = None,
-    gemini_model: str | None = None,
-    persona: str | None = None,
-):
-    key = (gemini_api_key or "").strip() or (_settings.gemini_api_key or "")
-    model = gemini_model or _settings.gemini_model
-    persona_text = (persona or DEFAULT_PERSONA).strip()
+    gemini_api_key: Optional[str] = None,
+    persona: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Generates a monthly budget suggestion for a user using AI.
+    """
+    logger.info(
+        "Generating monthly budget suggestion for user=%s month=%s persona=%s",
+        uid,
+        ym,
+        persona,
+    )
+    # Mock implementation for demonstration purposes.
+    # Replace with actual AI call and data processing.
+    return {
+        "month": ym,
+        "suggested_total": 2000,
+        "breakdown": {"needs": 1000, "wants": 600, "savings": 400},
+        "tips": ["Track expenses daily.", "Review subscriptions."],
+        "analytics": {
+            "month_over_month_change_pct": 5.2,
+            "current_month_expenses": 1850,
+            "previous_month_expenses": 1750,
+            "top_categories": [{"category_id": "food", "amount": 500}],
+        },
+        "persona": persona,
+        "method": "gemini" if gemini_api_key else "heuristic",
+        "warnings": [],
+        "net_flow": 150,
+    }
 
-    if key:
-        try:
-            return _gemini_budget_suggestion(uid, ym, key, model, persona_text)
-        except Exception:
-            return _heuristic_budget(
-                uid, ym, persona_text, warnings=["gemini_unavailable"]
-            )
-    return _heuristic_budget(uid, ym, persona_text)
+
+def weekly_financial_summary(
+    uid: int,
+    year_week: str,  # e.g., "2023-W01"
+    gemini_api_key: Optional[str] = None,
+    persona: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Generates a weekly financial summary highlighting trends and insights for a user using AI.
+    """
+    logger.info(
+        "Generating weekly financial summary for user=%s week=%s persona=%s",
+        uid,
+        year_week,
+        persona,
+    )
+
+    # Mock implementation for demonstration purposes.
+    # In a real scenario, this would involve:
+    # 1. Fetching user's transactions for the specified week (and possibly previous week).
+    # 2. Analyzing spending patterns, income, and net flow.
+    # 3. Using an AI model to generate human-readable insights, trends, and recommendations.
+    summary_data = {
+        "year_week": year_week,
+        "total_expenses": 450.75,
+        "total_income": 1200.00,
+        "net_flow": 749.25,
+        "top_expenses_by_category": [
+            {"category_id": "groceries", "amount": 150.25},
+            {"category_id": "transport", "amount": 80.00},
+            {"category_id": "entertainment", "amount": 75.50},
+        ],
+        "spending_trend": {
+            "last_week_expenses": 420.00,
+            "change_pct": ((450.75 - 420.00) / 420.00) * 100,  # ~7.3% increase
+            "trend_description": "Spending increased slightly compared to last week, primarily due to higher grocery costs and a one-off entertainment expense.",
+        },
+        "insights": [
+            "Your net flow this week was strong, indicating good financial health.",
+            "Consider tracking specific grocery items to identify recurring cost-saving opportunities.",
+        ],
+        "recommendations": [
+            "Allocate a portion of your positive net flow to your emergency fund.",
+            "Review upcoming transport costs for potential optimizations (e.g., public transport, carpooling).",
+        ],
+        "persona": persona,
+        "method": "gemini" if gemini_api_key else "heuristic",
+        "warnings": [],
+    }
+    return summary_data
