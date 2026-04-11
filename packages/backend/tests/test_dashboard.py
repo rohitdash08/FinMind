@@ -108,3 +108,158 @@ def test_dashboard_summary_supports_month_filter(client, auth_header):
     data_b = r.get_json()
     assert data_b["period"]["month"] == month_b.strftime("%Y-%m")
     assert data_b["summary"]["monthly_expenses"] == 999.0
+
+
+# ---------------------------------------------------------------------------
+# Dashboard preferences tests
+# ---------------------------------------------------------------------------
+
+EXPECTED_WIDGET_IDS = {
+    "summary_cards",
+    "recent_transactions",
+    "upcoming_bills",
+    "category_breakdown",
+}
+
+
+def test_get_preferences_returns_defaults_for_new_user(client, auth_header):
+    r = client.get("/dashboard/preferences", headers=auth_header)
+    assert r.status_code == 200
+    body = r.get_json()
+    assert "widgets" in body
+    widgets = body["widgets"]
+    assert isinstance(widgets, list)
+    assert len(widgets) == 4
+    ids = {w["id"] for w in widgets}
+    assert ids == EXPECTED_WIDGET_IDS
+    # All visible by default
+    assert all(w["visible"] is True for w in widgets)
+    # First widget is summary_cards
+    assert widgets[0]["id"] == "summary_cards"
+
+
+def test_put_preferences_saves_and_returns_updated_config(client, auth_header):
+    new_config = [
+        {"id": "upcoming_bills", "label": "Upcoming Bills", "visible": True},
+        {"id": "recent_transactions", "label": "Recent Transactions", "visible": False},
+        {"id": "summary_cards", "label": "Summary Cards", "visible": True},
+        {"id": "category_breakdown", "label": "Category Breakdown", "visible": False},
+    ]
+    r = client.put(
+        "/dashboard/preferences",
+        json={"widgets": new_config},
+        headers=auth_header,
+    )
+    assert r.status_code == 200
+    body = r.get_json()
+    assert body["widgets"][0]["id"] == "upcoming_bills"
+    assert body["widgets"][1]["visible"] is False
+
+
+def test_get_preferences_reflects_saved_order(client, auth_header):
+    """After PUT the GET endpoint returns the persisted config."""
+    new_config = [
+        {"id": "category_breakdown", "label": "Category Breakdown", "visible": True},
+        {"id": "summary_cards", "label": "Summary Cards", "visible": False},
+        {"id": "upcoming_bills", "label": "Upcoming Bills", "visible": True},
+        {"id": "recent_transactions", "label": "Recent Transactions", "visible": True},
+    ]
+    put_r = client.put(
+        "/dashboard/preferences",
+        json={"widgets": new_config},
+        headers=auth_header,
+    )
+    assert put_r.status_code == 200
+
+    get_r = client.get("/dashboard/preferences", headers=auth_header)
+    assert get_r.status_code == 200
+    widgets = get_r.get_json()["widgets"]
+    assert widgets[0]["id"] == "category_breakdown"
+    assert widgets[1]["visible"] is False
+
+
+def test_put_preferences_rejects_unknown_widget_id(client, auth_header):
+    bad_config = [
+        {"id": "summary_cards", "label": "Summary Cards", "visible": True},
+        {"id": "nonexistent_widget", "label": "Ghost", "visible": True},
+    ]
+    r = client.put(
+        "/dashboard/preferences",
+        json={"widgets": bad_config},
+        headers=auth_header,
+    )
+    assert r.status_code == 422
+    assert "nonexistent_widget" in r.get_json()["error"]
+
+
+def test_put_preferences_rejects_duplicate_widget_id(client, auth_header):
+    dup_config = [
+        {"id": "summary_cards", "label": "Summary Cards", "visible": True},
+        {"id": "summary_cards", "label": "Summary Cards", "visible": False},
+        {"id": "recent_transactions", "label": "Recent Transactions", "visible": True},
+        {"id": "upcoming_bills", "label": "Upcoming Bills", "visible": True},
+    ]
+    r = client.put(
+        "/dashboard/preferences",
+        json={"widgets": dup_config},
+        headers=auth_header,
+    )
+    assert r.status_code == 422
+
+
+def test_put_preferences_rejects_missing_widgets_field(client, auth_header):
+    r = client.put(
+        "/dashboard/preferences",
+        json={"layout": []},
+        headers=auth_header,
+    )
+    assert r.status_code == 422
+
+
+def test_put_preferences_is_idempotent(client, auth_header):
+    config = [
+        {"id": "summary_cards", "label": "Summary Cards", "visible": True},
+        {"id": "recent_transactions", "label": "Recent Transactions", "visible": True},
+        {"id": "upcoming_bills", "label": "Upcoming Bills", "visible": False},
+        {"id": "category_breakdown", "label": "Category Breakdown", "visible": True},
+    ]
+    for _ in range(3):
+        r = client.put(
+            "/dashboard/preferences",
+            json={"widgets": config},
+            headers=auth_header,
+        )
+        assert r.status_code == 200
+
+    r = client.get("/dashboard/preferences", headers=auth_header)
+    assert r.status_code == 200
+    assert r.get_json()["widgets"][2]["id"] == "upcoming_bills"
+    assert r.get_json()["widgets"][2]["visible"] is False
+
+
+def test_preferences_are_isolated_per_user(client, app_fixture):
+    """Two users each get their own independent dashboard config."""
+    def make_auth_header(email, password):
+        client.post("/auth/register", json={"email": email, "password": password})
+        r = client.post("/auth/login", json={"email": email, "password": password})
+        return {"Authorization": f"Bearer {r.get_json()['access_token']}"}
+
+    hdr_a = make_auth_header("alice@example.com", "passwordAlice1")
+    hdr_b = make_auth_header("bob@example.com", "passwordBob1")
+
+    config_a = [
+        {"id": "category_breakdown", "label": "Category Breakdown", "visible": False},
+        {"id": "summary_cards", "label": "Summary Cards", "visible": True},
+        {"id": "upcoming_bills", "label": "Upcoming Bills", "visible": True},
+        {"id": "recent_transactions", "label": "Recent Transactions", "visible": True},
+    ]
+    client.put("/dashboard/preferences", json={"widgets": config_a}, headers=hdr_a)
+
+    # Bob still gets the default
+    r_b = client.get("/dashboard/preferences", headers=hdr_b)
+    assert r_b.get_json()["widgets"][0]["id"] == "summary_cards"
+    assert r_b.get_json()["widgets"][0]["visible"] is True
+
+    # Alice has her custom order
+    r_a = client.get("/dashboard/preferences", headers=hdr_a)
+    assert r_a.get_json()["widgets"][0]["id"] == "category_breakdown"

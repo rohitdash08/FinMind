@@ -133,3 +133,22 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class DashboardPreference(db.Model):
+    """Stores per-user dashboard widget order and visibility preferences.
+
+    ``widgets`` is a JSON-encoded list of objects:
+    ``[{"id": str, "label": str, "visible": bool}, ...]``
+    Stored as Text for cross-database compatibility (SQLite + PostgreSQL).
+    """
+
+    __tablename__ = "dashboard_preferences"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(
+        db.Integer, db.ForeignKey("users.id"), unique=True, nullable=False
+    )
+    widgets = db.Column(db.Text, nullable=False)
+    updated_at = db.Column(
+        db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+    )

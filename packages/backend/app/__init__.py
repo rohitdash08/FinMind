@@ -110,10 +110,22 @@ def _ensure_schema_compatibility(app: Flask) -> None:
             NOT NULL DEFAULT 'INR'
             """
         )
+        # Create dashboard_preferences table if it does not exist yet.
+        # New deployments get it via db.create_all(); existing ones need this.
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS dashboard_preferences (
+                id         SERIAL PRIMARY KEY,
+                user_id    INTEGER NOT NULL UNIQUE REFERENCES users(id),
+                widgets    TEXT NOT NULL,
+                updated_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW()
+            )
+            """
+        )
         conn.commit()
     except Exception:
         app.logger.exception(
-            "Schema compatibility patch failed for users.preferred_currency"
+            "Schema compatibility patch failed"
         )
         conn.rollback()
     finally:
