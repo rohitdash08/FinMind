@@ -1,6 +1,6 @@
 # FinMind — AI-Powered Budget & Bill Tracking
 
-FinMind helps users control spending, track bills, and get smart financial insights. Built for free-tier friendly deployment with scalable architecture.
+FinMind helps users control spending, track bills, track savings goals with milestone progress, and get smart financial insights. Built for free-tier friendly deployment with scalable architecture.
 
 ## System Architecture
 
@@ -74,6 +74,7 @@ OpenAPI: `backend/app/openapi.yaml`
   - Upcoming bills list with due dates and pay status.
   - AI budget suggestion card.
 - Expenses page: add expense (amount, category, notes, date), list & filter.
+- Budgets page: monitor savings goals, milestone progress bars, monthly contribution targets, and local goal persistence.
 - Bills page: create bill (name, amount, cadence, due date, channel), toggle WhatsApp/email.
 - Settings: profile, categories, reminders default channel, export (premium).
 
