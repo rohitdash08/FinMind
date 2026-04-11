@@ -5,9 +5,10 @@ from decimal import Decimal, InvalidOperation
 from flask import Blueprint, current_app, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..extensions import db
-from ..models import Expense, RecurringCadence, RecurringExpense, User
+from ..models import AutoTagRule, Category, Expense, RecurringCadence, RecurringExpense, Tag, User
 from ..services.cache import cache_delete_patterns, monthly_summary_key
 from ..services import expense_import
+from ..services.rule_engine import apply_rules, parse_conditions
 import logging
 
 bp = Blueprint("expenses", __name__)
@@ -75,6 +76,8 @@ def create_expense():
         spent_at=date.fromisoformat(raw_date) if raw_date else date.today(),
     )
     db.session.add(e)
+    db.session.flush()  # get the id before applying rules
+    _apply_rules_to_expense(uid, e)
     db.session.commit()
     logger.info("Created expense id=%s user=%s amount=%s", e.id, uid, e.amount)
     # Invalidate caches
@@ -229,6 +232,7 @@ def update_expense(expense_id: int):
     if "date" in data or "spent_at" in data:
         raw_date = data.get("date") or data.get("spent_at")
         e.spent_at = date.fromisoformat(raw_date)
+    _apply_rules_to_expense(uid, e)
     db.session.commit()
     _invalidate_expense_cache(uid, e.spent_at.isoformat())
     return jsonify(_expense_to_dict(e))
@@ -312,6 +316,7 @@ def import_commit():
 
 
 def _expense_to_dict(e: Expense) -> dict:
+    tags = [t.name for t in (e.tags or [])]
     return {
         "id": e.id,
         "amount": float(e.amount),
@@ -320,7 +325,50 @@ def _expense_to_dict(e: Expense) -> dict:
         "expense_type": e.expense_type,
         "description": e.notes or "",
         "date": e.spent_at.isoformat(),
+        "tags": tags,
     }
+
+
+def _apply_rules_to_expense(uid: int, expense: Expense) -> None:
+    """Fetch active rules for the user and apply them to the expense in-place."""
+    rules = (
+        db.session.query(AutoTagRule)
+        .filter_by(user_id=uid, active=True)
+        .order_by(AutoTagRule.priority.asc(), AutoTagRule.created_at.asc())
+        .all()
+    )
+    if not rules:
+        return
+
+    rule_dicts = [
+        {"id": r.id, "conditions": r.conditions, "actions": r.actions}
+        for r in rules
+    ]
+    exp_dict = {
+        "description": expense.notes or "",
+        "amount": float(expense.amount),
+        "expense_type": expense.expense_type,
+        "category_id": expense.category_id,
+    }
+    result = apply_rules(exp_dict, rule_dicts)
+
+    if result["set_category_id"] is not None and expense.category_id is None:
+        cat = db.session.get(Category, result["set_category_id"])
+        if cat and cat.user_id == uid:
+            expense.category_id = result["set_category_id"]
+
+    if result["set_expense_type"]:
+        expense.expense_type = result["set_expense_type"]
+
+    for tag_name in result["add_tags"]:
+        tag = db.session.query(Tag).filter_by(user_id=uid, name=tag_name).first()
+        if not tag:
+            tag = Tag(user_id=uid, name=tag_name)
+            db.session.add(tag)
+            db.session.flush()
+        current_tag_ids = {t.id for t in expense.tags}
+        if tag.id not in current_tag_ids:
+            expense.tags.append(tag)
 
 
 def _recurring_to_dict(r: RecurringExpense) -> dict:

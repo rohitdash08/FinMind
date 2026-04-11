@@ -133,3 +133,54 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+# ── Auto-tagging / rule engine ────────────────────────────────────────────────
+
+# Many-to-many: expenses ↔ tags
+expense_tags = db.Table(
+    "expense_tags",
+    db.Column("expense_id", db.Integer, db.ForeignKey("expenses.id"), primary_key=True),
+    db.Column("tag_id", db.Integer, db.ForeignKey("tags.id"), primary_key=True),
+)
+
+
+class Tag(db.Model):
+    """User-defined label that can be attached to any expense."""
+
+    __tablename__ = "tags"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    name = db.Column(db.String(100), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    __table_args__ = (db.UniqueConstraint("user_id", "name", name="uq_tag_user_name"),)
+
+
+# Back-populate tags onto Expense (done after Tag is defined to avoid forward-ref issues)
+Expense.tags = db.relationship("Tag", secondary=expense_tags, lazy="select")
+
+
+class AutoTagRule(db.Model):
+    """A user-defined rule that auto-categorises or auto-tags transactions.
+
+    ``conditions`` (JSON text) — list of condition objects:
+        [{"field": "description|amount|expense_type",
+          "operator": "contains|not_contains|regex|equals|gt|lt|between",
+          "value": "<string or number or [min,max]>"}]
+
+    ``actions`` (JSON text) — object describing what to apply when ALL conditions match:
+        {"set_category_id": <int|null>,
+         "add_tags": ["<tag-name>", ...],
+         "set_expense_type": "<EXPENSE|INCOME|null>"}
+    """
+
+    __tablename__ = "auto_tag_rules"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    name = db.Column(db.String(200), nullable=False)
+    priority = db.Column(db.Integer, default=0, nullable=False)
+    conditions = db.Column(db.Text, nullable=False, default="[]")
+    actions = db.Column(db.Text, nullable=False, default="{}")
+    active = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
