@@ -1,5 +1,48 @@
 import { api } from './client';
 
+// ---------------------------------------------------------------------------
+// Dashboard widget preferences
+// ---------------------------------------------------------------------------
+
+export const WIDGET_IDS = [
+  'summary_cards',
+  'recent_transactions',
+  'upcoming_bills',
+  'category_breakdown',
+] as const;
+
+export type WidgetId = (typeof WIDGET_IDS)[number];
+
+export type WidgetConfig = {
+  id: WidgetId;
+  label: string;
+  visible: boolean;
+};
+
+export type DashboardPreferences = {
+  widgets: WidgetConfig[];
+};
+
+export const DEFAULT_WIDGETS: WidgetConfig[] = [
+  { id: 'summary_cards', label: 'Summary Cards', visible: true },
+  { id: 'recent_transactions', label: 'Recent Transactions', visible: true },
+  { id: 'upcoming_bills', label: 'Upcoming Bills', visible: true },
+  { id: 'category_breakdown', label: 'Category Breakdown', visible: true },
+];
+
+export async function getDashboardPreferences(): Promise<DashboardPreferences> {
+  return api<DashboardPreferences>('/dashboard/preferences');
+}
+
+export async function updateDashboardPreferences(
+  widgets: WidgetConfig[],
+): Promise<DashboardPreferences> {
+  return api<DashboardPreferences>('/dashboard/preferences', {
+    method: 'PUT',
+    body: { widgets },
+  });
+}
+
 export type DashboardSummary = {
   period: { month: string };
   summary: {

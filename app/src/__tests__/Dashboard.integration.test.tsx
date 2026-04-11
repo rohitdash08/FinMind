@@ -11,13 +11,33 @@ jest.mock('@/components/ui/button', () => ({
 }));
 
 const getDashboardSummaryMock = jest.fn();
+const getDashboardPreferencesMock = jest.fn();
+const updateDashboardPreferencesMock = jest.fn();
+
 jest.mock('@/api/dashboard', () => ({
   getDashboardSummary: (...args: unknown[]) => getDashboardSummaryMock(...args),
+  getDashboardPreferences: (...args: unknown[]) => getDashboardPreferencesMock(...args),
+  updateDashboardPreferences: (...args: unknown[]) => updateDashboardPreferencesMock(...args),
+  DEFAULT_WIDGETS: [
+    { id: 'summary_cards', label: 'Summary Cards', visible: true },
+    { id: 'recent_transactions', label: 'Recent Transactions', visible: true },
+    { id: 'upcoming_bills', label: 'Upcoming Bills', visible: true },
+    { id: 'category_breakdown', label: 'Category Breakdown', visible: true },
+  ],
+  WIDGET_IDS: ['summary_cards', 'recent_transactions', 'upcoming_bills', 'category_breakdown'],
 }));
+
+const DEFAULT_WIDGETS_MOCK = [
+  { id: 'summary_cards', label: 'Summary Cards', visible: true },
+  { id: 'recent_transactions', label: 'Recent Transactions', visible: true },
+  { id: 'upcoming_bills', label: 'Upcoming Bills', visible: true },
+  { id: 'category_breakdown', label: 'Category Breakdown', visible: true },
+];
 
 describe('Dashboard integration', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    getDashboardPreferencesMock.mockResolvedValue({ widgets: DEFAULT_WIDGETS_MOCK });
   });
 
   it('renders summary, transactions and upcoming bills from backend payload', async () => {

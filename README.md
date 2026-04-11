@@ -66,6 +66,39 @@ OpenAPI: `backend/app/openapi.yaml`
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
 - Insights: `/insights/monthly`, `/insights/budget-suggestion`
+- Dashboard: `/dashboard/summary`, `/dashboard/preferences`
+
+## Dashboard Widget Customization
+Users can personalise their dashboard layout without any code changes. The feature is available on the Dashboard page via the **Customize** button.
+
+### Supported widgets
+| Widget ID | Description |
+|---|---|
+| `summary_cards` | Net flow, income, expenses and upcoming-bill totals |
+| `recent_transactions` | Latest 10 transactions |
+| `upcoming_bills` | Bills due soon |
+| `category_breakdown` | Spending by category for the selected month |
+
+### How it works
+1. Click **Customize** in the dashboard header.
+2. Toggle any widget on or off using its switch.
+3. Use the up/down arrows to reorder widgets.
+4. Click **Save Layout** — the config persists per user in the `dashboard_preferences` table.
+
+On the next visit, the dashboard loads in the saved order with hidden widgets omitted. The layout falls back to the default order when the API is unavailable.
+
+### API contract
+```
+GET  /dashboard/preferences        — returns {widgets: WidgetConfig[]}
+PUT  /dashboard/preferences        — body {widgets: WidgetConfig[]}  → same shape
+
+WidgetConfig: {id: string, label: string, visible: boolean}
+```
+
+Both endpoints require a valid JWT (`Authorization: Bearer <token>`).
+
+### Database
+A new `dashboard_preferences` table (one row per user) stores the JSON-encoded widget list. New deployments get the table via `db.create_all()`. Existing PostgreSQL deployments get it applied automatically on first startup via `_ensure_schema_compatibility`.
 
 ## MVP UI/UX Plan
 - Auth screens: register/login.
@@ -73,6 +106,7 @@ OpenAPI: `backend/app/openapi.yaml`
   - Monthly spend chart, category breakdown donut.
   - Upcoming bills list with due dates and pay status.
   - AI budget suggestion card.
+  - Customizable widget order and visibility (see above).
 - Expenses page: add expense (amount, category, notes, date), list & filter.
 - Bills page: create bill (name, amount, cadence, due date, channel), toggle WhatsApp/email.
 - Settings: profile, categories, reminders default channel, export (premium).

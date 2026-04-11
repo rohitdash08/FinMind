@@ -1,13 +1,31 @@
+import json
 from datetime import date
 from sqlalchemy import extract, func
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from ..extensions import db
-from ..models import Bill, Expense, Category
+from ..models import Bill, Expense, Category, DashboardPreference
 from ..services.cache import cache_get, cache_set, dashboard_summary_key
 
 bp = Blueprint("dashboard", __name__)
+
+# ---------------------------------------------------------------------------
+# Widget defaults — the canonical ordered list of dashboard widgets.
+# The frontend uses the same IDs to look up its render map.
+# ---------------------------------------------------------------------------
+DEFAULT_WIDGETS = [
+    {"id": "summary_cards", "label": "Summary Cards", "visible": True},
+    {"id": "recent_transactions", "label": "Recent Transactions", "visible": True},
+    {"id": "upcoming_bills", "label": "Upcoming Bills", "visible": True},
+    {"id": "category_breakdown", "label": "Category Breakdown", "visible": True},
+]
+
+_VALID_WIDGET_IDS = {w["id"] for w in DEFAULT_WIDGETS}
+
+
+def _default_widgets():
+    return [dict(w) for w in DEFAULT_WIDGETS]
 
 
 @bp.get("/summary")
@@ -176,3 +194,88 @@ def _is_valid_month(ym: str) -> bool:
         return False
     m = int(month)
     return 1 <= m <= 12
+
+
+# ---------------------------------------------------------------------------
+# Dashboard preferences: GET /dashboard/preferences
+#                        PUT /dashboard/preferences
+# ---------------------------------------------------------------------------
+
+
+@bp.get("/preferences")
+@jwt_required()
+def get_preferences():
+    """Return the user's saved dashboard widget config, or the default."""
+    uid = int(get_jwt_identity())
+    pref = DashboardPreference.query.filter_by(user_id=uid).first()
+    if pref is None:
+        return jsonify({"widgets": _default_widgets()})
+    try:
+        widgets = json.loads(pref.widgets)
+    except (json.JSONDecodeError, TypeError):
+        widgets = _default_widgets()
+    return jsonify({"widgets": widgets})
+
+
+@bp.put("/preferences")
+@jwt_required()
+def update_preferences():
+    """Save the user's dashboard widget config.
+
+    Expected body::
+
+        {
+          "widgets": [
+            {"id": "summary_cards",        "label": "Summary Cards",        "visible": true},
+            {"id": "recent_transactions",  "label": "Recent Transactions",  "visible": false},
+            ...
+          ]
+        }
+
+    Rules:
+    - ``widgets`` must be a list.
+    - Each item must have ``id`` (string, one of the known widget IDs),
+      ``label`` (string) and ``visible`` (bool).
+    - Unknown extra fields are preserved (forward-compatible).
+    - Unknown ``id`` values are rejected with 422.
+    """
+    uid = int(get_jwt_identity())
+    body = request.get_json(silent=True) or {}
+    widgets = body.get("widgets")
+
+    if not isinstance(widgets, list):
+        return jsonify(error="'widgets' must be a list"), 422
+
+    validated = []
+    seen_ids = set()
+    for item in widgets:
+        if not isinstance(item, dict):
+            return jsonify(error="Each widget must be an object"), 422
+        w_id = item.get("id")
+        if not isinstance(w_id, str) or w_id not in _VALID_WIDGET_IDS:
+            return (
+                jsonify(
+                    error=f"Unknown widget id '{w_id}'. "
+                    f"Valid ids: {sorted(_VALID_WIDGET_IDS)}"
+                ),
+                422,
+            )
+        if w_id in seen_ids:
+            return jsonify(error=f"Duplicate widget id '{w_id}'"), 422
+        seen_ids.add(w_id)
+        if not isinstance(item.get("label"), str):
+            return jsonify(error=f"Widget '{w_id}' must have a string label"), 422
+        if not isinstance(item.get("visible"), bool):
+            return jsonify(error=f"Widget '{w_id}' 'visible' must be a boolean"), 422
+        validated.append(
+            {"id": w_id, "label": item["label"], "visible": item["visible"]}
+        )
+
+    pref = DashboardPreference.query.filter_by(user_id=uid).first()
+    if pref is None:
+        pref = DashboardPreference(user_id=uid, widgets=json.dumps(validated))
+        db.session.add(pref)
+    else:
+        pref.widgets = json.dumps(validated)
+    db.session.commit()
+    return jsonify({"widgets": validated}), 200
