@@ -2,9 +2,11 @@ from datetime import datetime, time, timedelta
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..extensions import db
-from ..models import Bill, Reminder
+from ..models import Bill, Reminder, JobExecution, JobType, JobStatus
 from ..observability import track_reminder_event
 from ..services.reminders import send_reminder
+from ..services.jobs import dispatch_job
+import json
 import logging
 
 bp = Blueprint("reminders", __name__)
@@ -171,9 +173,19 @@ def run_due():
         .all()
     )
     for r in items:
-        send_reminder(r)
-        r.sent = True
-        track_reminder_event(event="sent", channel=r.channel)
+        success = send_reminder(r)
+        if success:
+            r.sent = True
+            track_reminder_event(event="sent", channel=r.channel)
+        else:
+            # Enqueue as a resilient job for retry
+            dispatch_job(
+                job_type=JobType.REMINDER,
+                payload=json.dumps({"reminder_id": r.id}),
+                source_id=r.id,
+                source_type="reminder",
+            )
+            track_reminder_event(event="queued_for_retry", channel=r.channel)
     db.session.commit()
     logger.info("Processed due reminders user=%s count=%s", uid, len(items))
     return jsonify(processed=len(items))

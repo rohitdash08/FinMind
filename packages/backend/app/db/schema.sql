@@ -123,3 +123,39 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   action VARCHAR(100) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+-- Job execution tracking for resilient background jobs
+DO $$ BEGIN
+  CREATE TYPE job_status AS ENUM ('PENDING','RUNNING','SUCCESS','FAILED','RETRYING','DEAD');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE TYPE job_type AS ENUM ('REMINDER','EMAIL','WHATSAPP','IMPORT','INSIGHT','CUSTOM');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
+
+CREATE TABLE IF NOT EXISTS job_executions (
+  id SERIAL PRIMARY KEY,
+  job_type job_type NOT NULL DEFAULT 'CUSTOM',
+  status job_status NOT NULL DEFAULT 'PENDING',
+  payload TEXT,
+  result TEXT,
+  attempt INT NOT NULL DEFAULT 0,
+  max_attempts INT NOT NULL DEFAULT 3,
+  next_retry_at TIMESTAMP,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  started_at TIMESTAMP,
+  completed_at TIMESTAMP,
+  dead_reason TEXT,
+  dead_at TIMESTAMP,
+  source_id INT,
+  source_type VARCHAR(50)
+);
+
+CREATE INDEX IF NOT EXISTS ix_job_exec_status ON job_executions(status);
+CREATE INDEX IF NOT EXISTS ix_job_exec_type_status ON job_executions(job_type, status);
+CREATE INDEX IF NOT EXISTS ix_job_exec_retry_at ON job_executions(status, next_retry_at);
+CREATE INDEX IF NOT EXISTS ix_job_exec_created_at ON job_executions(created_at);

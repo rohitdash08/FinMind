@@ -52,9 +52,10 @@ def create_app(settings: Settings | None = None) -> Flask:
     # Blueprint routes
     register_routes(app)
 
-    # Backward-compatible schema patch for existing databases.
+    # Backward-compatible schema patch for existing deployments.
     with app.app_context():
         _ensure_schema_compatibility(app)
+        _ensure_job_executions_table(app)
 
     @app.before_request
     def _before_request():
@@ -115,6 +116,58 @@ def _ensure_schema_compatibility(app: Flask) -> None:
         app.logger.exception(
             "Schema compatibility patch failed for users.preferred_currency"
         )
+        conn.rollback()
+    finally:
+        conn.close()
+
+
+def _ensure_job_executions_table(app: Flask) -> None:
+    """Create job_executions table and enums if they don't exist (idempotent)."""
+    conn = db.engine.raw_connection()
+    try:
+        cur = conn.cursor()
+        # Create enums (safe if exist)
+        for enum_name, values in [
+            ("job_status", "'PENDING','RUNNING','SUCCESS','FAILED','RETRYING','DEAD'"),
+            ("job_type", "'REMINDER','EMAIL','WHATSAPP','IMPORT','INSIGHT','CUSTOM'"),
+        ]:
+            cur.execute(
+                f"DO $$ BEGIN CREATE TYPE {enum_name} AS ENUM ({values}); "
+                f"EXCEPTION WHEN duplicate_object THEN NULL; END $$;"
+            )
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS job_executions (
+                id SERIAL PRIMARY KEY,
+                job_type job_type NOT NULL DEFAULT 'CUSTOM',
+                status job_status NOT NULL DEFAULT 'PENDING',
+                payload TEXT,
+                result TEXT,
+                attempt INT NOT NULL DEFAULT 0,
+                max_attempts INT NOT NULL DEFAULT 3,
+                next_retry_at TIMESTAMP,
+                created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                started_at TIMESTAMP,
+                completed_at TIMESTAMP,
+                dead_reason TEXT,
+                dead_at TIMESTAMP,
+                source_id INT,
+                source_type VARCHAR(50)
+            )
+        """)
+
+        # Idempotent indexes
+        for idx_sql in [
+            "CREATE INDEX IF NOT EXISTS ix_job_exec_status ON job_executions(status)",
+            "CREATE INDEX IF NOT EXISTS ix_job_exec_type_status ON job_executions(job_type, status)",
+            "CREATE INDEX IF NOT EXISTS ix_job_exec_retry_at ON job_executions(status, next_retry_at)",
+            "CREATE INDEX IF NOT EXISTS ix_job_exec_created_at ON job_executions(created_at)",
+        ]:
+            cur.execute(idx_sql)
+
+        conn.commit()
+    except Exception:
+        app.logger.exception("Schema patch failed for job_executions")
         conn.rollback()
     finally:
         conn.close()
