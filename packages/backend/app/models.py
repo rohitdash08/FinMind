@@ -1,6 +1,6 @@
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from enum import Enum
-from sqlalchemy import Enum as SAEnum
+from sqlalchemy import Enum as SAEnum, Index, desc, func
 from .extensions import db
 
 
@@ -98,6 +98,81 @@ class Reminder(db.Model):
     send_at = db.Column(db.DateTime, nullable=False)
     sent = db.Column(db.Boolean, default=False, nullable=False)
     channel = db.Column(db.String(20), default="email", nullable=False)
+
+
+class JobStatus(str, Enum):
+    """Lifecycle states for a background job."""
+    PENDING = "PENDING"
+    RUNNING = "RUNNING"
+    SUCCESS = "SUCCESS"
+    FAILED = "FAILED"
+    RETRYING = "RETRYING"
+    DEAD = "DEAD"
+
+
+class JobType(str, Enum):
+    """Known job categories."""
+    REMINDER = "REMINDER"
+    EMAIL = "EMAIL"
+    WHATSAPP = "WHATSAPP"
+    IMPORT = "IMPORT"
+    INSIGHT = "INSIGHT"
+    CUSTOM = "CUSTOM"
+
+
+class JobExecution(db.Model):
+    """Tracks background job execution, retries, and outcomes."""
+    __tablename__ = "job_executions"
+
+    id = db.Column(db.Integer, primary_key=True)
+    job_type = db.Column(SAEnum(JobType), nullable=False, default=JobType.CUSTOM)
+    status = db.Column(SAEnum(JobStatus), nullable=False, default=JobStatus.PENDING)
+    payload = db.Column(db.Text, nullable=True)
+    result = db.Column(db.Text, nullable=True)
+
+    # Retry tracking
+    attempt = db.Column(db.Integer, nullable=False, default=0)
+    max_attempts = db.Column(db.Integer, nullable=False, default=3)
+    next_retry_at = db.Column(db.DateTime, nullable=True)
+
+    # Timestamps
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    started_at = db.Column(db.DateTime, nullable=True)
+    completed_at = db.Column(db.DateTime, nullable=True)
+
+    # Dead-letter metadata
+    dead_reason = db.Column(db.Text, nullable=True)
+    dead_at = db.Column(db.DateTime, nullable=True)
+
+    # Foreign key link
+    source_id = db.Column(db.Integer, nullable=True)
+    source_type = db.Column(db.String(50), nullable=True)
+
+    __table_args__ = (
+        Index("ix_job_exec_status", "status"),
+        Index("ix_job_exec_type_status", "job_type", "status"),
+        Index("ix_job_exec_retry_at", "status", "next_retry_at"),
+        Index("ix_job_exec_created_at", "created_at"),
+    )
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "job_type": self.job_type.value if self.job_type else None,
+            "status": self.status.value if self.status else None,
+            "payload": self.payload,
+            "result": self.result,
+            "attempt": self.attempt,
+            "max_attempts": self.max_attempts,
+            "next_retry_at": self.next_retry_at.isoformat() if self.next_retry_at else None,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "started_at": self.started_at.isoformat() if self.started_at else None,
+            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+            "dead_reason": self.dead_reason,
+            "dead_at": self.dead_at.isoformat() if self.dead_at else None,
+            "source_id": self.source_id,
+            "source_type": self.source_type,
+        }
 
 
 class AdImpression(db.Model):
