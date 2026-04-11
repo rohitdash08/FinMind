@@ -45,7 +45,7 @@ flowchart LR
 
 ## PostgreSQL Schema (DDL)
 See `backend/app/db/schema.sql`. Key tables:
-- users, categories, expenses, bills, reminders
+- users, categories, expenses, bills, reminders, financial_accounts
 - ad_impressions, subscription_plans, user_subscriptions
 - refresh_tokens (optional if rotating), audit_logs
 
@@ -64,6 +64,7 @@ OpenAPI: `backend/app/openapi.yaml`
 - Auth: `/auth/register`, `/auth/login`, `/auth/refresh`
 - Expenses: CRUD `/expenses`
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
+- Accounts: CRUD `/accounts`, overview `/accounts/overview`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
 - Insights: `/insights/monthly`, `/insights/budget-suggestion`
 
@@ -73,6 +74,10 @@ OpenAPI: `backend/app/openapi.yaml`
   - Monthly spend chart, category breakdown donut.
   - Upcoming bills list with due dates and pay status.
   - AI budget suggestion card.
+- Accounts Overview:
+  - Multi-account view with net worth, total assets, total liabilities summary cards.
+  - Full CRUD for financial accounts (checking, savings, credit, investment, cash).
+  - Balance breakdown by account type with visual bars.
 - Expenses page: add expense (amount, category, notes, date), list & filter.
 - Bills page: create bill (name, amount, cadence, due date, channel), toggle WhatsApp/email.
 - Settings: profile, categories, reminders default channel, export (premium).

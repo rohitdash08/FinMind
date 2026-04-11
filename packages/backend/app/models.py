@@ -100,6 +100,27 @@ class Reminder(db.Model):
     channel = db.Column(db.String(20), default="email", nullable=False)
 
 
+class AccountType(str, Enum):
+    CHECKING = "CHECKING"
+    SAVINGS = "SAVINGS"
+    CREDIT = "CREDIT"
+    INVESTMENT = "INVESTMENT"
+    CASH = "CASH"
+
+
+class FinancialAccount(db.Model):
+    __tablename__ = "financial_accounts"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    name = db.Column(db.String(200), nullable=False)
+    account_type = db.Column(db.String(20), default=AccountType.CHECKING.value, nullable=False)
+    balance = db.Column(db.Numeric(14, 2), default=0, nullable=False)
+    currency = db.Column(db.String(10), default="INR", nullable=False)
+    active = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+
 class AdImpression(db.Model):
     __tablename__ = "ad_impressions"
     id = db.Column(db.Integer, primary_key=True)

@@ -28,7 +28,7 @@ function resolveApiBaseUrl(): string {
 
 export const baseURL = resolveApiBaseUrl();
 
-export type HttpMethod = 'GET' | 'POST' | 'PATCH' | 'DELETE';
+export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
 export async function api<T = unknown>(
   path: string,
