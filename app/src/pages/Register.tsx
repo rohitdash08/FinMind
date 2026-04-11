@@ -65,7 +65,7 @@ export function Register() {
         // Keep default local currency when profile fetch is unavailable.
       }
       toast({ title: 'Account created', description: 'Welcome to FinMind.' });
-      nav('/dashboard', { replace: true });
+      nav('/onboarding', { replace: true });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to register';
       setError(message);
