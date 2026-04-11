@@ -16,6 +16,7 @@ import NotFound from "./pages/NotFound";
 import { Landing } from "./pages/Landing";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
 import Account from "./pages/Account";
+import { Onboarding } from "./pages/Onboarding";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -94,6 +95,14 @@ const App = () => (
           </Route>
           <Route path="/signin" element={<SignIn />} />
           <Route path="/register" element={<Register />} />
+          <Route
+            path="/onboarding"
+            element={
+              <ProtectedRoute>
+                <Onboarding />
+              </ProtectedRoute>
+            }
+          />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

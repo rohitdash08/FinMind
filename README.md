@@ -66,6 +66,24 @@ OpenAPI: `backend/app/openapi.yaml`
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
 - Insights: `/insights/monthly`, `/insights/budget-suggestion`
+- Onboarding: `POST /onboarding/complete` — save user financial profile after wizard completion
+
+## Smart Onboarding Wizard
+
+New users are guided through a 6-step setup wizard after registration:
+
+1. **Welcome** — Introduction and overview
+2. **Financial Goals** — Select from 6 goal types (emergency fund, debt payoff, investments, etc.)
+3. **Lifestyle Profile** — Student, early career, family, freelancer, or retired
+4. **Income & Expenses** — Preferred currency, monthly income, and expense estimates (optional)
+5. **Spending Categories** — Enable relevant categories and set optional monthly budgets
+6. **Notification Preferences** — Choose email, WhatsApp, or no reminders; set reminder lead time
+
+The wizard auto-saves state to localStorage so users can resume if they navigate away. On completion, the profile is posted to `POST /onboarding/complete` and the user is redirected to the dashboard. Users who have already completed onboarding are redirected away from `/onboarding` automatically.
+
+Frontend entry point: `app/src/pages/Onboarding.tsx`
+API helpers: `app/src/api/onboarding.ts`
+Tests: `app/src/__tests__/Onboarding.test.tsx`
 
 ## MVP UI/UX Plan
 - Auth screens: register/login.
