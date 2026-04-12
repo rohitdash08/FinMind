@@ -3,6 +3,7 @@ from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..services.ai import monthly_budget_suggestion
 import logging
+from ..services.digest import SmartDigestService
 
 bp = Blueprint("insights", __name__)
 logger = logging.getLogger("finmind.insights")
@@ -23,3 +24,11 @@ def budget_suggestion():
     )
     logger.info("Budget suggestion served user=%s month=%s", uid, ym)
     return jsonify(suggestion)
+
+@bp.get("/weekly-digest")
+@jwt_required()
+def weekly_digest():
+    uid = int(get_jwt_identity())
+    digest = SmartDigestService.get_weekly_summary(uid)
+    logger.info("Weekly digest served for user=%s", uid)
+    return jsonify(digest)
