@@ -1,0 +1,53 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgres-secret
+  namespace: finmind
+type: Opaque
+stringData:
+  POSTGRES_USER: finmind
+  POSTGRES_PASSWORD: changeme-in-production
+  POSTGRES_DB: finmind
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: finmind
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels: { app: postgres }
+  template:
+    metadata:
+      labels: { app: postgres }
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:16-alpine
+        ports: [{ containerPort: 5432 }]
+        envFrom: [{ secretRef: { name: postgres-secret } }]
+        volumeMounts: [{ name: pgdata, mountPath: /var/lib/postgresql/data }]
+        readinessProbe:
+          exec: { command: ["pg_isready", "-U", "finmind"] }
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          requests: { memory: "256Mi", cpu: "250m" }
+          limits: { memory: "512Mi", cpu: "500m" }
+  volumeClaimTemplates:
+  - metadata: { name: pgdata }
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      resources: { requests: { storage: "10Gi" } }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: finmind
+spec:
+  selector: { app: postgres }
+  ports: [{ port: 5432, targetPort: 5432 }]
+  clusterIP: None

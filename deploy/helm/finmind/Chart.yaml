@@ -1,0 +1,6 @@
+apiVersion: v2
+name: finmind
+description: FinMind - AI-Powered Budget & Bill Tracking
+version: 1.0.0
+appVersion: "1.0.0"
+type: application
