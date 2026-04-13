@@ -29,6 +29,7 @@ def list_expenses():
     except ValueError:
         return jsonify(error="invalid pagination"), 400
 
+    account_id = request.args.get("account_id")
     try:
         if from_date:
             q = q.filter(Expense.spent_at >= date.fromisoformat(from_date))
@@ -36,6 +37,8 @@ def list_expenses():
             q = q.filter(Expense.spent_at <= date.fromisoformat(to_date))
         if category_id:
             q = q.filter(Expense.category_id == int(category_id))
+        if account_id:
+            q = q.filter(Expense.account_id == int(account_id))
     except ValueError:
         return jsonify(error="invalid filter values"), 400
     if search:
@@ -71,6 +74,7 @@ def create_expense():
         currency=(data.get("currency") or (user.preferred_currency if user else "INR")),
         expense_type=str(data.get("expense_type") or "EXPENSE").upper(),
         category_id=data.get("category_id"),
+        account_id=data.get("account_id"),
         notes=description,
         spent_at=date.fromisoformat(raw_date) if raw_date else date.today(),
     )
@@ -221,6 +225,8 @@ def update_expense(expense_id: int):
         e.expense_type = str(data.get("expense_type") or "EXPENSE").upper()
     if "category_id" in data:
         e.category_id = data.get("category_id")
+    if "account_id" in data:
+        e.account_id = data.get("account_id")
     if "description" in data or "notes" in data:
         description = (data.get("description") or data.get("notes") or "").strip()
         if not description:
@@ -299,6 +305,7 @@ def import_commit():
             currency=t.get("currency") or (user.preferred_currency if user else "INR"),
             expense_type=str(t.get("expense_type") or "EXPENSE").upper(),
             category_id=t.get("category_id"),
+            account_id=t.get("account_id"),
             notes=t["description"],
             spent_at=date.fromisoformat(t["date"]),
         )
@@ -320,6 +327,7 @@ def _expense_to_dict(e: Expense) -> dict:
         "expense_type": e.expense_type,
         "description": e.notes or "",
         "date": e.spent_at.isoformat(),
+        "account_id": e.account_id,
     }
 
 

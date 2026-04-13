@@ -46,6 +46,7 @@ flowchart LR
 ## PostgreSQL Schema (DDL)
 See `backend/app/db/schema.sql`. Key tables:
 - users, categories, expenses, bills, reminders
+- accounts (multi-account support: checking, savings, credit, investment)
 - ad_impressions, subscription_plans, user_subscriptions
 - refresh_tokens (optional if rotating), audit_logs
 
@@ -62,7 +63,9 @@ See `backend/app/db/schema.sql`. Key tables:
 ## API Endpoints
 OpenAPI: `backend/app/openapi.yaml`
 - Auth: `/auth/register`, `/auth/login`, `/auth/refresh`
-- Expenses: CRUD `/expenses`
+- Accounts: CRUD `/accounts`, `/accounts/{id}/summary`
+- Dashboard: `/dashboard/summary` (supports `?account_id=` filter), `/dashboard/overview` (aggregated multi-account view)
+- Expenses: CRUD `/expenses` (supports optional `account_id` on create/update/filter)
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
 - Insights: `/insights/monthly`, `/insights/budget-suggestion`
@@ -100,6 +103,7 @@ finmind/
       routes/
         __init__.py
         auth.py
+        accounts.py
         expenses.py
         bills.py
         reminders.py
