@@ -1,0 +1,45 @@
+replicaCount:
+  backend: 2
+  frontend: 2
+
+image:
+  backend:
+    repository: finmind/backend
+    tag: latest
+    pullPolicy: IfNotPresent
+  frontend:
+    repository: finmind/frontend
+    tag: latest
+    pullPolicy: IfNotPresent
+
+postgres:
+  enabled: true
+  user: finmind
+  password: changeme
+  database: finmind
+  storage: 10Gi
+
+redis:
+  enabled: true
+
+ingress:
+  enabled: false
+  host: finmind.example.com
+  tls: true
+  clusterIssuer: letsencrypt-prod
+
+backend:
+  jwtSecret: changeme-generate-real-secret
+  resources:
+    requests: { memory: 256Mi, cpu: 250m }
+    limits: { memory: 512Mi, cpu: 500m }
+  hpa:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 8
+    targetCPU: 70
+
+frontend:
+  resources:
+    requests: { memory: 64Mi, cpu: 100m }
+    limits: { memory: 128Mi, cpu: 250m }

@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-backend
+spec:
+  replicas: {{ .Values.replicaCount.backend }}
+  selector:
+    matchLabels: { app: {{ .Release.Name }}-backend }
+  template:
+    metadata:
+      labels: { app: {{ .Release.Name }}-backend }
+    spec:
+      containers:
+      - name: backend
+        image: "{{ .Values.image.backend.repository }}:{{ .Values.image.backend.tag }}"
+        ports: [{ containerPort: 8000 }]
+        env:
+        - name: DATABASE_URL
+          value: "postgresql+psycopg2://{{ .Values.postgres.user }}:{{ .Values.postgres.password }}@{{ .Release.Name }}-postgres:5432/{{ .Values.postgres.database }}"
+        - name: REDIS_URL
+          value: "redis://{{ .Release.Name }}-redis:6379/0"
+        - name: JWT_SECRET_KEY
+          value: "{{ .Values.backend.jwtSecret }}"
+        readinessProbe:
+          httpGet: { path: /health, port: 8000 }
+          initialDelaySeconds: 10
+        resources: {{ toYaml .Values.backend.resources | nindent 10 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-backend
+spec:
+  selector: { app: {{ .Release.Name }}-backend }
+  ports: [{ port: 8000 }]
