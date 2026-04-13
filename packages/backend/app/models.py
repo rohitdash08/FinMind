@@ -100,6 +100,75 @@ class Reminder(db.Model):
     channel = db.Column(db.String(20), default="email", nullable=False)
 
 
+class JobStatus(str, Enum):
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
+class BackgroundJob(db.Model):
+    __tablename__ = "background_jobs"
+    id = db.Column(db.Integer, primary_key=True)
+    job_type = db.Column(db.String(100), nullable=False)
+    status = db.Column(
+        db.String(20), default=JobStatus.PENDING.value, nullable=False
+    )
+    payload = db.Column(db.JSON, nullable=True)
+    result = db.Column(db.JSON, nullable=True)
+    retry_count = db.Column(db.Integer, default=0, nullable=False)
+    max_retries = db.Column(db.Integer, default=3, nullable=False)
+    last_error = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(
+        db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+    )
+    next_retry_at = db.Column(db.DateTime, nullable=True)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "job_type": self.job_type,
+            "status": self.status,
+            "payload": self.payload,
+            "result": self.result,
+            "retry_count": self.retry_count,
+            "max_retries": self.max_retries,
+            "last_error": self.last_error,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "next_retry_at": (
+                self.next_retry_at.isoformat() if self.next_retry_at else None
+            ),
+        }
+
+
+class JobExecutionLog(db.Model):
+    __tablename__ = "job_execution_logs"
+    id = db.Column(db.Integer, primary_key=True)
+    job_id = db.Column(
+        db.Integer, db.ForeignKey("background_jobs.id"), nullable=False
+    )
+    attempt = db.Column(db.Integer, nullable=False)
+    status = db.Column(db.String(20), nullable=False)
+    error = db.Column(db.Text, nullable=True)
+    started_at = db.Column(db.DateTime, nullable=False)
+    finished_at = db.Column(db.DateTime, nullable=True)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "job_id": self.job_id,
+            "attempt": self.attempt,
+            "status": self.status,
+            "error": self.error,
+            "started_at": self.started_at.isoformat() if self.started_at else None,
+            "finished_at": (
+                self.finished_at.isoformat() if self.finished_at else None
+            ),
+        }
+
+
 class AdImpression(db.Model):
     __tablename__ = "ad_impressions"
     id = db.Column(db.Integer, primary_key=True)

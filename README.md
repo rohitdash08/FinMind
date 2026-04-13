@@ -65,6 +65,10 @@ OpenAPI: `backend/app/openapi.yaml`
 - Expenses: CRUD `/expenses`
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
+- Admin Jobs (requires ADMIN role):
+  - `GET /admin/jobs` — list jobs with pagination (`?page=1&per_page=20&status=pending&job_type=send_reminder`)
+  - `GET /admin/jobs/<id>` — job detail with full execution history
+  - `POST /admin/jobs/<id>/retry` — manually retry a permanently failed job
 - Insights: `/insights/monthly`, `/insights/budget-suggestion`
 
 ## MVP UI/UX Plan
@@ -179,8 +183,15 @@ finmind/
 ## Contribution Policy
 - See `CONTRIBUTING.md` for fork-first contribution flow and PR requirements.
 
+## Background Job Framework
+- All async work (reminder delivery, etc.) is wrapped in the `BackgroundJob` model with automatic retry and exponential backoff (5s, 25s, 125s).
+- Each execution attempt is logged in `job_execution_logs` with timestamps and error tracebacks for full observability.
+- New job types are added by decorating a handler with `@register_handler("job_type")` in `services/`.
+- Admin endpoints (`/admin/jobs`) provide monitoring, filtering, and manual retry for failed jobs.
+
 ## Notes on Free-Tier Reminders
 - Primary: schedule via APScheduler in-process with persistence in Postgres (job table) and a simple daily trigger. Alternatively, use Railway/Render cron to hit `/reminders/run`.
+- Reminder sends are wrapped in the background job framework (`send_reminder` job type) with automatic retry on delivery failure.
 - Twilio WhatsApp free trial supports sandbox; email via SMTP (e.g., SendGrid free tier).
 
 ## Security & Scalability
