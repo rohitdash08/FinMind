@@ -1,9 +1,12 @@
 import os
 import pytest
+import fakeredis
 from app import create_app
 from app.config import Settings
 from app.extensions import db
-from app.extensions import redis_client
+import app.extensions as extensions
+import app.routes.auth as auth_routes
+import app.services.cache as cache_service
 from app import models  # noqa: F401 - ensure models are registered
 
 
@@ -20,9 +23,13 @@ def _setup_db(app):
 
 
 @pytest.fixture()
-def app_fixture():
+def app_fixture(monkeypatch):
     # Ensure a clean env for tests
     os.environ.setdefault("FLASK_ENV", "testing")
+    fake_redis = fakeredis.FakeRedis(decode_responses=True)
+    monkeypatch.setattr(extensions, "redis_client", fake_redis)
+    monkeypatch.setattr(auth_routes, "redis_client", fake_redis)
+    monkeypatch.setattr(cache_service, "redis_client", fake_redis)
     settings = TestSettings(
         database_url="sqlite+pysqlite:///:memory:",
         redis_url="redis://localhost:6379/15",
@@ -31,18 +38,12 @@ def app_fixture():
     app = create_app(settings)
     app.config.update(TESTING=True)
     _setup_db(app)
-    try:
-        redis_client.flushdb()
-    except Exception:
-        pass
+    fake_redis.flushdb()
     yield app
     with app.app_context():
         db.session.remove()
         db.drop_all()
-    try:
-        redis_client.flushdb()
-    except Exception:
-        pass
+    fake_redis.flushdb()
 
 
 @pytest.fixture()

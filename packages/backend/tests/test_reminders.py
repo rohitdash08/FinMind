@@ -21,19 +21,14 @@ def test_bill_reminders_schedule_supports_default_and_override_offsets(
 ):
     bill_id = _create_bill(client, auth_header, due_date="2026-03-20")
 
-    # Hybrid default path: use system defaults [7, 3, 1]
     r = client.post(f"/reminders/bills/{bill_id}/schedule", headers=auth_header)
     assert r.status_code == 200
-    created = r.get_json()["created"]
-    # 3 offsets * 2 channels
-    assert created == 6
+    assert r.get_json()["created"] == 6
 
-    # Repeat should be deduped for same window.
     r = client.post(f"/reminders/bills/{bill_id}/schedule", headers=auth_header)
     assert r.status_code == 200
     assert r.get_json()["created"] == 0
 
-    # Override path: custom offsets should be used for a new bill.
     bill_id2 = _create_bill(client, auth_header, due_date="2026-03-25")
     r = client.post(
         f"/reminders/bills/{bill_id2}/schedule",
@@ -54,7 +49,6 @@ def test_autopay_generates_precheck_and_result_followup_for_both_channels(
         autopay_enabled=True,
     )
 
-    # Pre-check reminders should include an autopay check notice in both channels.
     r = client.post(f"/reminders/bills/{bill_id}/schedule", headers=auth_header)
     assert r.status_code == 200
 
@@ -65,7 +59,6 @@ def test_autopay_generates_precheck_and_result_followup_for_both_channels(
     assert len(autopay_pre) == 2
     assert sorted([x["channel"] for x in autopay_pre]) == ["email", "whatsapp"]
 
-    # Result follow-up should notify both channels.
     r = client.post(
         f"/reminders/bills/{bill_id}/autopay-result",
         json={"status": "SUCCESS"},
@@ -80,3 +73,30 @@ def test_autopay_generates_precheck_and_result_followup_for_both_channels(
     followups = [x for x in reminders if "Autopay succeeded" in x["message"]]
     assert len(followups) == 2
     assert sorted([x["channel"] for x in followups]) == ["email", "whatsapp"]
+
+
+def test_run_due_keeps_failed_reminders_unsent(client, auth_header, monkeypatch):
+    reminder_id = None
+    r = client.post(
+        "/reminders",
+        json={
+            "message": "Send me",
+            "send_at": "2026-04-10T09:00:00",
+            "channel": "email",
+        },
+        headers=auth_header,
+    )
+    assert r.status_code == 201
+    reminder_id = r.get_json()["id"]
+
+    monkeypatch.setattr("app.routes.reminders.send_reminder", lambda _r: False)
+
+    r = client.post("/reminders/run", headers=auth_header)
+    assert r.status_code == 200
+    assert r.get_json() == {"processed": 0, "failed": 1}
+
+    r = client.get("/reminders", headers=auth_header)
+    reminders = r.get_json()
+    reminder = next(x for x in reminders if x["id"] == reminder_id)
+    assert reminder["sent"] is False
+    assert reminder["channel"] == "email"

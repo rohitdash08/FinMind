@@ -170,13 +170,21 @@ def run_due():
         )
         .all()
     )
+    processed = 0
+    failed = 0
     for r in items:
-        send_reminder(r)
-        r.sent = True
-        track_reminder_event(event="sent", channel=r.channel)
+        if send_reminder(r):
+            r.sent = True
+            processed += 1
+            track_reminder_event(event="sent", channel=r.channel)
+        else:
+            failed += 1
+            track_reminder_event(event="send_failed", channel=r.channel)
     db.session.commit()
-    logger.info("Processed due reminders user=%s count=%s", uid, len(items))
-    return jsonify(processed=len(items))
+    logger.info(
+        "Processed due reminders user=%s processed=%s failed=%s", uid, processed, failed
+    )
+    return jsonify(processed=processed, failed=failed)
 
 
 def _bill_channels(bill: Bill) -> list[str]:
