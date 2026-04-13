@@ -133,3 +133,22 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class WeeklyDigest(db.Model):
+    __tablename__ = "weekly_digests"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    week_start = db.Column(db.Date, nullable=False)
+    week_end = db.Column(db.Date, nullable=False)
+    total_income = db.Column(db.Numeric(12, 2), default=0, nullable=False)
+    total_expenses = db.Column(db.Numeric(12, 2), default=0, nullable=False)
+    net_savings = db.Column(db.Numeric(12, 2), default=0, nullable=False)
+    top_category = db.Column(db.String(200), nullable=True)
+    top_expense_amount = db.Column(db.Numeric(12, 2), default=0, nullable=False)
+    bills_due_count = db.Column(db.Integer, default=0, nullable=False)
+    bills_paid_count = db.Column(db.Integer, default=0, nullable=False)
+    savings_goal_progress = db.Column(db.Text, nullable=True)
+    summary_text = db.Column(db.Text, nullable=True)
+    wow_expense_change_pct = db.Column(db.Numeric(8, 2), nullable=True)
+    generated_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
