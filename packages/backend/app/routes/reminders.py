@@ -5,6 +5,7 @@ from ..extensions import db
 from ..models import Bill, Reminder
 from ..observability import track_reminder_event
 from ..services.reminders import send_reminder
+from ..services.job_runner import create_job, execute_job
 import logging
 
 bp = Blueprint("reminders", __name__)
@@ -171,8 +172,12 @@ def run_due():
         .all()
     )
     for r in items:
-        send_reminder(r)
-        r.sent = True
+        job = create_job(
+            job_type="send_reminder",
+            payload={"reminder_id": r.id},
+            user_id=uid,
+        )
+        execute_job(job)
         track_reminder_event(event="sent", channel=r.channel)
     db.session.commit()
     logger.info("Processed due reminders user=%s count=%s", uid, len(items))
