@@ -71,6 +71,7 @@ def create_expense():
         currency=(data.get("currency") or (user.preferred_currency if user else "INR")),
         expense_type=str(data.get("expense_type") or "EXPENSE").upper(),
         category_id=data.get("category_id"),
+        account_id=data.get("account_id"),
         notes=description,
         spent_at=date.fromisoformat(raw_date) if raw_date else date.today(),
     )

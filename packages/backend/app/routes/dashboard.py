@@ -4,7 +4,7 @@ from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from ..extensions import db
-from ..models import Bill, Expense, Category
+from ..models import Account, Bill, Expense, Category
 from ..services.cache import cache_get, cache_set, dashboard_summary_key
 
 bp = Blueprint("dashboard", __name__)
@@ -30,10 +30,13 @@ def dashboard_summary():
             "monthly_expenses": 0.0,
             "upcoming_bills_total": 0.0,
             "upcoming_bills_count": 0,
+            "total_balance": 0.0,
+            "account_count": 0,
         },
         "recent_transactions": [],
         "upcoming_bills": [],
         "category_breakdown": [],
+        "accounts": [],
         "errors": [],
     }
 
@@ -163,6 +166,53 @@ def dashboard_summary():
         ]
     except Exception:
         payload["errors"].append("category_breakdown_unavailable")
+
+    try:
+        accounts = (
+            db.session.query(Account)
+            .filter(Account.user_id == uid, Account.is_active.is_(True))
+            .order_by(Account.created_at.desc())
+            .all()
+        )
+        account_list = []
+        for a in accounts:
+            exp_count = (
+                db.session.query(func.count(Expense.id))
+                .filter(
+                    Expense.user_id == uid,
+                    Expense.account_id == a.id,
+                    extract("year", Expense.spent_at) == year,
+                    extract("month", Expense.spent_at) == month,
+                )
+                .scalar()
+            )
+            exp_total = (
+                db.session.query(func.coalesce(func.sum(Expense.amount), 0))
+                .filter(
+                    Expense.user_id == uid,
+                    Expense.account_id == a.id,
+                    Expense.expense_type != "INCOME",
+                    extract("year", Expense.spent_at) == year,
+                    extract("month", Expense.spent_at) == month,
+                )
+                .scalar()
+            )
+            account_list.append({
+                "id": a.id,
+                "name": a.name,
+                "account_type": a.account_type,
+                "balance": float(a.balance),
+                "currency": a.currency,
+                "expense_count": exp_count or 0,
+                "month_expenses": float(exp_total or 0),
+            })
+        payload["accounts"] = account_list
+        payload["summary"]["total_balance"] = round(
+            sum(a["balance"] for a in account_list), 2
+        )
+        payload["summary"]["account_count"] = len(account_list)
+    except Exception:
+        payload["errors"].append("accounts_unavailable")
 
     cache_set(key, payload, ttl_seconds=300)
     return jsonify(payload)

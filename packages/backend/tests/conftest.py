@@ -1,17 +1,20 @@
 import os
 import pytest
+import fakeredis
 from app import create_app
 from app.config import Settings
 from app.extensions import db
-from app.extensions import redis_client
 from app import models  # noqa: F401 - ensure models are registered
+from app import extensions
+from app.routes import auth
+from app.services import cache
 
 
 class TestSettings(Settings):
     # Override defaults for tests
     database_url: str = "sqlite+pysqlite:///:memory:"
-    redis_url: str = "redis://localhost:6379/15"  # not used in tests
-    jwt_secret: str = "test-secret"
+    redis_url: str = "redis://localhost:6379/15"
+    jwt_secret: str = "test-secret-with-32-plus-chars-1234567890"
 
 
 def _setup_db(app):
@@ -28,21 +31,18 @@ def app_fixture():
         redis_url="redis://localhost:6379/15",
         jwt_secret="test-secret-with-32-plus-chars-1234567890",
     )
+    # Replace redis client with fakeredis everywhere
+    fake_redis = fakeredis.FakeRedis(decode_responses=True)
+    extensions.redis_client = fake_redis
+    auth.redis_client = fake_redis
+    cache.redis_client = fake_redis
     app = create_app(settings)
     app.config.update(TESTING=True)
     _setup_db(app)
-    try:
-        redis_client.flushdb()
-    except Exception:
-        pass
     yield app
     with app.app_context():
         db.session.remove()
         db.drop_all()
-    try:
-        redis_client.flushdb()
-    except Exception:
-        pass
 
 
 @pytest.fixture()
