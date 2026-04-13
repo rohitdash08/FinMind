@@ -45,3 +45,15 @@ def cache_delete_patterns(patterns: Iterable[str]):
                 redis_client.delete(*keys)
             if cursor == 0:
                 break
+
+
+def accounts_key(user_id: int) -> str:
+    return f"user:{user_id}:accounts"
+
+
+def account_summary_key(user_id: int, account_id: int, ym: str) -> str:
+    return f"user:{user_id}:account_summary:{account_id}:{ym}"
+
+
+def dashboard_overview_key(user_id: int, ym: str) -> str:
+    return f"user:{user_id}:dashboard_overview:{ym}"
