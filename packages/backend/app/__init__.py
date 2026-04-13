@@ -49,6 +49,9 @@ def create_app(settings: Settings | None = None) -> Flask:
     CORS(app, resources={r"*": {"origins": "*"}}, supports_credentials=True)
 
     # Redis (already global)
+    # Register background job handlers (import triggers @register_handler)
+    from .services import reminder_jobs  # noqa: F401
+
     # Blueprint routes
     register_routes(app)
 

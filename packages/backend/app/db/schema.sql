@@ -123,3 +123,30 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   action VARCHAR(100) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS background_jobs (
+  id SERIAL PRIMARY KEY,
+  job_type VARCHAR(100) NOT NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'pending',
+  payload JSON,
+  result JSON,
+  retry_count INT NOT NULL DEFAULT 0,
+  max_retries INT NOT NULL DEFAULT 3,
+  last_error TEXT,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  next_retry_at TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_background_jobs_status ON background_jobs(status, next_retry_at);
+CREATE INDEX IF NOT EXISTS idx_background_jobs_type ON background_jobs(job_type);
+
+CREATE TABLE IF NOT EXISTS job_execution_logs (
+  id SERIAL PRIMARY KEY,
+  job_id INT NOT NULL REFERENCES background_jobs(id) ON DELETE CASCADE,
+  attempt INT NOT NULL,
+  status VARCHAR(20) NOT NULL,
+  error TEXT,
+  started_at TIMESTAMP NOT NULL,
+  finished_at TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_job_execution_logs_job ON job_execution_logs(job_id, attempt);
