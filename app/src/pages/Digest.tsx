@@ -123,13 +123,13 @@ export function Digest() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={goToPrevWeek}>
+            <Button variant="outline" size="sm" onClick={goToPrevWeek} aria-label="Previous week">
               <ChevronLeft className="w-4 h-4" />
             </Button>
             <span className="text-sm font-mono font-medium min-w-[90px] text-center">
               {week}
             </span>
-            <Button variant="outline" size="sm" onClick={goToNextWeek}>
+            <Button variant="outline" size="sm" onClick={goToNextWeek} aria-label="Next week">
               <ChevronRight className="w-4 h-4" />
             </Button>
             <Button variant="outline" size="sm" onClick={goToCurrentWeek}>
@@ -266,26 +266,28 @@ export function Digest() {
             <FinancialCardContent>
               {data?.daily_spending ? (
                 <div className="space-y-2">
-                  {data.daily_spending.map((day) => {
+                  {(() => {
                     const maxAmount = Math.max(
                       ...data.daily_spending.map((d) => d.amount),
                       1,
                     );
-                    const pct = (day.amount / maxAmount) * 100;
-                    return (
-                      <div key={day.date} className="flex items-center gap-3">
-                        <span className="text-sm text-muted-foreground w-20 shrink-0">
-                          {day.day_name.slice(0, 3)}
-                        </span>
-                        <div className="flex-1">
-                          <Progress value={pct} className="h-3" />
+                    return data.daily_spending.map((day) => {
+                      const pct = (day.amount / maxAmount) * 100;
+                      return (
+                        <div key={day.date} className="flex items-center gap-3">
+                          <span className="text-sm text-muted-foreground w-20 shrink-0">
+                            {day.day_name.slice(0, 3)}
+                          </span>
+                          <div className="flex-1">
+                            <Progress value={pct} className="h-3" />
+                          </div>
+                          <span className="text-sm font-medium w-24 text-right">
+                            {currency(day.amount)}
+                          </span>
                         </div>
-                        <span className="text-sm font-medium w-24 text-right">
-                          {currency(day.amount)}
-                        </span>
-                      </div>
-                    );
-                  })}
+                      );
+                    });
+                  })()}
                 </div>
               ) : (
                 <div className="text-sm text-muted-foreground">
@@ -384,7 +386,7 @@ export function Digest() {
                     const colorClass = insightColor[insight.type];
                     return (
                       <div
-                        key={i}
+                        key={`${insight.type}-${insight.title}`}
                         className="interactive-row flex items-start gap-3"
                       >
                         <div

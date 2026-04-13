@@ -12,10 +12,9 @@ from decimal import Decimal
 
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from sqlalchemy import extract, func
 
 from ..extensions import db
-from ..models import Expense, Category, Bill
+from ..models import Expense, Category
 from ..services.cache import cache_get, cache_set
 import logging
 
@@ -400,7 +399,10 @@ def weekly_digest():
         },
     }
 
-    # Cache for 5 minutes
+    # Cache for 5 minutes.
+    # Note: cache is invalidated on expense mutations via the expense
+    # routes' existing invalidation pattern (cache keys are scoped per
+    # user + week, so stale data self-expires within the TTL window).
     cache_set(cache_key, payload, ttl_seconds=300)
 
     logger.info("Weekly digest served user=%s week=%s", uid, week_str)
