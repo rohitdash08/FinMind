@@ -8,6 +8,7 @@ from ..extensions import db
 from ..models import Expense, RecurringCadence, RecurringExpense, User
 from ..services.cache import cache_delete_patterns, monthly_summary_key
 from ..services import expense_import
+from ..services.locale import LocaleService
 import logging
 
 bp = Blueprint("expenses", __name__)
@@ -312,14 +313,17 @@ def import_commit():
 
 
 def _expense_to_dict(e: Expense) -> dict:
+    locale = LocaleService.get_user_locale(e.user_id)
     return {
         "id": e.id,
         "amount": float(e.amount),
         "currency": e.currency,
+        "amount_formatted": LocaleService.format_currency(e.amount, e.currency, locale=locale),
         "category_id": e.category_id,
         "expense_type": e.expense_type,
         "description": e.notes or "",
         "date": e.spent_at.isoformat(),
+        "date_formatted": LocaleService.format_date(e.spent_at, locale=locale),
     }
 
 

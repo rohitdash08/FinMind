@@ -4,6 +4,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..extensions import db
 from ..models import Bill, BillCadence, User
 from ..services.cache import cache_delete_patterns
+from ..services.locale import LocaleService
 import logging
 
 bp = Blueprint("bills", __name__)
@@ -28,7 +29,9 @@ def list_bills():
                 "name": b.name,
                 "amount": float(b.amount),
                 "currency": b.currency,
+                "amount_formatted": LocaleService.format_currency(b.amount, b.currency, locale=LocaleService.get_user_locale(b.user_id)),
                 "next_due_date": b.next_due_date.isoformat(),
+                "next_due_date_formatted": LocaleService.format_date(b.next_due_date, locale=LocaleService.get_user_locale(b.user_id)),
                 "cadence": b.cadence.value,
                 "autopay_enabled": b.autopay_enabled,
                 "channel_whatsapp": b.channel_whatsapp,

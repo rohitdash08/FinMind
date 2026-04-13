@@ -43,6 +43,7 @@ def register():
         email=email,
         password_hash=generate_password_hash(password),
         preferred_currency="INR",
+        preferred_locale="en_US",
     )
     db.session.add(user)
     db.session.commit()
@@ -77,6 +78,7 @@ def me():
         id=user.id,
         email=user.email,
         preferred_currency=user.preferred_currency or "INR",
+        preferred_locale=user.preferred_locale or "en_US",
     )
 
 
@@ -93,11 +95,16 @@ def update_me():
         if cur not in SUPPORTED_CURRENCIES:
             return jsonify(error="unsupported preferred_currency"), 400
         user.preferred_currency = cur
+    if "preferred_locale" in data:
+        loc = str(data.get("preferred_locale") or "").strip()
+        # Basic format check: xx_XX or xx
+        user.preferred_locale = loc
     db.session.commit()
     return jsonify(
         id=user.id,
         email=user.email,
         preferred_currency=user.preferred_currency or "INR",
+        preferred_locale=user.preferred_locale or "en_US",
     )
 
 

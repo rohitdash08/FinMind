@@ -2,6 +2,7 @@ from datetime import date
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..services.ai import monthly_budget_suggestion
+from ..services.locale import LocaleService
 import logging
 
 bp = Blueprint("insights", __name__)

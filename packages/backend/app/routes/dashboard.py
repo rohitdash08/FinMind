@@ -6,6 +6,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..extensions import db
 from ..models import Bill, Expense, Category
 from ..services.cache import cache_get, cache_set, dashboard_summary_key
+from ..services.locale import LocaleService
 
 bp = Blueprint("dashboard", __name__)
 
@@ -63,11 +64,16 @@ def dashboard_summary():
         )
         payload["summary"]["monthly_income"] = float(income or 0)
         payload["summary"]["monthly_expenses"] = float(expenses or 0)
+        user_locale = LocaleService.get_user_locale(uid)
+        user_currency = db.session.get(User, uid).preferred_currency or "INR"
+        payload["summary"]["monthly_income_formatted"] = LocaleService.format_currency(payload["summary"]["monthly_income"], user_currency, locale=user_locale)
+        payload["summary"]["monthly_expenses_formatted"] = LocaleService.format_currency(payload["summary"]["monthly_expenses"], user_currency, locale=user_locale)
         payload["summary"]["net_flow"] = round(
             payload["summary"]["monthly_income"]
             - payload["summary"]["monthly_expenses"],
             2,
         )
+        payload["summary"]["net_flow_formatted"] = LocaleService.format_currency(payload["summary"]["net_flow"], user_currency, locale=user_locale)
     except Exception:
         payload["errors"].append("summary_unavailable")
 
@@ -84,7 +90,9 @@ def dashboard_summary():
                 "id": e.id,
                 "description": e.notes or "Transaction",
                 "amount": float(e.amount),
+                "amount_formatted": LocaleService.format_currency(e.amount, e.currency, locale=user_locale),
                 "date": e.spent_at.isoformat(),
+                "date_formatted": LocaleService.format_date(e.spent_at, locale=user_locale),
                 "type": e.expense_type,
                 "category_id": e.category_id,
                 "currency": e.currency,
@@ -111,8 +119,9 @@ def dashboard_summary():
                 "id": b.id,
                 "name": b.name,
                 "amount": float(b.amount),
-                "currency": b.currency,
+                "amount_formatted": LocaleService.format_currency(b.amount, b.currency, locale=user_locale),
                 "next_due_date": b.next_due_date.isoformat(),
+                "next_due_date_formatted": LocaleService.format_date(b.next_due_date, locale=user_locale),
                 "cadence": b.cadence.value,
                 "channel_email": b.channel_email,
                 "channel_whatsapp": b.channel_whatsapp,
