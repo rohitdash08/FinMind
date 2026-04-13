@@ -98,6 +98,11 @@ def create_app(settings: Settings | None = None) -> Flask:
 
 def _ensure_schema_compatibility(app: Flask) -> None:
     """Apply minimal compatibility ALTERs for existing deployments."""
+    # Create tables for newly-added models (safe no-op if already exist)
+    try:
+        db.create_all()
+    except Exception:
+        app.logger.exception("db.create_all failed during schema compat")
     if db.engine.dialect.name != "postgresql":
         return
     conn = db.engine.raw_connection()
