@@ -1,10 +1,11 @@
 import os
 import pytest
+import fakeredis
 from app import create_app
 from app.config import Settings
 from app.extensions import db
-from app.extensions import redis_client
 from app import models  # noqa: F401 - ensure models are registered
+from app import extensions
 
 
 class TestSettings(Settings):
@@ -30,19 +31,23 @@ def app_fixture():
     )
     app = create_app(settings)
     app.config.update(TESTING=True)
+
+    # Replace global redis_client with fakeredis
+    fake_redis = fakeredis.FakeRedis(decode_responses=True)
+    extensions.redis_client = fake_redis
+
+    # Also patch it in modules that import it directly
+    from app.routes import auth
+    auth.redis_client = fake_redis
+
+    from app.services import cache
+    cache.redis_client = fake_redis
+
     _setup_db(app)
-    try:
-        redis_client.flushdb()
-    except Exception:
-        pass
     yield app
     with app.app_context():
         db.session.remove()
         db.drop_all()
-    try:
-        redis_client.flushdb()
-    except Exception:
-        pass
 
 
 @pytest.fixture()
