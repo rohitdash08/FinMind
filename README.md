@@ -193,3 +193,27 @@ finmind/
 ---
 
 MIT Licensed. Built with ❤️.
+
+## Weekly Financial Digest
+
+FinMind generates smart weekly summaries with trends, insights, and actionable recommendations.
+
+### API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/digest/weekly` | Get weekly financial digest (optional `?end_date=YYYY-MM-DD`) |
+| POST | `/digest/weekly/send` | Generate and email the digest |
+
+### Digest Contents
+- **Summary**: Total income, spending, net flow, transaction count, average daily spending
+- **Week-over-week comparison**: Income and spending trends vs previous 7 days
+- **Top spending categories**: Top 5 categories with amounts and percentages
+- **Daily breakdown**: Per-day spending and income for the full week
+- **Upcoming bills**: Bills due in the next 7 days
+- **Smart insights**: Automated observations including:
+  - Spending trend alerts (up/down vs previous week)
+  - Biggest spending day identification
+  - Net positive/negative week summary
+  - Upcoming bill reminders
+  - Category dominance warnings
