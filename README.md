@@ -193,3 +193,38 @@ finmind/
 ---
 
 MIT Licensed. Built with ❤️.
+
+## Multi-Account Financial Overview
+
+FinMind supports multiple financial accounts per user, providing a unified dashboard view.
+
+### Account Types
+- `CHECKING` — Bank checking accounts
+- `SAVINGS` — Savings accounts
+- `CREDIT_CARD` — Credit cards (negative balance = owed)
+- `CASH` — Cash on hand
+- `INVESTMENT` — Investment accounts
+- `OTHER` — Any other account type
+
+### API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/accounts` | List all active accounts |
+| POST | `/accounts` | Create a new account |
+| GET | `/accounts/<id>` | Get single account details |
+| PUT | `/accounts/<id>` | Update an account |
+| DELETE | `/accounts/<id>` | Soft-delete an account |
+| GET | `/accounts/overview` | Aggregated multi-account dashboard |
+
+### Overview Dashboard Response
+The `/accounts/overview` endpoint returns:
+- `total_balance` — Sum of all account balances
+- `total_assets` — Sum of positive balances
+- `total_liabilities` — Sum of negative balances (credit cards, etc.)
+- `net_worth` — Assets + liabilities
+- `accounts` — Per-account details with 30-day spending/income summary
+- `by_type` — Balance totals grouped by account type
+
+### Linking Expenses to Accounts
+Expenses now support an optional `account_id` field. When set, the overview dashboard includes per-account spending and income summaries for the last 30 days.
