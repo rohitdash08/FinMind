@@ -133,3 +133,149 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+# ============== Savings Goal Models ==============
+from datetime import datetime
+from enum import Enum
+from decimal import Decimal
+from sqlalchemy import Enum as SAEnum, Index, CheckConstraint
+from .extensions import db
+
+
+class GoalStatus(str, Enum):
+    ACTIVE = "active"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
+
+
+class SavingsGoal(db.Model):
+    """User savings goal"""
+    __tablename__ = "savings_goals"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    name = db.Column(db.String(200), nullable=False)
+    target_amount = db.Column(db.Numeric(12, 2), nullable=False)
+    current_amount = db.Column(db.Numeric(12, 2), default=Decimal("0"), nullable=False)
+    currency = db.Column(db.String(10), default="INR", nullable=False)
+    deadline = db.Column(db.Date, nullable=True)
+    status = db.Column(SAEnum(GoalStatus), default=GoalStatus.ACTIVE, nullable=False)
+    description = db.Column(db.String(500), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    contributions = db.relationship("SavingsContribution", back_populates="goal", lazy="dynamic", cascade="all, delete-orphan")
+    milestones = db.relationship("SavingsMilestone", back_populates="goal", lazy="dynamic", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        Index("idx_savings_goals_user_status", "user_id", "status"),
+        Index("idx_savings_goals_user_deadline", "user_id", "deadline"),
+        CheckConstraint("target_amount > 0", name="ck_savings_goal_target_positive"),
+        CheckConstraint("current_amount >= 0", name="ck_savings_goal_current_non_negative"),
+    )
+
+    @property
+    def progress_percentage(self) -> float:
+        if self.target_amount <= 0:
+            return 0.0
+        pct = float(self.current_amount / self.target_amount * 100)
+        return min(pct, 100.0)
+
+    @property
+    def remaining_amount(self) -> Decimal:
+        remaining = self.target_amount - self.current_amount
+        return max(remaining, Decimal("0"))
+
+    @property
+    def is_overdue(self) -> bool:
+        if not self.deadline:
+            return False
+        from datetime import date
+        return self.deadline < date.today() and self.status == GoalStatus.ACTIVE
+
+    def is_completed(self) -> bool:
+        return self.current_amount >= self.target_amount
+
+    def check_milestones(self) -> list:
+        achieved = []
+        existing = {m.percentage: m for m in self.milestones.all()}
+        for pct in [25, 50, 75, 100]:
+            if self.progress_percentage >= pct:
+                if pct not in existing:
+                    milestone = SavingsMilestone(goal_id=self.id, percentage=pct, achieved_at=datetime.utcnow())
+                    db.session.add(milestone)
+                    achieved.append(pct)
+                elif not existing[pct].achieved_at:
+                    existing[pct].achieved_at = datetime.utcnow()
+                    achieved.append(pct)
+        return achieved
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "name": self.name,
+            "target_amount": float(self.target_amount),
+            "current_amount": float(self.current_amount),
+            "remaining_amount": float(self.remaining_amount),
+            "progress_percentage": round(self.progress_percentage, 2),
+            "currency": self.currency,
+            "deadline": self.deadline.isoformat() if self.deadline else None,
+            "status": self.status.value,
+            "description": self.description,
+            "is_overdue": self.is_overdue,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
+class SavingsContribution(db.Model):
+    __tablename__ = "savings_contributions"
+
+    id = db.Column(db.Integer, primary_key=True)
+    goal_id = db.Column(db.Integer, db.ForeignKey("savings_goals.id"), nullable=False)
+    amount = db.Column(db.Numeric(12, 2), nullable=False)
+    currency = db.Column(db.String(10), default="INR", nullable=False)
+    note = db.Column(db.String(500), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    goal = db.relationship("SavingsGoal", back_populates="contributions")
+
+    __table_args__ = (
+        Index("idx_contributions_goal_created", "goal_id", "created_at"),
+        CheckConstraint("amount > 0", name="ck_contribution_positive"),
+    )
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "goal_id": self.goal_id,
+            "amount": float(self.amount),
+            "currency": self.currency,
+            "note": self.note,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class SavingsMilestone(db.Model):
+    __tablename__ = "savings_milestones"
+
+    id = db.Column(db.Integer, primary_key=True)
+    goal_id = db.Column(db.Integer, db.ForeignKey("savings_goals.id"), nullable=False)
+    percentage = db.Column(db.Integer, nullable=False)
+    achieved_at = db.Column(db.DateTime, nullable=True)
+
+    goal = db.relationship("SavingsGoal", back_populates="milestones")
+
+    __table_args__ = (
+        Index("idx_milestones_goal_pct", "goal_id", "percentage"),
+    )
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "goal_id": self.goal_id,
+            "percentage": self.percentage,
+            "achieved_at": self.achieved_at.isoformat() if self.achieved_at else None,
+        }
