@@ -52,6 +52,9 @@ def create_app(settings: Settings | None = None) -> Flask:
     # Blueprint routes
     register_routes(app)
 
+    # Background job worker (APScheduler)
+    _start_job_worker(app)
+
     # Backward-compatible schema patch for existing databases.
     with app.app_context():
         _ensure_schema_compatibility(app)
@@ -94,6 +97,27 @@ def create_app(settings: Settings | None = None) -> Flask:
                 conn.close()
 
     return app
+
+
+def _start_job_worker(app: Flask) -> None:
+    """Start APScheduler to poll the job queue periodically."""
+    try:
+        from apscheduler.schedulers.background import BackgroundScheduler
+        from .services.job_worker import process_batch, retry_scheduled_jobs
+
+        scheduler = BackgroundScheduler(daemon=True)
+
+        def _tick():
+            """Process jobs in an application context."""
+            with app.app_context():
+                retry_scheduled_jobs()
+                process_batch(batch_size=5)
+
+        scheduler.add_job(_tick, "interval", seconds=5, id="job_worker_tick")
+        scheduler.start()
+        app.logger.info("Job worker scheduler started (interval=5s)")
+    except Exception:
+        app.logger.exception("Failed to start job worker scheduler")
 
 
 def _ensure_schema_compatibility(app: Flask) -> None:
