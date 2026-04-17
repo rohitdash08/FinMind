@@ -7,6 +7,7 @@ from .insights import bp as insights_bp
 from .categories import bp as categories_bp
 from .docs import bp as docs_bp
 from .dashboard import bp as dashboard_bp
+from .digest import bp as digest_bp
 
 
 def register_routes(app: Flask):
