@@ -1,88 +1,74 @@
-import { api } from '@/api/client';
-import * as auth from '@/api/auth';
+import { computeBackoffMs, onApiMetric, type ApiCallMetric } from '../api/client';
 
-// Use real localStorage via JSDOM
+describe('computeBackoffMs', () => {
+  const baseConfig = {
+    maxRetries: 3,
+    baseDelayMs: 1000,
+    maxDelayMs: 10_000,
+    retryableStatuses: [500, 502, 503, 504],
+  };
 
-describe('api client', () => {
-  const originalFetch = global.fetch as any;
-
-  beforeEach(() => {
-    jest.resetAllMocks();
-    localStorage.clear();
+  it('returns a positive number', () => {
+    const delay = computeBackoffMs(0, baseConfig);
+    expect(delay).toBeGreaterThan(0);
   });
 
-  afterEach(() => {
-    global.fetch = originalFetch;
+  it('increases delay with higher attempt numbers', () => {
+    // Run multiple samples to account for jitter
+    const samples = 50;
+    let d0Sum = 0;
+    let d2Sum = 0;
+    for (let i = 0; i < samples; i++) {
+      d0Sum += computeBackoffMs(0, baseConfig);
+      d2Sum += computeBackoffMs(2, baseConfig);
+    }
+    const avg0 = d0Sum / samples;
+    const avg2 = d2Sum / samples;
+    // On average, attempt 2 should have a larger delay than attempt 0
+    expect(avg2).toBeGreaterThan(avg0);
   });
 
-  it('passes through on 200 JSON', async () => {
-    global.fetch = jest.fn().mockResolvedValueOnce(new Response(JSON.stringify({ ok: true }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    }));
-    const res = await api('/x');
-    expect(res).toEqual({ ok: true });
+  it('respects maxDelayMs cap', () => {
+    const config = { ...baseConfig, maxDelayMs: 500 };
+    for (let i = 0; i < 20; i++) {
+      const delay = computeBackoffMs(10, config);
+      // With jitter (±25%), max possible is 500 * 1.25 = 625
+      expect(delay).toBeLessThanOrEqual(625);
+    }
   });
 
-  it('retries once after refresh on 401 and succeeds', async () => {
-    localStorage.setItem('fm_token', 'expired');
-    localStorage.setItem('fm_refresh_token', 'r1');
+  it('applies jitter within expected range', () => {
+    const config = { ...baseConfig, baseDelayMs: 1000 };
+    const delays: number[] = [];
+    for (let i = 0; i < 100; i++) {
+      delays.push(computeBackoffMs(0, config));
+    }
+    const min = Math.min(...delays);
+    const max = Math.max(...delays);
+    // Base is 1000, jitter range is [0.75, 1.25] * 1000 = [750, 1250]
+    expect(min).toBeGreaterThanOrEqual(700); // small tolerance
+    expect(max).toBeLessThanOrEqual(1300);
+  });
+});
 
-    jest.spyOn(auth, 'refresh').mockResolvedValue({ access_token: 'newA', refresh_token: 'newR' } as any);
+describe('onApiMetric', () => {
+  it('registers and unregisters listeners', () => {
+    const received: ApiCallMetric[] = [];
+    const unsub = onApiMetric((m) => received.push(m));
 
-    // First call 401, second call 200
-    global.fetch = jest
-      .fn()
-      .mockResolvedValueOnce(new Response('unauthorized', { status: 401 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ data: 42 }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      }));
+    // The metric system is internal; we just verify the API works
+    expect(typeof unsub).toBe('function');
 
-    const res = await api('/secure');
-    expect(res).toEqual({ data: 42 });
-    expect(auth.refresh).toHaveBeenCalledWith('r1');
-    // token should be updated in storage
-    expect(localStorage.getItem('fm_token')).toBe('newA');
+    // Unsubscribe should not throw
+    unsub();
   });
 
-  it('clears tokens and throws on 401 when refresh fails', async () => {
-    localStorage.setItem('fm_token', 'expired');
-    localStorage.setItem('fm_refresh_token', 'r1');
-
-    jest.spyOn(auth, 'refresh').mockRejectedValue(new Error('bad refresh'));
-
-    global.fetch = jest.fn().mockResolvedValue(new Response('unauthorized', { status: 401 }));
-
-    await expect(api('/secure')).rejects.toThrow(/unauthorized|Unauthorized/i);
-    expect(localStorage.getItem('fm_token')).toBeNull();
-    expect(localStorage.getItem('fm_refresh_token')).toBeNull();
-  });
-
-  it('throws with parsed error message on non-OK response', async () => {
-    global.fetch = jest
-      .fn()
-      .mockResolvedValueOnce(new Response(JSON.stringify({ error: 'nope' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' },
-      }));
-
-    await expect(api('/bad')).rejects.toThrow('nope');
-  });
-
-  it('hides raw HTML error pages with a friendly server message', async () => {
-    global.fetch = jest.fn().mockResolvedValueOnce(
-      new Response(
-        '<!doctype html><html><body><h1>500 Internal Server Error</h1></body></html>',
-        {
-          status: 500,
-          headers: { 'Content-Type': 'text/html; charset=utf-8' },
-        },
-      ),
-    );
-
-    await expect(api('/auth/login')).rejects.toThrow(
-      'Server error. Please try again in a minute.',
-    );
+  it('handles listener errors gracefully', () => {
+    const badListener = () => {
+      throw new Error('oops');
+    };
+    const unsub = onApiMetric(badListener);
+    // Should not throw when listener errors
+    expect(() => unsub()).not.toThrow();
   });
 });

@@ -15,6 +15,7 @@ import {
   type Reminder,
 } from '@/api/reminders';
 import { listBills, type Bill } from '@/api/bills';
+import { JobMonitor } from '@/components/jobs/JobMonitor';
 
 export function Reminders() {
   const { toast } = useToast();
@@ -292,6 +293,14 @@ export function Reminders() {
           </div>
         </div>
       )}
+      {/* Job Monitor - Background job retry & monitoring dashboard */}
+      <div className="card fade-in-up">
+        <h3 className="text-base font-semibold mb-3">Job Monitor</h3>
+        <p className="text-sm text-muted-foreground mb-4">
+          Track background job delivery status, retry failed jobs, and monitor API health in real-time.
+        </p>
+        <JobMonitor />
+      </div>
     </div>
   );
 }

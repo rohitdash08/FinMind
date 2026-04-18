@@ -183,6 +183,62 @@ finmind/
 - Primary: schedule via APScheduler in-process with persistence in Postgres (job table) and a simple daily trigger. Alternatively, use Railway/Render cron to hit `/reminders/run`.
 - Twilio WhatsApp free trial supports sandbox; email via SMTP (e.g., SendGrid free tier).
 
+## Resilient Background Job Retry & Monitoring
+
+The frontend includes a production-ready system for resilient API communication and background job monitoring.
+
+### API Client Retry (`app/src/api/client.ts`)
+
+The `api()` function now supports automatic retry with exponential backoff:
+
+- **Configurable retries**: Default 3 retries with exponential backoff (500ms base, 10s max)
+- **Jitter**: ±25% random jitter prevents thundering herd problems
+- **Retryable statuses**: 408, 429, 500, 502, 503, 504 by default
+- **Network errors**: Automatically retried (connection failures, timeouts)
+- **Auth refresh**: JWT token refresh still works on first 401 before retry logic kicks in
+- **Metrics**: Built-in `onApiMetric()` listener for real-time monitoring
+
+```typescript
+// Custom retry config per call
+const data = await api('/important-endpoint', { method: 'POST', body: payload }, {
+  maxRetries: 5,
+  baseDelayMs: 1000,
+});
+```
+
+### useRetry Hook (`app/src/hooks/useRetry.ts`)
+
+React hook for wrapping any async function with retry logic:
+
+```typescript
+const { execute, loading, error, attempts } = useRetry(
+  () => fetchCriticalData(),
+  {
+    config: { maxRetries: 3 },
+    onRetry: (attempt, err) => console.log(`Retry #${attempt}: ${err}`),
+    onFailure: (err) => toast({ title: 'Failed after retries' }),
+  },
+);
+```
+
+### Job Monitor Dashboard (`app/src/components/jobs/JobMonitor.tsx`)
+
+Real-time dashboard integrated into the Reminders page showing:
+
+- **Status summary cards**: Pending, Processing, Sent, Failed, Retrying — click to filter
+- **Job list**: Shows each job's status, attempt count, last error, and next retry time
+- **Manual retry**: One-click retry for failed jobs
+- **Live API metrics**: Real-time feed of API calls with status, duration, and retry indicators
+- **Auto-refresh**: Polls every 30 seconds
+
+### Job Tracking API (`app/src/api/jobs.ts`)
+
+- `listJobs({ status?, limit? })` — Fetch tracked jobs
+- `retryJob(jobId)` — Manually retry a failed job
+- `computeJobSummary(jobs)` — Compute status counts client-side
+
+---
+
 ## Security & Scalability
 - JWT access/refresh, secure cookies OR Authorization header.
 - RBAC-ready via roles on `users.role`.
