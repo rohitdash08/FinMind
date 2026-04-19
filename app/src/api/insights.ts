@@ -21,6 +21,22 @@ export type BudgetSuggestion = {
   net_flow?: number;
 };
 
+export type WeeklySmartDigest = {
+  period: string;
+  total_spend: number;
+  prev_total_spend: number;
+  total_change_pct: number;
+  significant_changes: Array<{
+    category: string;
+    current: number;
+    previous: number;
+    change_pct: number;
+  }>;
+  insights: string[];
+  prediction: string;
+  trend_analysis?: string;
+};
+
 export async function getBudgetSuggestion(params?: {
   month?: string;
   geminiApiKey?: string;
@@ -31,4 +47,9 @@ export async function getBudgetSuggestion(params?: {
   if (params?.geminiApiKey) headers['X-Gemini-Api-Key'] = params.geminiApiKey;
   if (params?.persona) headers['X-Insight-Persona'] = params.persona;
   return api<BudgetSuggestion>(`/insights/budget-suggestion${monthQuery}`, { headers });
+}
+
+export async function getWeeklySmartDigest(date?: string): Promise<WeeklySmartDigest> {
+  const query = date ? `?date=${encodeURIComponent(date)}` : '';
+  return api<WeeklySmartDigest>(`/insights/weekly-digest${query}`);
 }

@@ -2,6 +2,7 @@ from datetime import date
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..services.ai import monthly_budget_suggestion
+from ..services.weekly_digest import get_weekly_smart_digest
 import logging
 
 bp = Blueprint("insights", __name__)
@@ -23,3 +24,20 @@ def budget_suggestion():
     )
     logger.info("Budget suggestion served user=%s month=%s", uid, ym)
     return jsonify(suggestion)
+
+
+@bp.get("/weekly-digest")
+@jwt_required()
+def weekly_digest():
+    uid = int(get_jwt_identity())
+    target_str = request.args.get("date")
+    target_date = None
+    if target_str:
+        try:
+            target_date = date.fromisoformat(target_str)
+        except ValueError:
+            return jsonify({"error": "Invalid date format, use YYYY-MM-DD"}), 400
+    
+    digest = get_weekly_smart_digest(uid, target_date)
+    logger.info("Weekly smart digest served user=%s", uid)
+    return jsonify(digest)
