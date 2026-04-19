@@ -22,6 +22,7 @@ import {
 import { getDashboardSummary, type DashboardSummary } from '@/api/dashboard';
 import { useNavigate } from 'react-router-dom';
 import { formatMoney } from '@/lib/currency';
+import { WeeklySmartDigest } from '@/components/WeeklySmartDigest';
 
 function currency(n: number, code?: string) {
   return formatMoney(Number(n || 0), code);
@@ -130,6 +131,8 @@ export function Dashboard() {
           </div>
         </div>
       </div>
+
+      <WeeklySmartDigest />
 
       {error && (
         <div className="error mb-6">{error}. Showing empty fallback state.</div>
