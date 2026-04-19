@@ -1,5 +1,6 @@
 import json
 from urllib import request
+from datetime import datetime, timedelta
 
 from sqlalchemy import extract, func
 
@@ -166,9 +167,156 @@ def _gemini_budget_suggestion(
     return parsed
 
 
-def monthly_budget_suggestion(
+def _weekly_totals(uid: int, week_start: str, week_end: str) -> tuple[float, float]:
+    start_date = datetime.strptime(week_start, "%Y-%m-%d").date()
+    end_date = datetime.strptime(week_end, "%Y-%m-%d").date()
+    
+    income = (
+        db.session.query(func.coalesce(func.sum(Expense.amount), 0))
+        .filter(
+            Expense.user_id == uid,
+            Expense.spent_at >= start_date,
+            Expense.spent_at <= end_date,
+            Expense.expense_type == "INCOME",
+        )
+        .scalar()
+    )
+    expenses = (
+        db.session.query(func.coalesce(func.sum(Expense.amount), 0))
+        .filter(
+            Expense.user_id == uid,
+            Expense.spent_at >= start_date,
+            Expense.spent_at <= end_date,
+            Expense.expense_type != "INCOME",
+        )
+        .scalar()
+    )
+    return float(income or 0), float(expenses or 0)
+
+
+def _category_spend_weekly(uid: int, week_start: str, week_end: str) -> dict[str, float]:
+    start_date = datetime.strptime(week_start, "%Y-%m-%d").date()
+    end_date = datetime.strptime(week_end, "%Y-%m-%d").date()
+    
+    rows = (
+        db.session.query(
+            Expense.category_id, func.coalesce(func.sum(Expense.amount), 0)
+        )
+        .filter(
+            Expense.user_id == uid,
+            Expense.spent_at >= start_date,
+            Expense.spent_at <= end_date,
+            Expense.expense_type != "INCOME",
+        )
+        .group_by(Expense.category_id)
+        .all()
+    )
+    return {str(k or "uncat"): float(v) for k, v in rows}
+
+
+def _build_weekly_analytics(uid: int, week_start: str, week_end: str) -> dict:
+    _, current_expenses = _weekly_totals(uid, week_start, week_end)
+    
+    start_date = datetime.strptime(week_start, "%Y-%m-%d").date()
+    prev_week_start = (start_date - timedelta(days=7)).isoformat()
+    prev_week_end = (start_date - timedelta(days=1)).isoformat()
+    
+    _, prev_expenses = _weekly_totals(uid, prev_week_start, prev_week_end)
+    
+    if prev_expenses > 0:
+        wow = round(((current_expenses - prev_expenses) / prev_expenses) * 100, 2)
+    else:
+        wow = 0.0
+    cats = _category_spend_weekly(uid, week_start, week_end)
+    top = sorted(cats.items(), key=lambda x: x[1], reverse=True)[:3]
+    return {
+        "week_over_week_change_pct": wow,
+        "current_week_expenses": round(current_expenses, 2),
+        "previous_week_expenses": round(prev_expenses, 2),
+        "top_categories": [{"category_id": k, "amount": round(v, 2)} for k, v in top],
+    }
+
+
+def _heuristic_weekly_digest(
+    uid: int, week_start: str, week_end: str, persona: str, warnings: list[str] | None = None
+):
+    income, expenses = _weekly_totals(uid, week_start, week_end)
+    target = round((expenses * 0.9) if expenses else 150.0, 2)
+    payload = {
+        "week_start": week_start,
+        "week_end": week_end,
+        "suggested_total": target,
+        "breakdown": {
+            "needs": round(target * 0.5, 2),
+            "wants": round(target * 0.3, 2),
+            "savings": round(target * 0.2, 2),
+        },
+        "tips": [
+            "Review your subscriptions for any unused services.",
+            "Avoid eating out for the next 2 days to save on dining.",
+        ],
+        "analytics": _build_weekly_analytics(uid, week_start, week_end),
+        "persona": persona,
+        "method": "heuristic",
+    }
+    if warnings:
+        payload["warnings"] = warnings
+    payload["net_flow"] = round(income - expenses, 2)
+    return payload
+
+
+def _gemini_weekly_digest(
+    uid: int, week_start: str, week_end: str, api_key: str, model: str, persona: str
+) -> dict:
+    categories = _category_spend_weekly(uid, week_start, week_end)
+    analytics = _build_weekly_analytics(uid, week_start, week_end)
+    prompt = (
+        f"{persona}\n"
+        "Use this week data and return strict JSON only with keys: "
+        "summary (short 2 sentences string), highlighted_trend (string), action_items(list of 3 strings), "
+        "score (integer 1-100 rating financial health).\n"
+        f"week_start={week_start}\n"
+        f"week_end={week_end}\n"
+        f"category_spend={categories}\n"
+        f"analytics={analytics}"
+    )
+    url = (
+        "https://generativelanguage.googleapis.com/v1beta/models/"
+        f"{model}:generateContent?key={api_key}"
+    )
+    body = json.dumps(
+        {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {"temperature": 0.2},
+        }
+    ).encode("utf-8")
+    req = request.Request(
+        url=url,
+        data=body,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with request.urlopen(req, timeout=10) as resp:  # nosec B310
+        payload = json.loads(resp.read().decode("utf-8"))
+    text = (
+        payload.get("candidates", [{}])[0]
+        .get("content", {})
+        .get("parts", [{}])[0]
+        .get("text", "")
+    )
+    parsed = _extract_json_object(text)
+    parsed["week_start"] = week_start
+    parsed["week_end"] = week_end
+    parsed["analytics"] = analytics
+    parsed["persona"] = persona
+    parsed["method"] = "gemini"
+    return parsed
+
+
+def weekly_financial_summary(
     uid: int,
-    ym: str,
+    week_start: str,
+    week_end: str,
     gemini_api_key: str | None = None,
     gemini_model: str | None = None,
     persona: str | None = None,
@@ -179,9 +327,10 @@ def monthly_budget_suggestion(
 
     if key:
         try:
-            return _gemini_budget_suggestion(uid, ym, key, model, persona_text)
-        except Exception:
-            return _heuristic_budget(
-                uid, ym, persona_text, warnings=["gemini_unavailable"]
+            return _gemini_weekly_digest(uid, week_start, week_end, key, model, persona_text)
+        except Exception as e:
+            return _heuristic_weekly_digest(
+                uid, week_start, week_end, persona_text, warnings=[f"gemini_unavailable: {str(e)}"]
             )
-    return _heuristic_budget(uid, ym, persona_text)
+    return _heuristic_weekly_digest(uid, week_start, week_end, persona_text)
+
