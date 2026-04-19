@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -10,7 +11,7 @@ import {
   FinancialCardTitle,
 } from '@/components/ui/financial-card';
 import { useToast } from '@/hooks/use-toast';
-import { getBudgetSuggestion, type BudgetSuggestion } from '@/api/insights';
+import { getBudgetSuggestion, getWeeklyDigest, type BudgetSuggestion, type WeeklyDigest } from '@/api/insights';
 import { formatMoney } from '@/lib/currency';
 
 const PERSONAS = [
@@ -21,23 +22,45 @@ const PERSONAS = [
 
 export function Analytics() {
   const { toast } = useToast();
+  const [viewType, setViewType] = useState<'monthly' | 'weekly'>('monthly');
   const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  
+  // Weekly dates
+  const today = new Date();
+  const startOfWeek = new Date(today);
+  startOfWeek.setDate(today.getDate() - today.getDay());
+  const [weekStart, setWeekStart] = useState(() => startOfWeek.toISOString().slice(0, 10));
+  
+  const endOfWeek = new Date(startOfWeek);
+  endOfWeek.setDate(startOfWeek.getDate() + 6);
+  const [weekEnd, setWeekEnd] = useState(() => endOfWeek.toISOString().slice(0, 10));
+
   const [persona, setPersona] = useState(PERSONAS[0]);
   const [geminiKey, setGeminiKey] = useState('');
   const [loading, setLoading] = useState(true);
-  const [data, setData] = useState<BudgetSuggestion | null>(null);
+  const [data, setData] = useState<BudgetSuggestion | WeeklyDigest | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
     setError(null);
     try {
-      const payload = await getBudgetSuggestion({
-        month,
-        persona,
-        geminiApiKey: geminiKey.trim() || undefined,
-      });
-      setData(payload);
+      if (viewType === 'monthly') {
+        const payload = await getBudgetSuggestion({
+          month,
+          persona,
+          geminiApiKey: geminiKey.trim() || undefined,
+        });
+        setData(payload);
+      } else {
+        const payload = await getWeeklyDigest({
+          weekStart,
+          weekEnd,
+          persona,
+          geminiApiKey: geminiKey.trim() || undefined,
+        });
+        setData(payload);
+      }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to load insights';
       setError(message);
@@ -50,16 +73,19 @@ export function Analytics() {
   useEffect(() => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [viewType]);
 
   const breakdown = useMemo(() => {
-    if (!data) return [];
+    if (!data || !data.breakdown) return [];
     return [
       { label: 'Needs', value: data.breakdown.needs },
       { label: 'Wants', value: data.breakdown.wants },
       { label: 'Savings', value: data.breakdown.savings },
     ];
   }, [data]);
+
+  const isWeekly = viewType === 'weekly';
+  const analyticsData = data?.analytics as any;
 
   return (
     <div className="page-wrap space-y-6">
@@ -71,17 +97,57 @@ export function Analytics() {
               Live spending analytics with Gemini-powered budget coaching.
             </p>
           </div>
+          
+          <div className="flex gap-2">
+            <Button 
+              variant={viewType === 'monthly' ? 'default' : 'outline'} 
+              onClick={() => setViewType('monthly')}
+            >
+              Monthly Budget
+            </Button>
+            <Button 
+              variant={viewType === 'weekly' ? 'default' : 'outline'} 
+              onClick={() => setViewType('weekly')}
+            >
+              Weekly Digest
+            </Button>
+          </div>
+          
           <div className="grid gap-2 md:grid-cols-4">
-            <div>
-              <Label htmlFor="analytics-month">Month</Label>
-              <Input
-                id="analytics-month"
-                aria-label="analytics month"
-                type="month"
-                value={month}
-                onChange={(e) => setMonth(e.target.value)}
-              />
-            </div>
+            {isWeekly ? (
+              <>
+                <div>
+                  <Label htmlFor="analytics-week-start">Week Start</Label>
+                  <Input
+                    id="analytics-week-start"
+                    type="date"
+                    value={weekStart}
+                    onChange={(e) => setWeekStart(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="analytics-week-end">Week End</Label>
+                  <Input
+                    id="analytics-week-end"
+                    type="date"
+                    value={weekEnd}
+                    onChange={(e) => setWeekEnd(e.target.value)}
+                  />
+                </div>
+              </>
+            ) : (
+              <div className="md:col-span-2">
+                <Label htmlFor="analytics-month">Month</Label>
+                <Input
+                  id="analytics-month"
+                  aria-label="analytics month"
+                  type="month"
+                  value={month}
+                  onChange={(e) => setMonth(e.target.value)}
+                />
+              </div>
+            )}
+            
             <div>
               <Label htmlFor="analytics-persona">Persona</Label>
               <select
@@ -98,8 +164,8 @@ export function Analytics() {
                 ))}
               </select>
             </div>
-            <div className="md:col-span-2">
-              <Label htmlFor="analytics-key">Gemini API Key (optional BYOK)</Label>
+            <div>
+              <Label htmlFor="analytics-key">Gemini API Key</Label>
               <Input
                 id="analytics-key"
                 aria-label="gemini api key"
@@ -122,6 +188,23 @@ export function Analytics() {
         <div className="card text-red-600">{error}</div>
       ) : data ? (
         <div className="space-y-6">
+          {isWeekly && (data as WeeklyDigest).summary && (
+            <FinancialCard variant="financial" className="bg-primary/5 border-primary/20">
+              <FinancialCardHeader>
+                <FinancialCardTitle className="text-xl">Weekly Summary</FinancialCardTitle>
+                {data.score && <Badge variant="secondary">Health Score: {data.score}/100</Badge>}
+              </FinancialCardHeader>
+              <FinancialCardContent>
+                <p className="text-lg">{(data as WeeklyDigest).summary}</p>
+                {(data as WeeklyDigest).highlighted_trend && (
+                  <p className="mt-2 text-sm font-medium text-amber-700">
+                    💡 Trend: {(data as WeeklyDigest).highlighted_trend}
+                  </p>
+                )}
+              </FinancialCardContent>
+            </FinancialCard>
+          )}
+          
           <div className="grid gap-4 md:grid-cols-4">
             <FinancialCard variant="financial">
               <FinancialCardHeader className="pb-2">
@@ -133,22 +216,30 @@ export function Analytics() {
               <FinancialCardHeader className="pb-2">
                 <FinancialCardTitle className="text-sm">Suggested Budget</FinancialCardTitle>
               </FinancialCardHeader>
-              <FinancialCardContent>{formatMoney(data.suggested_total)}</FinancialCardContent>
+              <FinancialCardContent>{formatMoney(data.suggested_total || 0)}</FinancialCardContent>
             </FinancialCard>
             <FinancialCard variant="financial">
               <FinancialCardHeader className="pb-2">
-                <FinancialCardTitle className="text-sm">MoM Expense Change</FinancialCardTitle>
+                <FinancialCardTitle className="text-sm">
+                  {isWeekly ? 'WoW Expense Change' : 'MoM Expense Change'}
+                </FinancialCardTitle>
               </FinancialCardHeader>
               <FinancialCardContent>
-                {data.analytics.month_over_month_change_pct.toFixed(2)}%
+                {isWeekly 
+                  ? analyticsData?.week_over_week_change_pct?.toFixed(2)
+                  : analyticsData?.month_over_month_change_pct?.toFixed(2)}%
               </FinancialCardContent>
             </FinancialCard>
             <FinancialCard variant="financial">
               <FinancialCardHeader className="pb-2">
-                <FinancialCardTitle className="text-sm">Current Month Expenses</FinancialCardTitle>
+                <FinancialCardTitle className="text-sm">
+                  {isWeekly ? 'Current Week Expenses' : 'Current Month Expenses'}
+                </FinancialCardTitle>
               </FinancialCardHeader>
               <FinancialCardContent>
-                {formatMoney(data.analytics.current_month_expenses)}
+                {formatMoney(isWeekly 
+                  ? analyticsData?.current_week_expenses
+                  : analyticsData?.current_month_expenses)}
               </FinancialCardContent>
             </FinancialCard>
           </div>
@@ -172,17 +263,32 @@ export function Analytics() {
 
           <FinancialCard variant="financial">
             <FinancialCardHeader>
-              <FinancialCardTitle>Coach Tips</FinancialCardTitle>
+              <FinancialCardTitle>{isWeekly ? 'Action Items & Tips' : 'Coach Tips'}</FinancialCardTitle>
             </FinancialCardHeader>
             <FinancialCardContent>
+              {isWeekly && (data as WeeklyDigest).action_items?.length ? (
+                <div className="mb-4">
+                  <h4 className="font-semibold mb-2">Action Items:</h4>
+                  <ul className="list-disc pl-5 space-y-1 text-primary">
+                    {(data as WeeklyDigest).action_items?.map((item, i) => (
+                      <li key={i}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+              
               {data.tips?.length ? (
-                <ul className="list-disc pl-5 space-y-1">
-                  {data.tips.map((tip) => (
-                    <li key={tip}>{tip}</li>
-                  ))}
-                </ul>
+                <div>
+                  {isWeekly && <h4 className="font-semibold mb-2">General Tips:</h4>}
+                  <ul className="list-disc pl-5 space-y-1">
+                    {data.tips.map((tip) => (
+                      <li key={tip}>{tip}</li>
+                    ))}
+                  </ul>
+                </div>
               ) : (
-                <div className="text-sm text-muted-foreground">No tips available for this month.</div>
+                !((data as WeeklyDigest).action_items?.length) && 
+                <div className="text-sm text-muted-foreground">No tips available for this period.</div>
               )}
               {data.warnings?.length ? (
                 <div className="mt-3 text-sm text-amber-700">
