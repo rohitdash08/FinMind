@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { FinancialCard, FinancialCardContent, FinancialCardDescription, FinancialCardFooter, FinancialCardHeader, FinancialCardTitle } from '@/components/ui/financial-card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, DollarSign, Plus, PieChart, TrendingDown, TrendingUp, Target, AlertCircle, Settings } from 'lucide-react';
+import { Calendar, DollarSign, Plus, PieChart, TrendingDown, TrendingUp, Target, AlertCircle, Settings, Loader2 } from 'lucide-react';
+import { useSavingsGoals } from '@/api/savings';
 
 const budgetCategories = [
   {
@@ -99,10 +100,13 @@ const budgetGoals = [
 
 export function Budgets() {
   const [selectedPeriod] = useState('monthly');
+  const { data: goals, isLoading } = useSavingsGoals();
   
   const totalAllocated = budgetCategories.reduce((sum, cat) => sum + cat.allocated, 0);
   const totalSpent = budgetCategories.reduce((sum, cat) => sum + cat.spent, 0);
   const totalRemaining = totalAllocated - totalSpent;
+
+  const displayGoals = goals && goals.length > 0 ? goals : budgetGoals;
 
   return (
     <div className="page-wrap">
@@ -279,46 +283,54 @@ export function Budgets() {
               </FinancialCardHeader>
               <FinancialCardContent>
                 <div className="space-y-4">
-                  {budgetGoals.map((goal) => {
-                    const percentage = (goal.current / goal.target) * 100;
-                    
-                    return (
-                      <div key={goal.id} className="interactive-row p-3 rounded-lg border border-border">
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="font-medium text-foreground text-sm">
-                            {goal.title}
+                  {isLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : (
+                    displayGoals.map((goal) => {
+                      const targetAmount = 'target_amount' in goal ? goal.target_amount : (goal as any).target;
+                      const currentAmount = 'current_amount' in goal ? goal.current_amount : (goal as any).current;
+                      const percentage = (currentAmount / targetAmount) * 100;
+                      
+                      return (
+                        <div key={goal.id} className="interactive-row p-3 rounded-lg border border-border">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="font-medium text-foreground text-sm">
+                              {goal.title}
+                            </div>
+                            <Badge 
+                              variant={
+                                goal.status === 'on-track' ? 'default' :
+                                goal.status === 'ahead' ? 'secondary' : 
+                                goal.status === 'completed' ? 'success' : 'destructive'
+                              }
+                              className="text-xs"
+                            >
+                              {goal.status.charAt(0).toUpperCase() + goal.status.slice(1)}
+                            </Badge>
                           </div>
-                          <Badge 
-                            variant={
-                              goal.status === 'on-track' ? 'default' :
-                              goal.status === 'ahead' ? 'secondary' : 'destructive'
-                            }
-                            className="text-xs"
-                          >
-                            {goal.status === 'on-track' ? 'On Track' :
-                             goal.status === 'ahead' ? 'Ahead' : 'Behind'}
-                          </Badge>
+                          <div className="space-y-2">
+                            <div className="flex justify-between text-sm">
+                              <span className="text-muted-foreground">
+                                ${currentAmount.toLocaleString()} / ${targetAmount.toLocaleString()}
+                              </span>
+                              <span className="text-foreground font-medium">
+                                {percentage.toFixed(0)}%
+                              </span>
+                            </div>
+                            <div className="chart-track">
+                              <div className="chart-fill-success" style={{ width: `${Math.min(percentage, 100)}%` }} />
+                            </div>
+                            <div className="flex justify-between text-xs text-muted-foreground">
+                              <span>Target: {goal.deadline || 'No deadline'}</span>
+                              {'monthlyTarget' in goal && <span>${(goal as any).monthlyTarget}/mo</span>}
+                            </div>
+                          </div>
                         </div>
-                        <div className="space-y-2">
-                          <div className="flex justify-between text-sm">
-                            <span className="text-muted-foreground">
-                              ${goal.current.toLocaleString()} / ${goal.target.toLocaleString()}
-                            </span>
-                            <span className="text-foreground font-medium">
-                              {percentage.toFixed(0)}%
-                            </span>
-                          </div>
-                          <div className="chart-track">
-                            <div className="chart-fill-success" style={{ width: `${Math.min(percentage, 100)}%` }} />
-                          </div>
-                          <div className="flex justify-between text-xs text-muted-foreground">
-                            <span>Target: {goal.deadline}</span>
-                            <span>${goal.monthlyTarget}/mo</span>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })
+                  )}
                 </div>
               </FinancialCardContent>
               <FinancialCardFooter>
