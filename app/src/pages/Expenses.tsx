@@ -48,8 +48,38 @@ import {
 import { listCategories, type Category } from '@/api/categories';
 import { formatMoney } from '@/lib/currency';
 
+import { Calendar, Download, Plus, Search, Trash2 } from 'lucide-react';
+
 export default function Expenses() {
   const { toast } = useToast();
+  
+  const onExportJSON = () => {
+    const blob = new Blob([JSON.stringify(allItems, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `expenses-${new Date().toISOString().slice(0, 10)}.json`;
+    link.click();
+  };
+
+  const onExportCSV = () => {
+    if (allItems.length === 0) return;
+    const headers = ['Date', 'Description', 'Category', 'Amount', 'Currency'];
+    const rows = allItems.map((e) => [
+      e.date.slice(0, 10),
+      `"${e.description.replace(/"/g, '""')}"`,
+      `"${categoryMap.get(e.category_id as number) || '—'}"`,
+      e.amount,
+      e.currency
+    ]);
+    const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `expenses-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+  };
   const getErrorMessage = (error: unknown, fallback: string) =>
     error instanceof Error ? error.message : fallback;
   const [items, setItems] = useState<Expense[]>([]);
@@ -554,6 +584,14 @@ export default function Expenses() {
         <div className="flex items-end gap-2">
           <Button variant="outline" onClick={() => { setFrom(''); setTo(''); setFilterCategoryId(''); setSearch(''); setPage(1); }}>Reset</Button>
           <Button onClick={() => { setPage(1); refresh(); }}>Apply</Button>
+          <div className="flex gap-1 ml-auto">
+            <Button variant="outline" size="sm" title="Export as JSON" onClick={onExportJSON}>
+              <Download className="w-4 h-4 mr-1" /> JSON
+            </Button>
+            <Button variant="outline" size="sm" title="Export as CSV" onClick={onExportCSV}>
+              <Download className="w-4 h-4 mr-1" /> CSV
+            </Button>
+          </div>
         </div>
       </div>
 

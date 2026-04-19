@@ -20,8 +20,11 @@ import {
   Plus,
 } from 'lucide-react';
 import { getDashboardSummary, type DashboardSummary } from '@/api/dashboard';
+import { useAccounts } from '@/api/accounts';
 import { useNavigate } from 'react-router-dom';
 import { formatMoney } from '@/lib/currency';
+import { Badge } from '@/components/ui/badge';
+import { Loader2 } from 'lucide-react';
 
 function currency(n: number, code?: string) {
   return formatMoney(Number(n || 0), code);
@@ -29,6 +32,7 @@ function currency(n: number, code?: string) {
 
 export function Dashboard() {
   const navigate = useNavigate();
+  const { data: accounts, isLoading: accountsLoading } = useAccounts();
   const [data, setData] = useState<DashboardSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -164,6 +168,41 @@ export function Dashboard() {
             </FinancialCardContent>
           </FinancialCard>
         ))}
+      </div>
+
+      {/* Financial Accounts Section */}
+      <div className="mb-8 fade-in-up">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="section-title">My Accounts</h2>
+          <Button variant="outline" size="sm" onClick={() => navigate('/account')}>
+            Manage
+          </Button>
+        </div>
+        <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+          {accountsLoading ? (
+            <div className="col-span-full flex justify-center py-4">
+              <Loader2 className="w-6 h-6 animate-spin text-primary" />
+            </div>
+          ) : accounts && accounts.length > 0 ? (
+            accounts.map((account) => (
+              <div key={account.id} className="bg-card border rounded-xl p-3 shadow-sm hover:shadow-md transition-all cursor-pointer group">
+                <div className="flex items-center justify-between mb-2">
+                  <Badge variant="outline" className="text-[10px] uppercase">{account.account_type}</Badge>
+                  <Wallet className="w-3 h-3 text-muted-foreground group-hover:text-primary" />
+                </div>
+                <div className="text-sm font-medium truncate mb-1">{account.name}</div>
+                <div className="text-lg font-bold">{currency(account.balance, account.currency)}</div>
+              </div>
+            ))
+          ) : (
+            <div className="col-span-full bg-muted/30 border border-dashed rounded-xl p-6 text-center">
+              <p className="text-sm text-muted-foreground mb-3">No accounts connected yet.</p>
+              <Button size="sm" onClick={() => navigate('/account')}>
+                <Plus className="w-3 h-3 mr-2" /> Add Your First Account
+              </Button>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="grid lg:grid-cols-3 gap-8">
