@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Menu, X, TrendingUp, ShieldCheck } from 'lucide-react';
+import { Menu, X, TrendingUp, ShieldCheck, Target } from 'lucide-react';
+
 import { getToken, getRefreshToken, clearToken, clearRefreshToken } from '@/lib/auth';
 import { useToast } from '@/components/ui/use-toast';
 import { logout as logoutApi } from '@/api/auth';
@@ -9,11 +10,13 @@ import { logout as logoutApi } from '@/api/auth';
 const navigation = [
   { name: 'Dashboard', href: '/dashboard' },
   { name: 'Budgets', href: '/budgets' },
+  { name: 'Savings', href: '/savings', icon: Target },
   { name: 'Bills', href: '/bills' },
   { name: 'Reminders', href: '/reminders' },
   { name: 'Expenses', href: '/expenses' },
   { name: 'Analytics', href: '/analytics' },
 ];
+
 
 export function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
@@ -69,12 +72,14 @@ export function Navbar() {
                   to={item.href}
                   className={
                     active
-                      ? 'rounded-full bg-secondary px-4 py-2 text-xs font-semibold text-secondary-foreground shadow-sm'
-                      : 'rounded-full px-4 py-2 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground'
+                      ? 'rounded-full bg-secondary px-4 py-2 text-xs font-semibold text-secondary-foreground shadow-sm flex items-center'
+                      : 'rounded-full px-4 py-2 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground flex items-center'
                   }
                 >
+                  {item.icon && <item.icon className="w-3.5 h-3.5 mr-1.5" />}
                   {item.name}
                 </Link>
+
               );
             })}
           </div>
@@ -124,12 +129,14 @@ export function Navbar() {
                     onClick={() => setIsOpen(false)}
                     className={
                       active
-                        ? 'block rounded-lg bg-secondary px-3 py-2 text-sm font-medium text-secondary-foreground'
-                        : 'block rounded-lg px-3 py-2 text-sm font-medium text-foreground hover:bg-muted'
+                        ? 'flex items-center rounded-lg bg-secondary px-3 py-2 text-sm font-medium text-secondary-foreground'
+                        : 'flex items-center rounded-lg px-3 py-2 text-sm font-medium text-foreground hover:bg-muted'
                     }
                   >
+                    {item.icon && <item.icon className="w-4 h-4 mr-2" />}
                     {item.name}
                   </Link>
+
                 );
               })}
               <div className="grid grid-cols-2 gap-2 pt-2">

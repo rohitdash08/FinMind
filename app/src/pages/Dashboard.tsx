@@ -18,7 +18,9 @@ import {
   AlertTriangle,
   Calendar,
   Plus,
+  Target,
 } from 'lucide-react';
+
 import { getDashboardSummary, type DashboardSummary } from '@/api/dashboard';
 import { useNavigate } from 'react-router-dom';
 import { formatMoney } from '@/lib/currency';
@@ -95,7 +97,16 @@ export function Dashboard() {
       icon: CreditCard,
       description: 'Due soon',
     },
+    {
+      title: 'Savings Progress',
+      amount: currency(13100),
+      change: '65%',
+      trend: 'up',
+      icon: Target,
+      description: 'Goal: $20,000',
+    },
   ] as const;
+
 
   const transactions = data?.recent_transactions ?? [];
   const upcomingBills = data?.upcoming_bills ?? [];
@@ -141,7 +152,8 @@ export function Dashboard() {
         </div>
       )}
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-8">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5 mb-8">
+
         {summaryCards.map((card, index) => (
           <FinancialCard key={index} variant="financial" className="group card-interactive fade-in-up">
             <FinancialCardHeader className="pb-3">
