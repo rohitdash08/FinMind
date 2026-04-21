@@ -3,7 +3,9 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { me, updateMe } from '@/api/auth';
+import { deletePersonalData, exportPersonalData } from '@/api/privacy';
 import { setCurrency } from '@/lib/auth';
+import { clearRefreshToken, clearToken } from '@/lib/auth';
 
 const SUPPORTED_CURRENCIES = [
   { code: 'INR', label: 'Indian Rupee (INR)' },
@@ -23,6 +25,7 @@ export default function Account() {
   const [currency, setCurrencyState] = useState('INR');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [privacyBusy, setPrivacyBusy] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -57,6 +60,51 @@ export default function Account() {
       toast({ title: 'Failed to update account', description: message });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const onExportData = async () => {
+    setPrivacyBusy(true);
+    try {
+      const data = await exportPersonalData();
+      const blob = new Blob([JSON.stringify(data, null, 2)], {
+        type: 'application/json',
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `finmind-export-${new Date().toISOString().slice(0, 10)}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+      toast({ title: 'Export ready', description: 'Your personal data package was generated.' });
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? error.message : 'Failed to export data';
+      toast({ title: 'Failed to export data', description: message });
+    } finally {
+      setPrivacyBusy(false);
+    }
+  };
+
+  const onDeleteData = async () => {
+    const confirmed = window.confirm(
+      'This permanently deletes your FinMind account and financial data. This cannot be undone. Continue?',
+    );
+    if (!confirmed) return;
+
+    setPrivacyBusy(true);
+    try {
+      await deletePersonalData();
+      clearToken();
+      clearRefreshToken();
+      toast({ title: 'Account deleted', description: 'Your personal data was permanently deleted.' });
+      window.location.href = '/';
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? error.message : 'Failed to delete data';
+      toast({ title: 'Failed to delete data', description: message });
+    } finally {
+      setPrivacyBusy(false);
     }
   };
 
@@ -107,6 +155,23 @@ export default function Account() {
             </div>
           </>
         )}
+      </div>
+
+      <div className="card card-interactive space-y-4 fade-in-up">
+        <div>
+          <h2 className="text-lg font-semibold">Privacy & Data</h2>
+          <p className="text-sm text-muted-foreground">
+            Export a copy of your data or permanently delete your account and stored financial records.
+          </p>
+        </div>
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <Button variant="outline" onClick={onExportData} disabled={privacyBusy}>
+            Export Data
+          </Button>
+          <Button variant="destructive" onClick={onDeleteData} disabled={privacyBusy}>
+            Delete Account Data
+          </Button>
+        </div>
       </div>
     </div>
   );
