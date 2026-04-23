@@ -5,6 +5,7 @@ from ..extensions import db
 from ..models import Bill, Reminder
 from ..observability import track_reminder_event
 from ..services.reminders import send_reminder
+from ..services import taskqueue
 import logging
 
 bp = Blueprint("reminders", __name__)
@@ -171,12 +172,13 @@ def run_due():
         .all()
     )
     for r in items:
-        send_reminder(r)
-        r.sent = True
-        track_reminder_event(event="sent", channel=r.channel)
-    db.session.commit()
-    logger.info("Processed due reminders user=%s count=%s", uid, len(items))
-    return jsonify(processed=len(items))
+        taskqueue.enqueue(
+            "send_reminder",
+            payload={"reminder_id": r.id},
+            max_retries=3,
+        )
+    logger.info("Enqueued %s reminder tasks for user=%s", len(items), uid)
+    return jsonify(enqueued=len(items))
 
 
 def _bill_channels(bill: Bill) -> list[str]:

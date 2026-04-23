@@ -13,6 +13,7 @@ import click
 import os
 import logging
 from datetime import timedelta
+from .models import Reminder
 
 
 def create_app(settings: Settings | None = None) -> Flask:
@@ -92,6 +93,34 @@ def create_app(settings: Settings | None = None) -> Flask:
                 click.echo("Database initialized.")
             finally:
                 conn.close()
+
+    # ------------------------------------------------------------------
+    # Background task: send_reminder handler
+    # ------------------------------------------------------------------
+    from .services import taskqueue
+    from .services.reminders import send_reminder
+
+    def _handle_send_reminder(payload: dict) -> bool:
+        reminder_id = payload.get("reminder_id")
+        if reminder_id is None:
+            return False
+        reminder = db.session.get(Reminder, reminder_id)
+        if reminder is None:
+            return False
+        ok = send_reminder(reminder)
+        if ok:
+            reminder.sent = True
+            db.session.commit()
+        return ok
+
+    taskqueue.register_handler("send_reminder", _handle_send_reminder)
+
+    @app.cli.command("worker")
+    @click.option("--poll-interval", default=1.0, help="Seconds between polls")
+    @click.option("--max-iterations", default=None, type=int, help="Stop after N iterations")
+    def worker(poll_interval, max_iterations):
+        """Run the background task worker."""
+        taskqueue.worker_loop(poll_interval=poll_interval, max_iterations=max_iterations)
 
     return app
 
