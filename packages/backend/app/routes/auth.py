@@ -10,11 +10,13 @@ from flask_jwt_extended import (
 )
 from ..extensions import db, redis_client
 from ..models import User
+from redis.exceptions import RedisError
 import logging
 import time
 
 bp = Blueprint("auth", __name__)
 logger = logging.getLogger("finmind.auth")
+_in_memory_refresh_sessions: dict[str, tuple[str, float]] = {}
 SUPPORTED_CURRENCIES = {
     "USD",
     "INR",
@@ -106,7 +108,7 @@ def update_me():
 def refresh():
     claims = get_jwt()
     jti = claims.get("jti")
-    if not jti or not redis_client.get(_refresh_key(jti)):
+    if not jti or not _get_refresh_session(jti):
         logger.warning("Refresh rejected: revoked/unknown token jti=%s", jti)
         return jsonify(error="refresh token revoked"), 401
     uid = get_jwt_identity()
@@ -121,7 +123,7 @@ def logout():
     claims = get_jwt()
     jti = claims.get("jti")
     if jti:
-        redis_client.delete(_refresh_key(jti))
+        _delete_refresh_session(jti)
     return jsonify(message="logged out"), 200
 
 
@@ -136,4 +138,31 @@ def _store_refresh_session(refresh_token: str, uid: str):
     if not jti or not exp:
         return
     ttl = max(int(exp - time.time()), 1)
-    redis_client.setex(_refresh_key(jti), ttl, uid)
+    try:
+        redis_client.setex(_refresh_key(jti), ttl, uid)
+    except RedisError as exc:
+        logger.warning("Redis unavailable; using in-memory refresh session: %s", exc)
+        _in_memory_refresh_sessions[jti] = (uid, time.time() + ttl)
+
+
+def _get_refresh_session(jti: str):
+    try:
+        return redis_client.get(_refresh_key(jti))
+    except RedisError as exc:
+        logger.warning("Redis unavailable; checking in-memory refresh session: %s", exc)
+        value = _in_memory_refresh_sessions.get(jti)
+        if not value:
+            return None
+        uid, expires_at = value
+        if expires_at <= time.time():
+            _in_memory_refresh_sessions.pop(jti, None)
+            return None
+        return uid
+
+
+def _delete_refresh_session(jti: str):
+    try:
+        redis_client.delete(_refresh_key(jti))
+    except RedisError as exc:
+        logger.warning("Redis unavailable; deleting in-memory refresh session: %s", exc)
+    _in_memory_refresh_sessions.pop(jti, None)
