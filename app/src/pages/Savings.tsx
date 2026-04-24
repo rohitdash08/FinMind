@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { FinancialCard, FinancialCardContent, FinancialCardDescription, FinancialCardHeader, FinancialCardTitle } from '@/components/ui/financial-card';
 import { Button } from '@/components/ui/button';
-import { Target, Plus, TrendingUp, Award, Clock } from 'lucide-react';
+import { Target, Plus, Award, Clock } from 'lucide-react';
 import { formatMoney } from '@/lib/currency';
 
 const mockGoals = [
