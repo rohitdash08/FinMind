@@ -133,3 +133,19 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class WeeklyDigest(db.Model):
+    __tablename__ = "weekly_digests"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    period_start = db.Column(db.Date, nullable=False)
+    period_end = db.Column(db.Date, nullable=False)
+    period_type = db.Column(db.String(20), default="weekly", nullable=False)
+    total_spent = db.Column(db.Numeric(12, 2), default=0, nullable=False)
+    category_breakdown = db.Column(db.JSON, default=dict, nullable=False)
+    trends = db.Column(db.JSON, default=list, nullable=False)
+    insights = db.Column(db.JSON, default=list, nullable=False)
+    generated_at = db.Column(
+        db.DateTime, default=datetime.utcnow, nullable=False
+    )
