@@ -12,6 +12,7 @@ from ..extensions import db, redis_client
 from ..models import User
 import logging
 import time
+from redis.exceptions import RedisError
 
 bp = Blueprint("auth", __name__)
 logger = logging.getLogger("finmind.auth")
@@ -26,6 +27,7 @@ SUPPORTED_CURRENCIES = {
     "CAD",
     "JPY",
 }
+_IN_MEMORY_REFRESH_SESSIONS: dict[str, tuple[str, int]] = {}
 
 
 @bp.post("/register")
@@ -106,7 +108,7 @@ def update_me():
 def refresh():
     claims = get_jwt()
     jti = claims.get("jti")
-    if not jti or not redis_client.get(_refresh_key(jti)):
+    if not jti or not _refresh_session_exists(jti):
         logger.warning("Refresh rejected: revoked/unknown token jti=%s", jti)
         return jsonify(error="refresh token revoked"), 401
     uid = get_jwt_identity()
@@ -121,7 +123,7 @@ def logout():
     claims = get_jwt()
     jti = claims.get("jti")
     if jti:
-        redis_client.delete(_refresh_key(jti))
+        _delete_refresh_session(jti)
     return jsonify(message="logged out"), 200
 
 
@@ -136,4 +138,30 @@ def _store_refresh_session(refresh_token: str, uid: str):
     if not jti or not exp:
         return
     ttl = max(int(exp - time.time()), 1)
-    redis_client.setex(_refresh_key(jti), ttl, uid)
+    try:
+        redis_client.setex(_refresh_key(jti), ttl, uid)
+    except RedisError:
+        logger.warning("Redis unavailable; storing refresh session in memory")
+        _IN_MEMORY_REFRESH_SESSIONS[jti] = (uid, int(exp))
+
+
+def _refresh_session_exists(jti: str) -> bool:
+    try:
+        return bool(redis_client.get(_refresh_key(jti)))
+    except RedisError:
+        session = _IN_MEMORY_REFRESH_SESSIONS.get(jti)
+        if not session:
+            return False
+        _uid, exp = session
+        if exp <= int(time.time()):
+            _IN_MEMORY_REFRESH_SESSIONS.pop(jti, None)
+            return False
+        return True
+
+
+def _delete_refresh_session(jti: str) -> None:
+    try:
+        redis_client.delete(_refresh_key(jti))
+    except RedisError:
+        logger.warning("Redis unavailable; deleting refresh session from memory")
+    _IN_MEMORY_REFRESH_SESSIONS.pop(jti, None)
