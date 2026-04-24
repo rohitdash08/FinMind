@@ -110,10 +110,27 @@ def _ensure_schema_compatibility(app: Flask) -> None:
             NOT NULL DEFAULT 'INR'
             """
         )
+        cur.execute(
+            """
+            ALTER TABLE reminders
+              ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+              ADD COLUMN IF NOT EXISTS attempt_count INT NOT NULL DEFAULT 0,
+              ADD COLUMN IF NOT EXISTS last_attempt_at TIMESTAMP,
+              ADD COLUMN IF NOT EXISTS delivered_at TIMESTAMP,
+              ADD COLUMN IF NOT EXISTS failed_at TIMESTAMP,
+              ADD COLUMN IF NOT EXISTS last_error VARCHAR(500)
+            """
+        )
+        cur.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_reminders_reliability
+            ON reminders(user_id, status, channel)
+            """
+        )
         conn.commit()
     except Exception:
         app.logger.exception(
-            "Schema compatibility patch failed for users.preferred_currency"
+            "Schema compatibility patch failed for users/reminders compatibility"
         )
         conn.rollback()
     finally:
