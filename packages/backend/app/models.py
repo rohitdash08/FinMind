@@ -133,3 +133,29 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class BackgroundJobStatus(str, Enum):
+    QUEUED = "QUEUED"
+    RUNNING = "RUNNING"
+    SUCCEEDED = "SUCCEEDED"
+    RETRYING = "RETRYING"
+    FAILED = "FAILED"
+
+
+class BackgroundJob(db.Model):
+    __tablename__ = "background_jobs"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    name = db.Column(db.String(120), nullable=False)
+    payload = db.Column(db.JSON, nullable=False, default=dict)
+    status = db.Column(db.String(20), default=BackgroundJobStatus.QUEUED.value, nullable=False)
+    attempts = db.Column(db.Integer, default=0, nullable=False)
+    max_attempts = db.Column(db.Integer, default=3, nullable=False)
+    run_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    locked_at = db.Column(db.DateTime, nullable=True)
+    last_error = db.Column(db.String(1000), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(
+        db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+    )
