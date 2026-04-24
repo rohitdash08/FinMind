@@ -1,6 +1,6 @@
 from datetime import datetime, date
 from enum import Enum
-from sqlalchemy import Enum as SAEnum
+from sqlalchemy import Enum as SAEnum, Index
 from .extensions import db
 
 
@@ -21,6 +21,9 @@ class User(db.Model):
 
 class Category(db.Model):
     __tablename__ = "categories"
+    __table_args__ = (
+        Index("idx_categories_user_name", "user_id", "name"),
+    )
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     name = db.Column(db.String(100), nullable=False)
@@ -29,6 +32,17 @@ class Category(db.Model):
 
 class Expense(db.Model):
     __tablename__ = "expenses"
+    __table_args__ = (
+        Index("idx_expenses_user_spent_at", "user_id", "spent_at"),
+        Index("idx_expenses_user_type_spent", "user_id", "expense_type", "spent_at"),
+        Index("idx_expenses_user_category_spent", "user_id", "category_id", "spent_at"),
+        Index(
+            "idx_expenses_user_recurring_spent",
+            "user_id",
+            "source_recurring_id",
+            "spent_at",
+        ),
+    )
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     category_id = db.Column(db.Integer, db.ForeignKey("categories.id"), nullable=True)
@@ -52,6 +66,9 @@ class RecurringCadence(str, Enum):
 
 class RecurringExpense(db.Model):
     __tablename__ = "recurring_expenses"
+    __table_args__ = (
+        Index("idx_recurring_expenses_user_active_start", "user_id", "active", "start_date"),
+    )
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     category_id = db.Column(db.Integer, db.ForeignKey("categories.id"), nullable=True)
@@ -75,6 +92,9 @@ class BillCadence(str, Enum):
 
 class Bill(db.Model):
     __tablename__ = "bills"
+    __table_args__ = (
+        Index("idx_bills_user_active_due", "user_id", "active", "next_due_date"),
+    )
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     name = db.Column(db.String(200), nullable=False)
@@ -91,6 +111,10 @@ class Bill(db.Model):
 
 class Reminder(db.Model):
     __tablename__ = "reminders"
+    __table_args__ = (
+        Index("idx_reminders_user_sent_send_at", "user_id", "sent", "send_at"),
+        Index("idx_reminders_user_bill", "user_id", "bill_id"),
+    )
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     bill_id = db.Column(db.Integer, db.ForeignKey("bills.id"), nullable=True)
@@ -129,6 +153,10 @@ class UserSubscription(db.Model):
 
 class AuditLog(db.Model):
     __tablename__ = "audit_logs"
+    __table_args__ = (
+        Index("idx_audit_logs_user_created", "user_id", "created_at"),
+        Index("idx_audit_logs_action_created", "action", "created_at"),
+    )
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)

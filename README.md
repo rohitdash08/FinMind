@@ -49,6 +49,21 @@ See `backend/app/db/schema.sql`. Key tables:
 - ad_impressions, subscription_plans, user_subscriptions
 - refresh_tokens (optional if rotating), audit_logs
 
+## Query Performance Indexes
+High-frequency financial queries are covered by idempotent database indexes in both
+SQLAlchemy metadata and `backend/app/db/schema.sql`:
+- `idx_expenses_user_spent_at` for recent transaction lists.
+- `idx_expenses_user_type_spent` for monthly income/expense dashboard totals.
+- `idx_expenses_user_category_spent` for category filters and breakdowns.
+- `idx_expenses_user_recurring_spent` for recurring expense generation dedupe checks.
+- `idx_bills_user_active_due` for upcoming bill lookups.
+- `idx_reminders_user_sent_send_at` and `idx_reminders_user_bill` for reminder runs.
+- category and audit-log lookup indexes for user-scoped management screens.
+
+Dashboard monthly summaries use date range predicates (`spent_at >= month_start` and
+`spent_at < next_month`) instead of extracting year/month from every row, keeping the
+queries sargable so PostgreSQL can use the composite indexes.
+
 ## Redis Caching Policy
 - Keys
   - `user:{id}:monthly_summary:{yyyy-mm}` — 30 min TTL

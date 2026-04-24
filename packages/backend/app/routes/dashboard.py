@@ -1,5 +1,5 @@
 from datetime import date
-from sqlalchemy import extract, func
+from sqlalchemy import func
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
@@ -38,6 +38,11 @@ def dashboard_summary():
     }
 
     year, month = map(int, ym.split("-"))
+    period_start = date(year, month, 1)
+    if month == 12:
+        period_end = date(year + 1, 1, 1)
+    else:
+        period_end = date(year, month + 1, 1)
     today = date.today()
 
     try:
@@ -45,8 +50,8 @@ def dashboard_summary():
             db.session.query(func.coalesce(func.sum(Expense.amount), 0))
             .filter(
                 Expense.user_id == uid,
-                extract("year", Expense.spent_at) == year,
-                extract("month", Expense.spent_at) == month,
+                Expense.spent_at >= period_start,
+                Expense.spent_at < period_end,
                 Expense.expense_type == "INCOME",
             )
             .scalar()
@@ -55,8 +60,8 @@ def dashboard_summary():
             db.session.query(func.coalesce(func.sum(Expense.amount), 0))
             .filter(
                 Expense.user_id == uid,
-                extract("year", Expense.spent_at) == year,
-                extract("month", Expense.spent_at) == month,
+                Expense.spent_at >= period_start,
+                Expense.spent_at < period_end,
                 Expense.expense_type != "INCOME",
             )
             .scalar()
@@ -139,8 +144,8 @@ def dashboard_summary():
             )
             .filter(
                 Expense.user_id == uid,
-                extract("year", Expense.spent_at) == year,
-                extract("month", Expense.spent_at) == month,
+                Expense.spent_at >= period_start,
+                Expense.spent_at < period_end,
                 Expense.expense_type != "INCOME",
             )
             .group_by(Expense.category_id, Category.name)
