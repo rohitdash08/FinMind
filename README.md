@@ -51,12 +51,20 @@ See `backend/app/db/schema.sql`. Key tables:
 
 ## Redis Caching Policy
 - Keys
-  - `user:{id}:monthly_summary:{yyyy-mm}` — 30 min TTL
-  - `user:{id}:categories` — 24h TTL
-  - `user:{id}:upcoming_bills` — 15 min TTL
-  - `insights:{id}` — 24h TTL (invalidate on new expense/bill)
+  - `user:{id}:monthly_summary:{yyyy-mm}` — monthly rollups
+  - `user:{id}:dashboard_summary:{yyyy-mm}` — dashboard summary payloads with 5 min TTL
+  - `user:{id}:categories` — category lists
+  - `user:{id}:upcoming_bills` — bill lists
+  - `insights:{id}:*` — analytics/AI insight payloads
 - Invalidation
-  - On expense/bill create/update/delete -> delete affected monthly_summary, upcoming_bills, insights
+  - Expense create/update/delete and imports clear the affected monthly summary plus dashboard/insights caches.
+  - Bill create/pay clears upcoming bill, dashboard, and insight caches.
+  - Category create/update/delete clears category, dashboard, and insight caches so category breakdown names stay fresh.
+- Observability
+  - Dashboard responses include `X-FinMind-Cache: HIT|MISS` and cache hits include `X-FinMind-Cache-Age`.
+  - Authenticated `GET /dashboard/cache/status` returns hit/miss/set/invalidation counters and fallback cache size.
+- Resilience
+  - Redis operations fall back to an in-process TTL cache so auth sessions and dashboard caches continue to work in local/free-tier environments where Redis is temporarily unavailable.
 - Rate limiting (optional): `rl:{userId}:{endpoint}:{minute}` with short TTL
 
 ## API Endpoints
