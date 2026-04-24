@@ -123,3 +123,34 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   action VARCHAR(100) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+-- Background job queue with retry and dead-letter support
+DO $$ BEGIN
+    CREATE TYPE job_status AS ENUM ('pending','running','succeeded','failed','retrying','dead');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+CREATE TABLE IF NOT EXISTS background_jobs (
+    id SERIAL PRIMARY KEY,
+    user_id INT REFERENCES users(id) ON DELETE SET NULL,
+    task_type VARCHAR(100) NOT NULL,
+    payload JSONB NOT NULL DEFAULT '{}',
+    status job_status NOT NULL DEFAULT 'pending',
+    attempts INT NOT NULL DEFAULT 0,
+    max_attempts INT NOT NULL DEFAULT 3,
+    last_error TEXT,
+    result JSONB,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    next_retry_at TIMESTAMP,
+    scheduled_for TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_bg_jobs_user_status
+    ON background_jobs(user_id, status);
+CREATE INDEX IF NOT EXISTS idx_bg_jobs_retry_due
+    ON background_jobs(status, next_retry_at)
+    WHERE status = 'retrying';
+CREATE INDEX IF NOT EXISTS idx_bg_jobs_pending
+    ON background_jobs(status, scheduled_for)
+    WHERE status = 'pending';
