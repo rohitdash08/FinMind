@@ -64,7 +64,7 @@ OpenAPI: `backend/app/openapi.yaml`
 - Auth: `/auth/register`, `/auth/login`, `/auth/refresh`
 - Expenses: CRUD `/expenses`
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
-- Reminders: CRUD `/reminders`, trigger `/reminders/run`
+- Reminders: CRUD `/reminders`, trigger `/reminders/run`, delivery metrics `/reminders/reliability`
 - Insights: `/insights/monthly`, `/insights/budget-suggestion`
 
 ## MVP UI/UX Plan
@@ -182,6 +182,7 @@ finmind/
 ## Notes on Free-Tier Reminders
 - Primary: schedule via APScheduler in-process with persistence in Postgres (job table) and a simple daily trigger. Alternatively, use Railway/Render cron to hit `/reminders/run`.
 - Twilio WhatsApp free trial supports sandbox; email via SMTP (e.g., SendGrid free tier).
+- Delivery reliability is tracked on every `/reminders/run` attempt: each reminder records `status`, `attempt_count`, `last_attempt_at`, `delivered_at`, `failed_at`, and `last_error`. Use `/reminders/reliability` to monitor total/channel-level pending, delivered, failed, attempts, and delivery-rate metrics.
 
 ## Security & Scalability
 - JWT access/refresh, secure cookies OR Authorization header.

@@ -1,4 +1,5 @@
 from datetime import datetime, time, timedelta
+from sqlalchemy import func
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..extensions import db
@@ -30,10 +31,60 @@ def list_reminders():
                 "send_at": r.send_at.isoformat(),
                 "sent": r.sent,
                 "channel": r.channel,
+                "status": r.status,
+                "attempt_count": r.attempt_count,
+                "last_attempt_at": r.last_attempt_at.isoformat()
+                if r.last_attempt_at
+                else None,
+                "delivered_at": r.delivered_at.isoformat() if r.delivered_at else None,
+                "failed_at": r.failed_at.isoformat() if r.failed_at else None,
+                "last_error": r.last_error,
             }
             for r in items
         ]
     )
+
+
+@bp.get("/reliability")
+@jwt_required()
+def reminder_reliability():
+    uid = int(get_jwt_identity())
+    rows = (
+        db.session.query(
+            Reminder.channel,
+            Reminder.status,
+            func.count(Reminder.id),
+            func.coalesce(func.sum(Reminder.attempt_count), 0),
+        )
+        .filter(Reminder.user_id == uid)
+        .group_by(Reminder.channel, Reminder.status)
+        .all()
+    )
+    by_channel: dict[str, dict[str, int]] = {}
+    totals = {
+        "total": 0,
+        "pending": 0,
+        "delivered": 0,
+        "failed": 0,
+        "attempts": 0,
+    }
+    for channel, status, count, attempts in rows:
+        normalized = (status or "PENDING").lower()
+        channel_metrics = by_channel.setdefault(
+            channel,
+            {"total": 0, "pending": 0, "delivered": 0, "failed": 0, "attempts": 0},
+        )
+        channel_metrics["total"] += count
+        channel_metrics[normalized] = channel_metrics.get(normalized, 0) + count
+        channel_metrics["attempts"] += int(attempts or 0)
+        totals["total"] += count
+        totals[normalized] = totals.get(normalized, 0) + count
+        totals["attempts"] += int(attempts or 0)
+
+    delivered = totals.get("delivered", 0)
+    attempted_terminal = delivered + totals.get("failed", 0)
+    delivery_rate = round(delivered / attempted_terminal, 4) if attempted_terminal else None
+    return jsonify(totals=totals, by_channel=by_channel, delivery_rate=delivery_rate)
 
 
 @bp.post("")
@@ -170,13 +221,41 @@ def run_due():
         )
         .all()
     )
+    processed = delivered = failed = 0
     for r in items:
-        send_reminder(r)
-        r.sent = True
-        track_reminder_event(event="sent", channel=r.channel)
+        processed += 1
+        r.attempt_count = (r.attempt_count or 0) + 1
+        r.last_attempt_at = datetime.utcnow()
+        try:
+            was_delivered = bool(send_reminder(r))
+        except Exception as exc:  # defensive: delivery adapters should not break batch
+            logger.exception("Reminder delivery raised id=%s user=%s", r.id, uid)
+            was_delivered = False
+            r.last_error = str(exc)[:500]
+        if was_delivered:
+            r.sent = True
+            r.status = "DELIVERED"
+            r.delivered_at = datetime.utcnow()
+            r.failed_at = None
+            r.last_error = None
+            delivered += 1
+            track_reminder_event(event="sent", channel=r.channel, status="DELIVERED")
+        else:
+            r.status = "FAILED"
+            r.failed_at = datetime.utcnow()
+            if not r.last_error:
+                r.last_error = "delivery adapter returned false"
+            failed += 1
+            track_reminder_event(event="sent", channel=r.channel, status="FAILED")
     db.session.commit()
-    logger.info("Processed due reminders user=%s count=%s", uid, len(items))
-    return jsonify(processed=len(items))
+    logger.info(
+        "Processed due reminders user=%s processed=%s delivered=%s failed=%s",
+        uid,
+        processed,
+        delivered,
+        failed,
+    )
+    return jsonify(processed=processed, delivered=delivered, failed=failed)
 
 
 def _bill_channels(bill: Bill) -> list[str]:
