@@ -110,6 +110,29 @@ def _ensure_schema_compatibility(app: Flask) -> None:
             NOT NULL DEFAULT 'INR'
             """
         )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS trusted_devices (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id),
+                device_id VARCHAR(128) NOT NULL,
+                name VARCHAR(120) NOT NULL,
+                trusted BOOLEAN NOT NULL DEFAULT FALSE,
+                first_seen_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                last_seen_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                last_ip VARCHAR(64),
+                user_agent VARCHAR(500),
+                revoked_at TIMESTAMP,
+                CONSTRAINT uq_trusted_devices_user_device UNIQUE (user_id, device_id)
+            )
+            """
+        )
+        cur.execute(
+            """
+            CREATE INDEX IF NOT EXISTS ix_trusted_devices_user_last_seen
+            ON trusted_devices (user_id, last_seen_at DESC)
+            """
+        )
         conn.commit()
     except Exception:
         app.logger.exception(
