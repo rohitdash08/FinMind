@@ -123,3 +123,20 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   action VARCHAR(100) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+-- Smart weekly financial digest
+CREATE TABLE IF NOT EXISTS weekly_digests (
+    id SERIAL PRIMARY KEY,
+    user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    period_start DATE NOT NULL,
+    period_end DATE NOT NULL,
+    period_type VARCHAR(20) NOT NULL DEFAULT 'weekly',
+    total_spent NUMERIC(12,2) NOT NULL DEFAULT 0,
+    category_breakdown JSONB NOT NULL DEFAULT '{}',
+    trends JSONB NOT NULL DEFAULT '[]',
+    insights JSONB NOT NULL DEFAULT '[]',
+    generated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_weekly_digests_user_period
+    ON weekly_digests(user_id, period_start, period_end);
