@@ -45,7 +45,7 @@ flowchart LR
 
 ## PostgreSQL Schema (DDL)
 See `backend/app/db/schema.sql`. Key tables:
-- users, categories, expenses, bills, reminders
+- users, financial_accounts, categories, expenses, bills, reminders
 - ad_impressions, subscription_plans, user_subscriptions
 - refresh_tokens (optional if rotating), audit_logs
 
@@ -63,6 +63,9 @@ See `backend/app/db/schema.sql`. Key tables:
 OpenAPI: `backend/app/openapi.yaml`
 - Auth: `/auth/register`, `/auth/login`, `/auth/refresh`
 - Expenses: CRUD `/expenses`
+  - Optional `account_id` links income/expenses to a financial account.
+- Accounts: CRUD `/accounts`, portfolio rollup `/accounts/overview?month=YYYY-MM`
+  - Tracks checking/savings/credit/cash/investment/loan accounts, opening balances, per-account income/expense activity, computed balances, total assets/liabilities, and net worth.
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
 - Insights: `/insights/monthly`, `/insights/budget-suggestion`

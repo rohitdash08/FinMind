@@ -13,6 +13,8 @@ from ..models import User
 import logging
 import time
 
+from redis.exceptions import RedisError
+
 bp = Blueprint("auth", __name__)
 logger = logging.getLogger("finmind.auth")
 SUPPORTED_CURRENCIES = {
@@ -26,6 +28,7 @@ SUPPORTED_CURRENCIES = {
     "CAD",
     "JPY",
 }
+_LOCAL_REFRESH_SESSIONS: dict[str, tuple[str, float]] = {}
 
 
 @bp.post("/register")
@@ -106,7 +109,7 @@ def update_me():
 def refresh():
     claims = get_jwt()
     jti = claims.get("jti")
-    if not jti or not redis_client.get(_refresh_key(jti)):
+    if not jti or not _refresh_session_exists(jti):
         logger.warning("Refresh rejected: revoked/unknown token jti=%s", jti)
         return jsonify(error="refresh token revoked"), 401
     uid = get_jwt_identity()
@@ -121,7 +124,7 @@ def logout():
     claims = get_jwt()
     jti = claims.get("jti")
     if jti:
-        redis_client.delete(_refresh_key(jti))
+        _delete_refresh_session(jti)
     return jsonify(message="logged out"), 200
 
 
@@ -136,4 +139,33 @@ def _store_refresh_session(refresh_token: str, uid: str):
     if not jti or not exp:
         return
     ttl = max(int(exp - time.time()), 1)
-    redis_client.setex(_refresh_key(jti), ttl, uid)
+    key = _refresh_key(jti)
+    try:
+        redis_client.setex(key, ttl, uid)
+    except RedisError:
+        logger.warning("Redis unavailable; storing refresh session in local fallback")
+        _LOCAL_REFRESH_SESSIONS[key] = (uid, time.time() + ttl)
+
+
+def _refresh_session_exists(jti: str) -> bool:
+    key = _refresh_key(jti)
+    try:
+        return bool(redis_client.get(key))
+    except RedisError:
+        stored = _LOCAL_REFRESH_SESSIONS.get(key)
+        if not stored:
+            return False
+        _, expires_at = stored
+        if expires_at <= time.time():
+            _LOCAL_REFRESH_SESSIONS.pop(key, None)
+            return False
+        return True
+
+
+def _delete_refresh_session(jti: str) -> None:
+    key = _refresh_key(jti)
+    try:
+        redis_client.delete(key)
+    except RedisError:
+        logger.warning("Redis unavailable; deleting refresh session from local fallback")
+    _LOCAL_REFRESH_SESSIONS.pop(key, None)
