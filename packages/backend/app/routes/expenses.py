@@ -5,7 +5,7 @@ from decimal import Decimal, InvalidOperation
 from flask import Blueprint, current_app, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..extensions import db
-from ..models import Expense, RecurringCadence, RecurringExpense, User
+from ..models import Expense, FinancialAccount, RecurringCadence, RecurringExpense, User
 from ..services.cache import cache_delete_patterns, monthly_summary_key
 from ..services import expense_import
 import logging
@@ -67,6 +67,7 @@ def create_expense():
         return jsonify(error="description required"), 400
     e = Expense(
         user_id=uid,
+        account_id=_validated_account_id(uid, data.get("account_id")),
         amount=amount,
         currency=(data.get("currency") or (user.preferred_currency if user else "INR")),
         expense_type=str(data.get("expense_type") or "EXPENSE").upper(),
@@ -221,6 +222,8 @@ def update_expense(expense_id: int):
         e.expense_type = str(data.get("expense_type") or "EXPENSE").upper()
     if "category_id" in data:
         e.category_id = data.get("category_id")
+    if "account_id" in data:
+        e.account_id = _validated_account_id(uid, data.get("account_id"))
     if "description" in data or "notes" in data:
         description = (data.get("description") or data.get("notes") or "").strip()
         if not description:
@@ -295,6 +298,7 @@ def import_commit():
             continue
         expense = Expense(
             user_id=uid,
+            account_id=_validated_account_id(uid, t.get("account_id")),
             amount=t["amount"],
             currency=t.get("currency") or (user.preferred_currency if user else "INR"),
             expense_type=str(t.get("expense_type") or "EXPENSE").upper(),
@@ -315,6 +319,7 @@ def _expense_to_dict(e: Expense) -> dict:
     return {
         "id": e.id,
         "amount": float(e.amount),
+        "account_id": e.account_id,
         "currency": e.currency,
         "category_id": e.category_id,
         "expense_type": e.expense_type,
@@ -350,6 +355,19 @@ def _parse_recurring_cadence(raw: str | None) -> str | None:
     if val in {"DAILY", "WEEKLY", "MONTHLY", "YEARLY"}:
         return val
     return None
+
+
+def _validated_account_id(uid: int, account_id) -> int | None:
+    if account_id in (None, ""):
+        return None
+    try:
+        account_id = int(account_id)
+    except (TypeError, ValueError):
+        return None
+    account = db.session.get(FinancialAccount, account_id)
+    if not account or account.user_id != uid or not account.active:
+        return None
+    return account.id
 
 
 def _advance_recurrence_date(at: date, cadence: str) -> date:
