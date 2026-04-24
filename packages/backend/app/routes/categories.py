@@ -3,6 +3,7 @@ from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..extensions import db
 from ..models import Category
+from ..services.cache import cache_delete_patterns, categories_key, dashboard_cache_patterns
 
 bp = Blueprint("categories", __name__)
 logger = logging.getLogger("finmind.categories")
@@ -35,6 +36,7 @@ def create_category():
     c = Category(user_id=uid, name=name)
     db.session.add(c)
     db.session.commit()
+    cache_delete_patterns([categories_key(uid), *dashboard_cache_patterns(uid)])
     logger.info("Created category id=%s user=%s", c.id, uid)
     return jsonify(id=c.id, name=c.name), 201
 
@@ -52,6 +54,7 @@ def update_category(category_id: int):
         return jsonify(error="name required"), 400
     c.name = name
     db.session.commit()
+    cache_delete_patterns([categories_key(uid), *dashboard_cache_patterns(uid)])
     logger.info("Updated category id=%s user=%s", c.id, uid)
     return jsonify(id=c.id, name=c.name)
 
@@ -65,5 +68,6 @@ def delete_category(category_id: int):
         return jsonify(error="not found"), 404
     db.session.delete(c)
     db.session.commit()
+    cache_delete_patterns([categories_key(uid), *dashboard_cache_patterns(uid)])
     logger.info("Deleted category id=%s user=%s", c.id, uid)
     return jsonify(message="deleted")

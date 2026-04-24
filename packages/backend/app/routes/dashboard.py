@@ -5,7 +5,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from ..extensions import db
 from ..models import Bill, Expense, Category
-from ..services.cache import cache_get, cache_set, dashboard_summary_key
+from ..services.cache import cache_get, cache_set, cache_stats, dashboard_summary_key
 
 bp = Blueprint("dashboard", __name__)
 
@@ -18,9 +18,13 @@ def dashboard_summary():
     if not _is_valid_month(ym):
         return jsonify(error="invalid month, expected YYYY-MM"), 400
     key = dashboard_summary_key(uid, ym)
-    cached = cache_get(key)
+    cached, cache_meta = cache_get(key, with_meta=True)
     if cached:
-        return jsonify(cached)
+        response = jsonify(cached)
+        response.headers["X-FinMind-Cache"] = "HIT"
+        if cache_meta and cache_meta.get("cached_at"):
+            response.headers["X-FinMind-Cache-Age"] = str(max(0, __import__("time").time_ns() // 1_000_000_000 - int(cache_meta["cached_at"])))
+        return response
 
     payload = {
         "period": {"month": ym},
@@ -164,8 +168,17 @@ def dashboard_summary():
     except Exception:
         payload["errors"].append("category_breakdown_unavailable")
 
-    cache_set(key, payload, ttl_seconds=300)
-    return jsonify(payload)
+    cache_set(key, payload, ttl_seconds=300, tags=[f"user:{uid}", "dashboard", f"month:{ym}"])
+    response = jsonify(payload)
+    response.headers["X-FinMind-Cache"] = "MISS"
+    return response
+
+
+@bp.get("/cache/status")
+@jwt_required()
+def dashboard_cache_status():
+    """Expose cache health/telemetry for dashboard and analytics tuning."""
+    return jsonify(cache_stats())
 
 
 def _is_valid_month(ym: str) -> bool:
