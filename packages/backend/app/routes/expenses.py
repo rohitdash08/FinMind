@@ -6,7 +6,7 @@ from flask import Blueprint, current_app, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..extensions import db
 from ..models import Expense, RecurringCadence, RecurringExpense, User
-from ..services.cache import cache_delete_patterns, monthly_summary_key
+from ..services.cache import cache_delete_patterns, dashboard_summary_key, monthly_summary_key
 from ..services import expense_import
 import logging
 
@@ -81,6 +81,7 @@ def create_expense():
     cache_delete_patterns(
         [
             monthly_summary_key(uid, e.spent_at.strftime("%Y-%m")),
+            dashboard_summary_key(uid, e.spent_at.strftime("%Y-%m")),
             f"insights:{uid}:*",
         ]
     )
