@@ -67,6 +67,15 @@ OpenAPI: `backend/app/openapi.yaml`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
 - Insights: `/insights/monthly`, `/insights/budget-suggestion`
 
+### Locale-aware formatting
+- Endpoints that return money/date-heavy payloads now include raw values plus non-breaking `formatted` metadata for client display.
+- Locale resolution order: `?locale=` query parameter, then `Accept-Language`, then default `en-IN`.
+- Supported locales: `en-IN`, `en-US`, `en-GB`, `de-DE`, `fr-FR`, `ja-JP`.
+- Supported currency symbols: `INR`, `USD`, `EUR`, `GBP`, `AED`, `SGD`, `AUD`, `CAD`, `JPY`.
+- Examples:
+  - `GET /expenses?locale=de-DE` returns `formatted.amount_formatted: "1.234,50 €"` and `formatted.date: "24.04.2026"`.
+  - `GET /dashboard/summary?month=2026-04&locale=en-IN` returns `summary_formatted.monthly_income.amount_formatted: "₹12,34,567.89"`.
+
 ## MVP UI/UX Plan
 - Auth screens: register/login.
 - Dashboard:

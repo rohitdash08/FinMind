@@ -6,6 +6,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..extensions import db
 from ..models import Bill, Expense, Category
 from ..services.cache import cache_get, cache_set, dashboard_summary_key
+from ..services.formatting import format_date, money_payload, resolve_locale
 
 bp = Blueprint("dashboard", __name__)
 
@@ -17,13 +18,15 @@ def dashboard_summary():
     ym = (request.args.get("month") or date.today().strftime("%Y-%m")).strip()
     if not _is_valid_month(ym):
         return jsonify(error="invalid month, expected YYYY-MM"), 400
-    key = dashboard_summary_key(uid, ym)
+    locale = resolve_locale(request)
+    key = f"{dashboard_summary_key(uid, ym)}:{locale}"
     cached = cache_get(key)
     if cached:
         return jsonify(cached)
 
     payload = {
-        "period": {"month": ym},
+        "period": {"month": ym, "month_formatted": format_date(f"{ym}-01", locale)},
+        "locale": locale,
         "summary": {
             "net_flow": 0.0,
             "monthly_income": 0.0,
@@ -88,6 +91,10 @@ def dashboard_summary():
                 "type": e.expense_type,
                 "category_id": e.category_id,
                 "currency": e.currency,
+                "formatted": {
+                    **money_payload(e.amount, e.currency, locale),
+                    "date": format_date(e.spent_at, locale),
+                },
             }
             for e in rows
         ]
@@ -116,6 +123,10 @@ def dashboard_summary():
                 "cadence": b.cadence.value,
                 "channel_email": b.channel_email,
                 "channel_whatsapp": b.channel_whatsapp,
+                "formatted": {
+                    **money_payload(b.amount, b.currency, locale),
+                    "next_due_date": format_date(b.next_due_date, locale),
+                },
             }
             for b in bills
         ]
@@ -158,12 +169,19 @@ def dashboard_summary():
                     if total > 0
                     else 0
                 ),
+                "formatted": money_payload(r.total_amount or 0, "INR", locale),
             }
             for r in category_rows
         ]
     except Exception:
         payload["errors"].append("category_breakdown_unavailable")
 
+    payload["summary_formatted"] = {
+        name: money_payload(value, "INR", locale)
+        for name, value in payload["summary"].items()
+        if name.endswith("total")
+        or name in {"net_flow", "monthly_income", "monthly_expenses"}
+    }
     cache_set(key, payload, ttl_seconds=300)
     return jsonify(payload)
 
