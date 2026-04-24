@@ -18,6 +18,8 @@ CREATE TABLE IF NOT EXISTS categories (
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
+CREATE INDEX IF NOT EXISTS idx_categories_user_name ON categories(user_id, name);
+
 CREATE TABLE IF NOT EXISTS expenses (
   id SERIAL PRIMARY KEY,
   user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -30,6 +32,8 @@ CREATE TABLE IF NOT EXISTS expenses (
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_expenses_user_spent_at ON expenses(user_id, spent_at DESC);
+CREATE INDEX IF NOT EXISTS idx_expenses_user_type_spent ON expenses(user_id, expense_type, spent_at);
+CREATE INDEX IF NOT EXISTS idx_expenses_user_category_spent ON expenses(user_id, category_id, spent_at);
 
 ALTER TABLE expenses
   ADD COLUMN IF NOT EXISTS expense_type VARCHAR(20) NOT NULL DEFAULT 'EXPENSE';
@@ -55,9 +59,11 @@ CREATE TABLE IF NOT EXISTS recurring_expenses (
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_recurring_expenses_user_start ON recurring_expenses(user_id, start_date);
+CREATE INDEX IF NOT EXISTS idx_recurring_expenses_user_active_start ON recurring_expenses(user_id, active, start_date);
 
 ALTER TABLE expenses
   ADD COLUMN IF NOT EXISTS source_recurring_id INT REFERENCES recurring_expenses(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_expenses_user_recurring_spent ON expenses(user_id, source_recurring_id, spent_at);
 
 DO $$ BEGIN
   CREATE TYPE bill_cadence AS ENUM ('MONTHLY','WEEKLY','YEARLY','ONCE');
@@ -80,6 +86,7 @@ CREATE TABLE IF NOT EXISTS bills (
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_bills_user_due ON bills(user_id, next_due_date);
+CREATE INDEX IF NOT EXISTS idx_bills_user_active_due ON bills(user_id, active, next_due_date);
 
 ALTER TABLE bills
   ADD COLUMN IF NOT EXISTS autopay_enabled BOOLEAN NOT NULL DEFAULT FALSE;
@@ -94,6 +101,8 @@ CREATE TABLE IF NOT EXISTS reminders (
   channel VARCHAR(20) NOT NULL DEFAULT 'email'
 );
 CREATE INDEX IF NOT EXISTS idx_reminders_due ON reminders(user_id, sent, send_at);
+CREATE INDEX IF NOT EXISTS idx_reminders_user_sent_send_at ON reminders(user_id, sent, send_at);
+CREATE INDEX IF NOT EXISTS idx_reminders_user_bill ON reminders(user_id, bill_id);
 
 CREATE TABLE IF NOT EXISTS ad_impressions (
   id SERIAL PRIMARY KEY,
@@ -123,3 +132,5 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   action VARCHAR(100) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+CREATE INDEX IF NOT EXISTS idx_audit_logs_user_created ON audit_logs(user_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_action_created ON audit_logs(action, created_at);

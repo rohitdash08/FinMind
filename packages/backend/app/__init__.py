@@ -110,6 +110,7 @@ def _ensure_schema_compatibility(app: Flask) -> None:
             NOT NULL DEFAULT 'INR'
             """
         )
+        _ensure_query_indexes(cur)
         conn.commit()
     except Exception:
         app.logger.exception(
@@ -118,3 +119,22 @@ def _ensure_schema_compatibility(app: Flask) -> None:
         conn.rollback()
     finally:
         conn.close()
+
+
+def _ensure_query_indexes(cur) -> None:
+    """Create idempotent indexes for high-frequency dashboard and finance queries."""
+    statements = [
+        "CREATE INDEX IF NOT EXISTS idx_categories_user_name ON categories(user_id, name)",
+        "CREATE INDEX IF NOT EXISTS idx_expenses_user_spent_at ON expenses(user_id, spent_at DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_expenses_user_type_spent ON expenses(user_id, expense_type, spent_at)",
+        "CREATE INDEX IF NOT EXISTS idx_expenses_user_category_spent ON expenses(user_id, category_id, spent_at)",
+        "CREATE INDEX IF NOT EXISTS idx_expenses_user_recurring_spent ON expenses(user_id, source_recurring_id, spent_at)",
+        "CREATE INDEX IF NOT EXISTS idx_recurring_expenses_user_active_start ON recurring_expenses(user_id, active, start_date)",
+        "CREATE INDEX IF NOT EXISTS idx_bills_user_active_due ON bills(user_id, active, next_due_date)",
+        "CREATE INDEX IF NOT EXISTS idx_reminders_user_sent_send_at ON reminders(user_id, sent, send_at)",
+        "CREATE INDEX IF NOT EXISTS idx_reminders_user_bill ON reminders(user_id, bill_id)",
+        "CREATE INDEX IF NOT EXISTS idx_audit_logs_user_created ON audit_logs(user_id, created_at)",
+        "CREATE INDEX IF NOT EXISTS idx_audit_logs_action_created ON audit_logs(action, created_at)",
+    ]
+    for statement in statements:
+        cur.execute(statement)
