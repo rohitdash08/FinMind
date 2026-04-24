@@ -62,6 +62,7 @@ See `backend/app/db/schema.sql`. Key tables:
 ## API Endpoints
 OpenAPI: `backend/app/openapi.yaml`
 - Auth: `/auth/register`, `/auth/login`, `/auth/refresh`
+  - Trusted devices: successful login records device metadata from `device_id`/`device_name` (or a User-Agent/IP fingerprint). Authenticated users can list devices with `GET /auth/devices`, rename/trust devices with `PATCH /auth/devices/{id}`, and revoke lost devices with `DELETE /auth/devices/{id}`.
 - Expenses: CRUD `/expenses`
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`

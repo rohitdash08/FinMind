@@ -1,3 +1,6 @@
+from datetime import datetime
+from hashlib import sha256
+
 from flask import Blueprint, request, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_jwt_extended import (
@@ -9,7 +12,7 @@ from flask_jwt_extended import (
     get_jwt_identity,
 )
 from ..extensions import db, redis_client
-from ..models import User
+from ..models import User, TrustedDevice
 import logging
 import time
 
@@ -62,8 +65,13 @@ def login():
     access = create_access_token(identity=str(user.id))
     refresh = create_refresh_token(identity=str(user.id))
     _store_refresh_session(refresh, str(user.id))
+    device = _record_login_device(user.id, data)
     logger.info("Login success user_id=%s", user.id)
-    return jsonify(access_token=access, refresh_token=refresh)
+    return jsonify(
+        access_token=access,
+        refresh_token=refresh,
+        device=_device_payload(device),
+    )
 
 
 @bp.get("/me")
@@ -101,6 +109,54 @@ def update_me():
     )
 
 
+@bp.get("/devices")
+@jwt_required()
+def list_devices():
+    uid = int(get_jwt_identity())
+    devices = (
+        db.session.query(TrustedDevice)
+        .filter_by(user_id=uid)
+        .order_by(TrustedDevice.last_seen_at.desc())
+        .all()
+    )
+    return jsonify(devices=[_device_payload(device) for device in devices])
+
+
+@bp.patch("/devices/<int:device_pk>")
+@jwt_required()
+def update_device(device_pk: int):
+    uid = int(get_jwt_identity())
+    device = db.session.get(TrustedDevice, device_pk)
+    if not device or device.user_id != uid:
+        return jsonify(error="device not found"), 404
+    if device.revoked_at:
+        return jsonify(error="device revoked"), 409
+
+    data = request.get_json() or {}
+    if "name" in data:
+        name = _clean_device_name(data.get("name"))
+        if not name:
+            return jsonify(error="device name required"), 400
+        device.name = name
+    if "trusted" in data:
+        device.trusted = bool(data.get("trusted"))
+    db.session.commit()
+    return jsonify(device=_device_payload(device))
+
+
+@bp.delete("/devices/<int:device_pk>")
+@jwt_required()
+def revoke_device(device_pk: int):
+    uid = int(get_jwt_identity())
+    device = db.session.get(TrustedDevice, device_pk)
+    if not device or device.user_id != uid:
+        return jsonify(error="device not found"), 404
+    device.trusted = False
+    device.revoked_at = datetime.utcnow()
+    db.session.commit()
+    return jsonify(device=_device_payload(device), message="device revoked"), 200
+
+
 @bp.post("/refresh")
 @jwt_required(refresh=True)
 def refresh():
@@ -123,6 +179,66 @@ def logout():
     if jti:
         redis_client.delete(_refresh_key(jti))
     return jsonify(message="logged out"), 200
+
+
+def _device_payload(device: TrustedDevice) -> dict:
+    return {
+        "id": device.id,
+        "device_id": device.device_id,
+        "name": device.name,
+        "trusted": bool(device.trusted),
+        "first_seen_at": device.first_seen_at.isoformat() if device.first_seen_at else None,
+        "last_seen_at": device.last_seen_at.isoformat() if device.last_seen_at else None,
+        "last_ip": device.last_ip,
+        "user_agent": device.user_agent,
+        "revoked_at": device.revoked_at.isoformat() if device.revoked_at else None,
+    }
+
+
+def _record_login_device(user_id: int, data: dict) -> TrustedDevice:
+    device_id = _device_identifier(data)
+    now = datetime.utcnow()
+    device = (
+        db.session.query(TrustedDevice)
+        .filter_by(user_id=user_id, device_id=device_id)
+        .first()
+    )
+    if not device:
+        device = TrustedDevice(
+            user_id=user_id,
+            device_id=device_id,
+            name=_clean_device_name(data.get("device_name")) or _default_device_name(),
+            first_seen_at=now,
+        )
+        db.session.add(device)
+    device.last_seen_at = now
+    device.last_ip = _client_ip()
+    device.user_agent = (request.headers.get("User-Agent") or "")[:500] or None
+    device.revoked_at = None
+    db.session.commit()
+    return device
+
+
+def _device_identifier(data: dict) -> str:
+    supplied = str(data.get("device_id") or "").strip()
+    if supplied:
+        return supplied[:128]
+    raw = f"{request.headers.get('User-Agent', '')}|{_client_ip()}"
+    return sha256(raw.encode("utf-8")).hexdigest()
+
+
+def _clean_device_name(value) -> str:
+    return str(value or "").strip()[:120]
+
+
+def _default_device_name() -> str:
+    agent = (request.headers.get("User-Agent") or "Unknown device").split(" ")[0]
+    return _clean_device_name(agent) or "Unknown device"
+
+
+def _client_ip() -> str:
+    forwarded = request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
+    return (forwarded or request.remote_addr or "")[:64]
 
 
 def _refresh_key(jti: str) -> str:

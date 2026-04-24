@@ -82,6 +82,7 @@ def create_expense():
         [
             monthly_summary_key(uid, e.spent_at.strftime("%Y-%m")),
             f"insights:{uid}:*",
+            f"user:{uid}:dashboard_summary:*",
         ]
     )
     return jsonify(_expense_to_dict(e)), 201

@@ -19,6 +19,24 @@ class User(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
 
+class TrustedDevice(db.Model):
+    __tablename__ = "trusted_devices"
+    __table_args__ = (
+        db.UniqueConstraint("user_id", "device_id", name="uq_trusted_devices_user_device"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    device_id = db.Column(db.String(128), nullable=False)
+    name = db.Column(db.String(120), nullable=False)
+    trusted = db.Column(db.Boolean, default=False, nullable=False)
+    first_seen_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    last_seen_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    last_ip = db.Column(db.String(64), nullable=True)
+    user_agent = db.Column(db.String(500), nullable=True)
+    revoked_at = db.Column(db.DateTime, nullable=True)
+
+
 class Category(db.Model):
     __tablename__ = "categories"
     id = db.Column(db.Integer, primary_key=True)
