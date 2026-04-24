@@ -1,4 +1,5 @@
 from flask import Flask
+
 from .auth import bp as auth_bp
 from .expenses import bp as expenses_bp
 from .bills import bp as bills_bp
@@ -7,6 +8,7 @@ from .insights import bp as insights_bp
 from .categories import bp as categories_bp
 from .docs import bp as docs_bp
 from .dashboard import bp as dashboard_bp
+from .savings import bp as savings_bp
 
 
 def register_routes(app: Flask):
@@ -18,3 +20,4 @@ def register_routes(app: Flask):
     app.register_blueprint(categories_bp, url_prefix="/categories")
     app.register_blueprint(docs_bp, url_prefix="/docs")
     app.register_blueprint(dashboard_bp, url_prefix="/dashboard")
+    app.register_blueprint(savings_bp, url_prefix="/savings")

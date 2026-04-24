@@ -123,3 +123,46 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   action VARCHAR(100) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+-- Goal-based savings tracking with milestones
+DO $$ BEGIN
+    CREATE TYPE savings_goal_status AS ENUM ('active','completed','abandoned');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+CREATE TABLE IF NOT EXISTS savings_goals (
+    id SERIAL PRIMARY KEY,
+    user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name VARCHAR(200) NOT NULL,
+    target_amount NUMERIC(12,2) NOT NULL,
+    current_amount NUMERIC(12,2) NOT NULL DEFAULT 0,
+    currency VARCHAR(10) NOT NULL DEFAULT 'INR',
+    deadline DATE,
+    status savings_goal_status NOT NULL DEFAULT 'active',
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_savings_goals_user_status
+    ON savings_goals(user_id, status);
+
+CREATE TABLE IF NOT EXISTS savings_milestones (
+    id SERIAL PRIMARY KEY,
+    goal_id INT NOT NULL REFERENCES savings_goals(id) ON DELETE CASCADE,
+    name VARCHAR(200) NOT NULL,
+    target_amount NUMERIC(12,2) NOT NULL,
+    reached_at TIMESTAMP,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS savings_contributions (
+    id SERIAL PRIMARY KEY,
+    goal_id INT NOT NULL REFERENCES savings_goals(id) ON DELETE CASCADE,
+    amount NUMERIC(12,2) NOT NULL,
+    contributed_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    notes VARCHAR(500),
+    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_savings_contributions_goal
+    ON savings_contributions(goal_id, contributed_at DESC);
