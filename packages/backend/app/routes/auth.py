@@ -9,7 +9,7 @@ from flask_jwt_extended import (
     get_jwt_identity,
 )
 from ..extensions import db, redis_client
-from ..models import User
+from ..models import LoginEvent, User
 import logging
 import time
 
@@ -58,12 +58,22 @@ def login():
     user = db.session.query(User).filter_by(email=email).first()
     if not user or not check_password_hash(user.password_hash, password):
         logger.warning("Login failed for email=%s", email)
+        if user:
+            _record_login_event(user.id, success=False, reason="invalid credentials")
         return jsonify(error="invalid credentials"), 401
+    anomaly, reason = _detect_login_anomaly(user.id)
     access = create_access_token(identity=str(user.id))
     refresh = create_refresh_token(identity=str(user.id))
     _store_refresh_session(refresh, str(user.id))
+    _record_login_event(user.id, success=True, anomaly=anomaly, reason=reason)
     logger.info("Login success user_id=%s", user.id)
-    return jsonify(access_token=access, refresh_token=refresh)
+    response = {"access_token": access, "refresh_token": refresh}
+    if anomaly:
+        response["suspicious_activity_alert"] = {
+            "message": "New login pattern detected. Review your recent login activity.",
+            "reason": reason,
+        }
+    return jsonify(response)
 
 
 @bp.get("/me")
@@ -98,6 +108,33 @@ def update_me():
         id=user.id,
         email=user.email,
         preferred_currency=user.preferred_currency or "INR",
+    )
+
+
+@bp.get("/login-activity")
+@jwt_required()
+def login_activity():
+    uid = int(get_jwt_identity())
+    events = (
+        db.session.query(LoginEvent)
+        .filter_by(user_id=uid)
+        .order_by(LoginEvent.created_at.desc(), LoginEvent.id.desc())
+        .limit(20)
+        .all()
+    )
+    return jsonify(
+        events=[
+            {
+                "id": event.id,
+                "ip_address": event.ip_address,
+                "user_agent": event.user_agent,
+                "success": event.success,
+                "anomaly": event.anomaly,
+                "reason": event.reason,
+                "created_at": event.created_at.isoformat(),
+            }
+            for event in events
+        ]
     )
 
 
@@ -137,3 +174,56 @@ def _store_refresh_session(refresh_token: str, uid: str):
         return
     ttl = max(int(exp - time.time()), 1)
     redis_client.setex(_refresh_key(jti), ttl, uid)
+
+
+def _request_ip() -> str | None:
+    forwarded_for = request.headers.get("X-Forwarded-For", "")
+    if forwarded_for:
+        return forwarded_for.split(",", 1)[0].strip() or None
+    return request.remote_addr
+
+
+def _request_user_agent() -> str | None:
+    user_agent = request.headers.get("User-Agent", "")
+    return user_agent[:255] or None
+
+
+def _detect_login_anomaly(user_id: int) -> tuple[bool, str | None]:
+    ip_address = _request_ip()
+    user_agent = _request_user_agent()
+    previous = (
+        db.session.query(LoginEvent)
+        .filter_by(user_id=user_id, success=True)
+        .order_by(LoginEvent.created_at.desc(), LoginEvent.id.desc())
+        .first()
+    )
+    if not previous:
+        return False, None
+    reasons = []
+    if ip_address and previous.ip_address and ip_address != previous.ip_address:
+        reasons.append("new IP address")
+    if user_agent and previous.user_agent and user_agent != previous.user_agent:
+        reasons.append("new device or browser")
+    if reasons:
+        return True, ", ".join(reasons)
+    return False, None
+
+
+def _record_login_event(
+    user_id: int,
+    *,
+    success: bool,
+    anomaly: bool = False,
+    reason: str | None = None,
+) -> None:
+    db.session.add(
+        LoginEvent(
+            user_id=user_id,
+            ip_address=_request_ip(),
+            user_agent=_request_user_agent(),
+            success=success,
+            anomaly=anomaly,
+            reason=reason,
+        )
+    )
+    db.session.commit()

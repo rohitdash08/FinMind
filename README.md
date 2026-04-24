@@ -61,7 +61,7 @@ See `backend/app/db/schema.sql`. Key tables:
 
 ## API Endpoints
 OpenAPI: `backend/app/openapi.yaml`
-- Auth: `/auth/register`, `/auth/login`, `/auth/refresh`
+- Auth: `/auth/register`, `/auth/login`, `/auth/refresh`, `/auth/login-activity`
 - Expenses: CRUD `/expenses`
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
@@ -185,6 +185,9 @@ finmind/
 
 ## Security & Scalability
 - JWT access/refresh, secure cookies OR Authorization header.
+- Login anomaly detection records recent login events, flags new IP/device patterns in
+  `/auth/login` with a `suspicious_activity_alert`, and exposes authenticated recent
+  events via `/auth/login-activity` so users can review suspicious activity.
 - RBAC-ready via roles on `users.role`.
 - N+1 avoided via SQLAlchemy eager loading.
 - Redis caching for hot paths to cut DB load.
