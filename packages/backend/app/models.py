@@ -133,3 +133,34 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class JobStatus(str, Enum):
+    PENDING = "pending"
+    RUNNING = "running"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+    RETRYING = "retrying"
+    DEAD = "dead"
+
+
+class BackgroundJob(db.Model):
+    __tablename__ = "background_jobs"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    task_type = db.Column(db.String(100), nullable=False)
+    payload = db.Column(db.JSON, nullable=False, default=dict)
+    status = db.Column(SAEnum(JobStatus), default=JobStatus.PENDING, nullable=False)
+    attempts = db.Column(db.Integer, default=0, nullable=False)
+    max_attempts = db.Column(db.Integer, default=3, nullable=False)
+    last_error = db.Column(db.Text, nullable=True)
+    result = db.Column(db.JSON, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(
+        db.DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+        nullable=False,
+    )
+    next_retry_at = db.Column(db.DateTime, nullable=True)
+    scheduled_for = db.Column(db.DateTime, nullable=True)
