@@ -65,6 +65,7 @@ OpenAPI: `backend/app/openapi.yaml`
 - Expenses: CRUD `/expenses`
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
+- Background jobs: enqueue/list `/jobs`, trigger due jobs `/jobs/run` with retry monitoring
 - Insights: `/insights/monthly`, `/insights/budget-suggestion`
 
 ## MVP UI/UX Plan
@@ -180,7 +181,7 @@ finmind/
 - See `CONTRIBUTING.md` for fork-first contribution flow and PR requirements.
 
 ## Notes on Free-Tier Reminders
-- Primary: schedule via APScheduler in-process with persistence in Postgres (job table) and a simple daily trigger. Alternatively, use Railway/Render cron to hit `/reminders/run`.
+- Primary: queue reminder work in `background_jobs`; run due jobs via APScheduler, or use Railway/Render cron to hit `/jobs/run`. Failed jobs retry with bounded exponential backoff and expose status/error fields through `/jobs`.
 - Twilio WhatsApp free trial supports sandbox; email via SMTP (e.g., SendGrid free tier).
 
 ## Security & Scalability
