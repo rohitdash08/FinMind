@@ -8,6 +8,7 @@ from .observability import (
     finalize_request,
     init_request_context,
 )
+from .services.response_optimization import optimize_response
 from flask_cors import CORS
 import click
 import os
@@ -62,7 +63,7 @@ def create_app(settings: Settings | None = None) -> Flask:
 
     @app.after_request
     def _after_request(response):
-        return finalize_request(response)
+        return optimize_response(finalize_request(response))
 
     @app.get("/health")
     def health():

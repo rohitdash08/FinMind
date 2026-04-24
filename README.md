@@ -59,6 +59,11 @@ See `backend/app/db/schema.sql`. Key tables:
   - On expense/bill create/update/delete -> delete affected monthly_summary, upcoming_bills, insights
 - Rate limiting (optional): `rl:{userId}:{endpoint}:{minute}` with short TTL
 
+## API Payload Optimization
+- Text, JSON, XML, and JavaScript responses larger than 500 bytes are gzip-compressed when clients send `Accept-Encoding: gzip`.
+- Compressed responses include `Vary: Accept-Encoding`, `Content-Encoding: gzip`, `X-Original-Content-Length`, and `X-Compression-Ratio` headers for cache correctness and observability.
+- Streaming responses, already encoded responses, `HEAD`, `204`, and `304` responses are intentionally skipped to avoid breaking protocol semantics.
+
 ## API Endpoints
 OpenAPI: `backend/app/openapi.yaml`
 - Auth: `/auth/register`, `/auth/login`, `/auth/refresh`
