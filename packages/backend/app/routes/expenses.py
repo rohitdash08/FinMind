@@ -8,6 +8,7 @@ from ..extensions import db
 from ..models import Expense, RecurringCadence, RecurringExpense, User
 from ..services.cache import cache_delete_patterns, monthly_summary_key
 from ..services import expense_import
+from ..services.formatting import format_date, money_payload, resolve_locale
 import logging
 
 bp = Blueprint("expenses", __name__)
@@ -48,7 +49,8 @@ def list_expenses():
         .all()
     )
     logger.info("List expenses user=%s count=%s", uid, len(items))
-    data = [_expense_to_dict(e) for e in items]
+    locale = resolve_locale(request)
+    data = [_expense_to_dict(e, locale=locale) for e in items]
     return jsonify(data)
 
 
@@ -82,9 +84,11 @@ def create_expense():
         [
             monthly_summary_key(uid, e.spent_at.strftime("%Y-%m")),
             f"insights:{uid}:*",
+            f"user:{uid}:dashboard_summary:*",
         ]
     )
-    return jsonify(_expense_to_dict(e)), 201
+    locale = resolve_locale(request)
+    return jsonify(_expense_to_dict(e, locale=locale)), 201
 
 
 @bp.get("/recurring")
@@ -97,7 +101,8 @@ def list_recurring_expenses():
         .order_by(RecurringExpense.created_at.desc())
         .all()
     )
-    return jsonify([_recurring_to_dict(r) for r in items])
+    locale = resolve_locale(request)
+    return jsonify([_recurring_to_dict(r, locale=locale) for r in items])
 
 
 @bp.post("/recurring")
@@ -143,7 +148,7 @@ def create_recurring_expense():
     )
     db.session.add(recurring)
     db.session.commit()
-    return jsonify(_recurring_to_dict(recurring)), 201
+    return jsonify(_recurring_to_dict(recurring, locale=resolve_locale(request))), 201
 
 
 @bp.post("/recurring/<int:recurring_id>/generate")
@@ -231,7 +236,7 @@ def update_expense(expense_id: int):
         e.spent_at = date.fromisoformat(raw_date)
     db.session.commit()
     _invalidate_expense_cache(uid, e.spent_at.isoformat())
-    return jsonify(_expense_to_dict(e))
+    return jsonify(_expense_to_dict(e, locale=resolve_locale(request)))
 
 
 @bp.delete("/<int:expense_id>")
@@ -311,7 +316,8 @@ def import_commit():
     return jsonify(inserted=inserted, duplicates=duplicates), 201
 
 
-def _expense_to_dict(e: Expense) -> dict:
+def _expense_to_dict(e: Expense, locale: str | None = None) -> dict:
+    locale = locale or "en-IN"
     return {
         "id": e.id,
         "amount": float(e.amount),
@@ -320,10 +326,15 @@ def _expense_to_dict(e: Expense) -> dict:
         "expense_type": e.expense_type,
         "description": e.notes or "",
         "date": e.spent_at.isoformat(),
+        "formatted": {
+            **money_payload(e.amount, e.currency, locale),
+            "date": format_date(e.spent_at, locale),
+        },
     }
 
 
-def _recurring_to_dict(r: RecurringExpense) -> dict:
+def _recurring_to_dict(r: RecurringExpense, locale: str | None = None) -> dict:
+    locale = locale or "en-IN"
     return {
         "id": r.id,
         "amount": float(r.amount),
@@ -335,6 +346,11 @@ def _recurring_to_dict(r: RecurringExpense) -> dict:
         "start_date": r.start_date.isoformat(),
         "end_date": r.end_date.isoformat() if r.end_date else None,
         "active": r.active,
+        "formatted": {
+            **money_payload(r.amount, r.currency, locale),
+            "start_date": format_date(r.start_date, locale),
+            "end_date": format_date(r.end_date, locale) if r.end_date else None,
+        },
     }
 
 
