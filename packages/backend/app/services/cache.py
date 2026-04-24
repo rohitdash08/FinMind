@@ -1,6 +1,10 @@
 import json
+import logging
 from typing import Iterable
+
 from ..extensions import redis_client
+
+logger = logging.getLogger("finmind.cache")
 
 
 def monthly_summary_key(user_id: int, ym: str) -> str:
@@ -25,23 +29,37 @@ def dashboard_summary_key(user_id: int, ym: str) -> str:
 
 def cache_set(key: str, value, ttl_seconds: int | None = None):
     payload = json.dumps(value)
-    if ttl_seconds:
-        redis_client.setex(key, ttl_seconds, payload)
-    else:
-        redis_client.set(key, payload)
+    try:
+        if ttl_seconds:
+            redis_client.setex(key, ttl_seconds, payload)
+        else:
+            redis_client.set(key, payload)
+    except Exception as error:  # pragma: no cover - exercised when Redis is unavailable
+        logger.warning("Redis unavailable; skipping cache write: %s", error)
 
 
 def cache_get(key: str):
-    raw = redis_client.get(key)
+    try:
+        raw = redis_client.get(key)
+    except Exception as error:  # pragma: no cover - exercised when Redis is unavailable
+        logger.warning("Redis unavailable; skipping cache read: %s", error)
+        raw = None
     return json.loads(raw) if raw else None
 
 
 def cache_delete_patterns(patterns: Iterable[str]):
     for pattern in patterns:
-        cursor = 0
-        while True:
-            cursor, keys = redis_client.scan(cursor=cursor, match=pattern, count=100)
-            if keys:
-                redis_client.delete(*keys)
-            if cursor == 0:
-                break
+        try:
+            cursor = 0
+            while True:
+                cursor, keys = redis_client.scan(
+                    cursor=cursor, match=pattern, count=100
+                )
+                if keys:
+                    redis_client.delete(*keys)
+                if cursor == 0:
+                    break
+        except (
+            Exception
+        ) as error:  # pragma: no cover - exercised when Redis is unavailable
+            logger.warning("Redis unavailable; skipping cache delete: %s", error)
