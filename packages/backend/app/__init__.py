@@ -1,6 +1,6 @@
 from flask import Flask, jsonify
 from .config import Settings
-from .extensions import db, jwt
+from .extensions import db, jwt, redis_client
 from .routes import register_routes
 from .observability import (
     Observability,
@@ -44,6 +44,8 @@ def create_app(settings: Settings | None = None) -> Flask:
     # Extensions
     db.init_app(app)
     jwt.init_app(app)
+    if os.getenv("FLASK_ENV") == "testing":
+        redis_client.flushdb()
     app.extensions["observability"] = Observability()
     # CORS for local dev frontend
     CORS(app, resources={r"*": {"origins": "*"}}, supports_credentials=True)
@@ -110,10 +112,30 @@ def _ensure_schema_compatibility(app: Flask) -> None:
             NOT NULL DEFAULT 'INR'
             """
         )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS login_events (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id),
+                ip_address VARCHAR(45),
+                user_agent VARCHAR(255),
+                success BOOLEAN NOT NULL DEFAULT TRUE,
+                anomaly BOOLEAN NOT NULL DEFAULT FALSE,
+                reason VARCHAR(255),
+                created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+        cur.execute(
+            """
+            CREATE INDEX IF NOT EXISTS ix_login_events_user_created
+            ON login_events (user_id, created_at DESC)
+            """
+        )
         conn.commit()
     except Exception:
         app.logger.exception(
-            "Schema compatibility patch failed for users.preferred_currency"
+            "Schema compatibility patch failed for auth compatibility tables"
         )
         conn.rollback()
     finally:
