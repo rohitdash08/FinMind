@@ -16,6 +16,8 @@ import NotFound from "./pages/NotFound";
 import { Landing } from "./pages/Landing";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
 import Account from "./pages/Account";
+import { Savings } from "./pages/Savings";
+
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -91,6 +93,15 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="savings"
+              element={
+                <ProtectedRoute>
+                  <Savings />
+                </ProtectedRoute>
+              }
+            />
+
           </Route>
           <Route path="/signin" element={<SignIn />} />
           <Route path="/register" element={<Register />} />
