@@ -23,3 +23,19 @@ def budget_suggestion():
     )
     logger.info("Budget suggestion served user=%s month=%s", uid, ym)
     return jsonify(suggestion)
+
+@bp.get("/weekly-summary")
+@jwt_required()
+def weekly_summary():
+    uid = int(get_jwt_identity())
+    user_gemini_key = (request.headers.get("X-Gemini-Api-Key") or "").strip() or None
+    persona = (request.headers.get("X-Insight-Persona") or "").strip() or None
+    
+    from ..services.ai import get_weekly_ai_analysis
+    analysis = get_weekly_ai_analysis(
+        uid,
+        api_key=user_gemini_key,
+        persona=persona,
+    )
+    logger.info("Weekly summary served user=%s", uid)
+    return jsonify(analysis)
