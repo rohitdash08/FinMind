@@ -123,3 +123,39 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   action VARCHAR(100) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+-- Multi-account financial overview
+DO $$ BEGIN
+    CREATE TYPE account_type AS ENUM ('checking','savings','credit_card','investment','cash');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+CREATE TABLE IF NOT EXISTS financial_accounts (
+    id SERIAL PRIMARY KEY,
+    user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name VARCHAR(200) NOT NULL,
+    account_type account_type NOT NULL DEFAULT 'checking',
+    institution VARCHAR(200),
+    balance NUMERIC(12,2) NOT NULL DEFAULT 0,
+    currency VARCHAR(10) NOT NULL DEFAULT 'INR',
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_financial_accounts_user_active
+    ON financial_accounts(user_id, is_active);
+
+CREATE TABLE IF NOT EXISTS account_transactions (
+    id SERIAL PRIMARY KEY,
+    account_id INT NOT NULL REFERENCES financial_accounts(id) ON DELETE CASCADE,
+    user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    amount NUMERIC(12,2) NOT NULL,
+    description VARCHAR(500),
+    category VARCHAR(100),
+    transaction_date TIMESTAMP NOT NULL DEFAULT NOW(),
+    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_account_transactions_account
+    ON account_transactions(account_id, transaction_date DESC);
