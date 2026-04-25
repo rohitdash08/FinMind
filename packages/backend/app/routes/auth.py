@@ -9,7 +9,8 @@ from flask_jwt_extended import (
     get_jwt_identity,
 )
 from ..extensions import db, redis_client
-from ..models import User
+from ..models import AuditLog, User
+from ..services.secure_backup import BackupPassphraseError, export_user_backup
 import logging
 import time
 
@@ -99,6 +100,29 @@ def update_me():
         email=user.email,
         preferred_currency=user.preferred_currency or "INR",
     )
+
+
+@bp.post("/me/backup/export")
+@jwt_required()
+def export_encrypted_backup():
+    uid = int(get_jwt_identity())
+    data = request.get_json(silent=True) or {}
+    passphrase = data.get("passphrase") or data.get("password")
+    try:
+        envelope = export_user_backup(uid, passphrase)
+    except BackupPassphraseError as exc:
+        return jsonify(error=str(exc)), 400
+    except LookupError:
+        return jsonify(error="not found"), 404
+
+    db.session.add(AuditLog(user_id=uid, action="encrypted_backup_exported"))
+    db.session.commit()
+    logger.info(
+        "Encrypted backup exported user_id=%s counts=%s",
+        uid,
+        envelope.get("record_counts"),
+    )
+    return jsonify(envelope), 200
 
 
 @bp.post("/refresh")
