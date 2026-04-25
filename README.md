@@ -62,6 +62,7 @@ See `backend/app/db/schema.sql`. Key tables:
 ## API Endpoints
 OpenAPI: `backend/app/openapi.yaml`
 - Auth: `/auth/register`, `/auth/login`, `/auth/refresh`
+- Secure backups: `POST /auth/me/backup/export` returns an encrypted, user-scoped JSON backup envelope for categories, expenses, recurring expenses, bills, and reminders. Body: `{ "passphrase": "at least 12 characters" }`. Encryption uses a random salt, PBKDF2-HMAC-SHA256, and Fernet authenticated encryption; the plaintext is never returned or logged, and an `encrypted_backup_exported` audit log entry is recorded.
 - Expenses: CRUD `/expenses`
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
