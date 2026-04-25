@@ -185,3 +185,66 @@ def monthly_budget_suggestion(
                 uid, ym, persona_text, warnings=["gemini_unavailable"]
             )
     return _heuristic_budget(uid, ym, persona_text)
+
+from datetime import datetime, timedelta
+
+def get_weekly_summary(uid: int):
+    # Get last 7 days of expenses
+    end_date = datetime.now().date()
+    start_date = end_date - timedelta(days=7)
+    
+    expenses = db.session.query(
+        Expense.category_id,
+        func.sum(Expense.amount).label('total')
+    ).filter(
+        Expense.user_id == uid,
+        Expense.spent_at >= start_date,
+        Expense.spent_at <= end_date,
+        Expense.expense_type != 'INCOME'
+    ).group_by(Expense.category_id).all()
+    
+    # Map category names
+    from ..models import Category
+    categories = {c.id: c.name for c in Category.query.filter_by(user_id=uid).all()}
+    
+    summary = {
+        "period": f"{start_date} to {end_date}",
+        "total_spent": float(sum(e.total for e in expenses)),
+        "breakdown": [
+            {"category": categories.get(e.category_id, "Unknown"), "amount": float(e.total)}
+            for e in expenses
+        ]
+    }
+    return summary
+
+def get_weekly_ai_analysis(uid: int, api_key: str = None, model: str = None, persona: str = None):
+    summary = get_weekly_summary(uid)
+    key = (api_key or "").strip() or (_settings.gemini_api_key or "")
+    model_name = model or _settings.gemini_model
+    persona_text = (persona or DEFAULT_PERSONA).strip()
+    
+    if not key:
+        return {**summary, "ai_insight": "AI analysis unavailable (no API key)", "method": "manual"}
+        
+    prompt = (
+        f"{persona_text}\n"
+        "Analyze this week's spending data and provide a concise summary, "
+        "identifying potential waste and suggesting 3 specific improvements.\n"
+        f"Data: {json.dumps(summary)}"
+    )
+    
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={key}"
+    body = json.dumps({"contents": [{"parts": [{"text": prompt}]}]}).encode("utf-8")
+    req = request.Request(url=url, data=body, headers={"Content-Type": "application/json"}, method="POST")
+    
+    try:
+        with request.urlopen(req, timeout=10) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+        text = payload['candidates'][0]['content']['parts'][0]['text']
+        summary["ai_insight"] = text
+        summary["method"] = "gemini"
+    except Exception as e:
+        summary["ai_insight"] = f"AI analysis failed: {str(e)}"
+        summary["method"] = "fallback"
+        
+    return summary
