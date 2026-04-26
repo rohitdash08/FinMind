@@ -23,3 +23,21 @@ def budget_suggestion():
     )
     logger.info("Budget suggestion served user=%s month=%s", uid, ym)
     return jsonify(suggestion)
+
+
+@bp.get("/reminder-timing")
+@jwt_required()
+def reminder_timing():
+    """Return optimal reminder timing recommendation (closes #111)."""
+    from ..services.reminder_timing import optimal_reminder_timing, suggest_reminder_send_at
+
+    uid = int(get_jwt_identity())
+    due_date = (request.args.get("due_date") or "").strip()
+
+    if due_date:
+        result = suggest_reminder_send_at(uid, due_date)
+    else:
+        result = optimal_reminder_timing(uid)
+
+    logger.info("Reminder timing served user=%s confidence=%s", uid, result["confidence"])
+    return jsonify(result)
