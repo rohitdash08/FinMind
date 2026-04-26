@@ -8,6 +8,7 @@ from ..extensions import db
 from ..models import Expense, RecurringCadence, RecurringExpense, User
 from ..services.cache import cache_delete_patterns, monthly_summary_key
 from ..services import expense_import
+from ..services.bank_normalizer import normalize_statement
 import logging
 
 bp = Blueprint("expenses", __name__)
@@ -309,6 +310,34 @@ def import_commit():
     for ym in touched_months:
         _invalidate_expense_cache(uid, ym + "-01")
     return jsonify(inserted=inserted, duplicates=duplicates), 201
+
+
+@bp.post("/import/normalize")
+@jwt_required()
+def import_normalize():
+    """
+    Normalize a bank statement into a unified transaction schema (#112).
+
+    Accepts CSV, OFX/QFX, and QIF files. Auto-detects the bank profile
+    (Chase, HDFC, Axis, or generic) and returns normalised transactions
+    with duplicate fingerprints and format metadata.
+    """
+    file = request.files.get("file")
+    if not file:
+        return jsonify(error="file required"), 400
+    raw = file.read()
+    try:
+        result = normalize_statement(
+            filename=file.filename or "",
+            content_type=file.content_type,
+            data=raw,
+        )
+    except ValueError as exc:
+        return jsonify(error=str(exc)), 400
+    except Exception:  # pragma: no cover
+        logger.exception("Statement normalization failed")
+        return jsonify(error="failed to normalize statement"), 500
+    return jsonify(result)
 
 
 def _expense_to_dict(e: Expense) -> dict:
