@@ -133,3 +133,39 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class Webhook(db.Model):
+    __tablename__ = "webhooks"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    url = db.Column(db.String(500), nullable=False)
+    secret = db.Column(db.String(128), nullable=False)
+    events = db.Column(db.String(1000), nullable=False, default="*")
+    active = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class WebhookDeliveryStatus(str, Enum):
+    PENDING = "PENDING"
+    SUCCESS = "SUCCESS"
+    FAILED = "FAILED"
+
+
+class WebhookDelivery(db.Model):
+    __tablename__ = "webhook_deliveries"
+    id = db.Column(db.Integer, primary_key=True)
+    webhook_id = db.Column(
+        db.Integer, db.ForeignKey("webhooks.id", ondelete="CASCADE"), nullable=False
+    )
+    event_type = db.Column(db.String(100), nullable=False)
+    payload = db.Column(db.Text, nullable=False)
+    status = db.Column(
+        db.String(20), default=WebhookDeliveryStatus.PENDING.value, nullable=False
+    )
+    attempts = db.Column(db.Integer, default=0, nullable=False)
+    last_status_code = db.Column(db.Integer, nullable=True)
+    last_error = db.Column(db.String(500), nullable=True)
+    next_attempt_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    delivered_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)

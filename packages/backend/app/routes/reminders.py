@@ -5,6 +5,7 @@ from ..extensions import db
 from ..models import Bill, Reminder
 from ..observability import track_reminder_event
 from ..services.reminders import send_reminder
+from ..services.webhooks import emit_event
 import logging
 
 bp = Blueprint("reminders", __name__)
@@ -51,6 +52,16 @@ def create_reminder():
     db.session.commit()
     logger.info("Created reminder id=%s user=%s", r.id, uid)
     track_reminder_event(event="created", channel=r.channel)
+    emit_event(
+        uid,
+        "reminder.created",
+        {
+            "id": r.id,
+            "message": r.message,
+            "send_at": r.send_at.isoformat(),
+            "channel": r.channel,
+        },
+    )
     return jsonify(id=r.id), 201
 
 
