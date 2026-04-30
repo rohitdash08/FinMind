@@ -2,9 +2,9 @@ from datetime import datetime, time, timedelta
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..extensions import db
-from ..models import Bill, Reminder
+from ..models import Bill, JobType, Reminder
 from ..observability import track_reminder_event
-from ..services.reminders import send_reminder
+from ..services.jobs import enqueue_job
 import logging
 
 bp = Blueprint("reminders", __name__)
@@ -170,13 +170,17 @@ def run_due():
         )
         .all()
     )
+    enqueued = 0
     for r in items:
-        send_reminder(r)
-        r.sent = True
-        track_reminder_event(event="sent", channel=r.channel)
-    db.session.commit()
-    logger.info("Processed due reminders user=%s count=%s", uid, len(items))
-    return jsonify(processed=len(items))
+        enqueue_job(
+            user_id=uid,
+            job_type=JobType.REMINDER.value,
+            payload={"reminder_id": r.id},
+        )
+        enqueued += 1
+        track_reminder_event(event="enqueued", channel=r.channel)
+    logger.info("Enqueued due reminders user=%s count=%s", uid, enqueued)
+    return jsonify(enqueued=enqueued)
 
 
 def _bill_channels(bill: Bill) -> list[str]:

@@ -60,6 +60,31 @@ class Observability:
             ["event", "channel", "status"],
             registry=self.registry,
         )
+        self.jobs_total = Counter(
+            "finmind_jobs_total",
+            "Total background jobs by type and status.",
+            ["job_type", "status"],
+            registry=self.registry,
+        )
+        self.job_duration_seconds = Histogram(
+            "finmind_job_duration_seconds",
+            "Background job execution duration in seconds.",
+            ["job_type"],
+            buckets=(0.01, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 30, 60),
+            registry=self.registry,
+        )
+        self.jobs_retry_total = Counter(
+            "finmind_jobs_retry_total",
+            "Total background job retries by type.",
+            ["job_type"],
+            registry=self.registry,
+        )
+        self.jobs_dead_letter_total = Counter(
+            "finmind_jobs_dead_letter_total",
+            "Total background jobs moved to dead letter by type.",
+            ["job_type"],
+            registry=self.registry,
+        )
 
     def observe_http_request(
         self, method: str, endpoint: str, status_code: int, duration_seconds: float
@@ -78,6 +103,22 @@ class Observability:
         self.reminder_events_total.labels(
             event=event, channel=channel, status=status
         ).inc()
+
+    def record_job_completed(
+        self, job_type: str, duration_seconds: float
+    ) -> None:
+        self.jobs_total.labels(job_type=job_type, status="completed").inc()
+        self.job_duration_seconds.labels(job_type=job_type).observe(
+            duration_seconds
+        )
+
+    def record_job_retry(self, job_type: str) -> None:
+        self.jobs_total.labels(job_type=job_type, status="failed").inc()
+        self.jobs_retry_total.labels(job_type=job_type).inc()
+
+    def record_job_dead_letter(self, job_type: str) -> None:
+        self.jobs_total.labels(job_type=job_type, status="dead").inc()
+        self.jobs_dead_letter_total.labels(job_type=job_type).inc()
 
     def metrics_response(self) -> Response:
         if self.multiprocess_enabled:
@@ -137,3 +178,19 @@ def track_reminder_event(event: str, channel: str, status: str = "ok") -> None:
     obs = current_app.extensions.get("observability")
     if obs:
         obs.record_reminder_event(event=event, channel=channel, status=status)
+
+
+def track_job_event(
+    job_type: str,
+    status: str,
+    duration_seconds: float = 0.0,
+) -> None:
+    obs = current_app.extensions.get("observability")
+    if not obs:
+        return
+    if status == "completed":
+        obs.record_job_completed(job_type, duration_seconds)
+    elif status == "failed":
+        obs.record_job_retry(job_type)
+    elif status == "dead":
+        obs.record_job_dead_letter(job_type)

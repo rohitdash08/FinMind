@@ -45,7 +45,7 @@ flowchart LR
 
 ## PostgreSQL Schema (DDL)
 See `backend/app/db/schema.sql`. Key tables:
-- users, categories, expenses, bills, reminders
+- users, categories, expenses, bills, reminders, background_jobs
 - ad_impressions, subscription_plans, user_subscriptions
 - refresh_tokens (optional if rotating), audit_logs
 
@@ -65,6 +65,7 @@ OpenAPI: `backend/app/openapi.yaml`
 - Expenses: CRUD `/expenses`
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
+- Jobs: `GET /jobs/stats`, `GET /jobs/<id>`, `POST /jobs/process`, `POST /jobs/cleanup`
 - Insights: `/insights/monthly`, `/insights/budget-suggestion`
 
 ## MVP UI/UX Plan
@@ -104,10 +105,12 @@ finmind/
         bills.py
         reminders.py
         insights.py
+        jobs.py
       services/
         __init__.py
         ai.py
         cache.py
+        jobs.py
         reminders.py
       db/
         schema.sql
@@ -168,11 +171,25 @@ finmind/
 - Backend: pytest, flake8, black. Frontend: vitest, eslint.
 - GitHub Actions `ci.yml` runs lint, tests, and builds both apps; optional docker build.
 
+## Background Job System
+- Resilient queued job processing with automatic retry and dead-letter handling.
+- `POST /reminders/run` now enqueues jobs instead of sending synchronously.
+- Retry logic: exponential backoff (30s, 2min, 8min) with configurable `max_attempts` (default 3).
+- After `max_attempts` failures, jobs are marked `DEAD` for manual review.
+- Job types: `REMINDER`, `DIGEST` (extensible via `_dispatch_job` in `services/jobs.py`).
+- Endpoints:
+  - `GET /jobs/stats` -- aggregate counts by status (pending, running, completed, failed, dead).
+  - `GET /jobs/<id>` -- detailed status for a single job.
+  - `POST /jobs/process` -- manually trigger processing of all due pending/failed jobs.
+  - `POST /jobs/cleanup` -- remove completed jobs older than 30 days.
+- All job endpoints are JWT-protected.
+
 ## Monitoring (Grafana OSS)
 - Backend exposes Prometheus metrics at `/metrics` with:
   - request count by endpoint/status
   - request duration histograms (latency, including dashboard p95 KPI)
   - reminder event counters (engagement KPI)
+  - background job counters: `finmind_jobs_total` (by type/status), `finmind_job_duration_seconds`, `finmind_jobs_retry_total`, `finmind_jobs_dead_letter_total`
 - Logs are emitted as JSON with `request_id` and shipped to Loki via Promtail.
 - Pre-provisioned Grafana dashboard: `FinMind Operations and KPI`.
 
@@ -180,7 +197,7 @@ finmind/
 - See `CONTRIBUTING.md` for fork-first contribution flow and PR requirements.
 
 ## Notes on Free-Tier Reminders
-- Primary: schedule via APScheduler in-process with persistence in Postgres (job table) and a simple daily trigger. Alternatively, use Railway/Render cron to hit `/reminders/run`.
+- Primary: `/reminders/run` enqueues due reminders as background jobs, then `/jobs/process` executes them with retry. Use APScheduler in-process or Railway/Render cron to trigger both endpoints.
 - Twilio WhatsApp free trial supports sandbox; email via SMTP (e.g., SendGrid free tier).
 
 ## Security & Scalability
