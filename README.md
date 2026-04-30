@@ -55,6 +55,7 @@ See `backend/app/db/schema.sql`. Key tables:
   - `user:{id}:categories` — 24h TTL
   - `user:{id}:upcoming_bills` — 15 min TTL
   - `insights:{id}` — 24h TTL (invalidate on new expense/bill)
+  - `user:{id}:weekly_digest:{yyyy-mm-dd}` — 10 min TTL
 - Invalidation
   - On expense/bill create/update/delete -> delete affected monthly_summary, upcoming_bills, insights
 - Rate limiting (optional): `rl:{userId}:{endpoint}:{minute}` with short TTL
@@ -66,6 +67,7 @@ OpenAPI: `backend/app/openapi.yaml`
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
 - Insights: `/insights/monthly`, `/insights/budget-suggestion`
+- Digest: `/digest/weekly`, `/digest/weekly/<date>`, `/digest/history`, `POST /digest/generate`
 
 ## MVP UI/UX Plan
 - Auth screens: register/login.
@@ -73,6 +75,12 @@ OpenAPI: `backend/app/openapi.yaml`
   - Monthly spend chart, category breakdown donut.
   - Upcoming bills list with due dates and pay status.
   - AI budget suggestion card.
+- Weekly Digest:
+  - Smart weekly financial summary with income, expenses, and net flow.
+  - Top spending categories breakdown with percentage bars.
+  - Week-over-week trend comparison (income/expense change %).
+  - AI-powered insights generated via Gemini (heuristic fallback).
+  - Historical digest browser for past weeks.
 - Expenses page: add expense (amount, category, notes, date), list & filter.
 - Bills page: create bill (name, amount, cadence, due date, channel), toggle WhatsApp/email.
 - Settings: profile, categories, reminders default channel, export (premium).
@@ -108,6 +116,7 @@ finmind/
         __init__.py
         ai.py
         cache.py
+        digest.py
         reminders.py
       db/
         schema.sql
@@ -125,6 +134,7 @@ finmind/
         Charts.tsx
       pages/
         Dashboard.tsx
+        Digest.tsx
         Expenses.tsx
         Bills.tsx
         Settings.tsx

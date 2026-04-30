@@ -133,3 +133,18 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class WeeklyDigest(db.Model):
+    __tablename__ = "weekly_digests"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    week_start = db.Column(db.Date, nullable=False)
+    week_end = db.Column(db.Date, nullable=False)
+    total_income = db.Column(db.Numeric(12, 2), nullable=False, default=0)
+    total_expenses = db.Column(db.Numeric(12, 2), nullable=False, default=0)
+    net_flow = db.Column(db.Numeric(12, 2), nullable=False, default=0)
+    top_categories = db.Column(db.Text, nullable=True)  # JSON string
+    trends = db.Column(db.Text, nullable=True)  # JSON string
+    ai_insights = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
