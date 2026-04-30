@@ -121,5 +121,21 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   id SERIAL PRIMARY KEY,
   user_id INT REFERENCES users(id) ON DELETE SET NULL,
   action VARCHAR(100) NOT NULL,
+  details TEXT,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS details TEXT;
+
+-- GDPR data requests
+CREATE TABLE IF NOT EXISTS data_requests (
+  id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  request_type VARCHAR(20) NOT NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+  download_url TEXT,
+  expires_at TIMESTAMP,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  completed_at TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_data_requests_user ON data_requests(user_id, created_at DESC);

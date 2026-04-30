@@ -16,6 +16,7 @@ import NotFound from "./pages/NotFound";
 import { Landing } from "./pages/Landing";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
 import Account from "./pages/Account";
+import Privacy from "./pages/Privacy";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -88,6 +89,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Account />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="privacy"
+              element={
+                <ProtectedRoute>
+                  <Privacy />
                 </ProtectedRoute>
               }
             />

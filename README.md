@@ -66,6 +66,7 @@ OpenAPI: `backend/app/openapi.yaml`
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
 - Insights: `/insights/monthly`, `/insights/budget-suggestion`
+- Privacy (GDPR): `/privacy/export`, `/privacy/export/{id}`, `/privacy/requests`, `/privacy/delete`, `/privacy/delete/confirm`
 
 ## MVP UI/UX Plan
 - Auth screens: register/login.
@@ -182,6 +183,12 @@ finmind/
 ## Notes on Free-Tier Reminders
 - Primary: schedule via APScheduler in-process with persistence in Postgres (job table) and a simple daily trigger. Alternatively, use Railway/Render cron to hit `/reminders/run`.
 - Twilio WhatsApp free trial supports sandbox; email via SMTP (e.g., SendGrid free tier).
+
+## GDPR / Privacy Compliance
+- **Data Export**: Users can request a full JSON export of all personal data (profile, expenses, bills, reminders, categories, subscriptions, activity logs).
+- **Account Deletion**: Two-step confirmation flow (request token, then confirm with token) permanently removes all user data with cascade deletion.
+- **Audit Trail**: All GDPR actions are logged. Deletion anonymizes audit entries (hashed email, null user_id) for compliance record-keeping.
+- **Frontend**: Privacy page accessible from navbar with export/download, deletion workflow, and request history.
 
 ## Security & Scalability
 - JWT access/refresh, secure cookies OR Authorization header.

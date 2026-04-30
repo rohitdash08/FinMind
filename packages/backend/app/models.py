@@ -127,9 +127,85 @@ class UserSubscription(db.Model):
     started_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
 
+class DataRequestType(str, Enum):
+    EXPORT = "EXPORT"
+    DELETE = "DELETE"
+
+
+class DataRequestStatus(str, Enum):
+    PENDING = "PENDING"
+    PROCESSING = "PROCESSING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+
+
+class DataRequest(db.Model):
+    __tablename__ = "data_requests"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    request_type = db.Column(db.String(20), nullable=False)
+    status = db.Column(db.String(20), nullable=False, default=DataRequestStatus.PENDING.value)
+    download_url = db.Column(db.Text, nullable=True)
+    expires_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    completed_at = db.Column(db.DateTime, nullable=True)
+
+
 class AuditLog(db.Model):
     __tablename__ = "audit_logs"
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
+    details = db.Column(db.Text, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class SavingsGoal(db.Model):
+    __tablename__ = "savings_goals"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    name = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.String(500), nullable=True)
+    target_amount = db.Column(db.Numeric(12, 2), nullable=False)
+    current_amount = db.Column(db.Numeric(12, 2), default=0, nullable=False)
+    currency = db.Column(db.String(10), default="INR", nullable=False)
+    deadline = db.Column(db.Date, nullable=True)
+    icon = db.Column(db.String(50), nullable=True)
+    color = db.Column(db.String(20), nullable=True)
+    is_completed = db.Column(db.Boolean, default=False, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(
+        db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+    )
+
+    milestones = db.relationship(
+        "GoalMilestone", backref="goal", lazy="dynamic",
+        cascade="all, delete-orphan"
+    )
+    contributions = db.relationship(
+        "GoalContribution", backref="goal", lazy="dynamic",
+        cascade="all, delete-orphan"
+    )
+
+
+class GoalMilestone(db.Model):
+    __tablename__ = "goal_milestones"
+    id = db.Column(db.Integer, primary_key=True)
+    goal_id = db.Column(
+        db.Integer, db.ForeignKey("savings_goals.id", ondelete="CASCADE"), nullable=False
+    )
+    name = db.Column(db.String(100), nullable=False)
+    target_percentage = db.Column(db.Integer, nullable=False)
+    reached_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class GoalContribution(db.Model):
+    __tablename__ = "goal_contributions"
+    id = db.Column(db.Integer, primary_key=True)
+    goal_id = db.Column(
+        db.Integer, db.ForeignKey("savings_goals.id", ondelete="CASCADE"), nullable=False
+    )
+    amount = db.Column(db.Numeric(12, 2), nullable=False)
+    note = db.Column(db.String(500), nullable=True)
+    contributed_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
