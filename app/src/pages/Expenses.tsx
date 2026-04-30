@@ -46,6 +46,7 @@ import {
   type RecurringExpense,
 } from '@/api/expenses';
 import { listCategories, type Category } from '@/api/categories';
+import { listAccounts, type Account } from '@/api/accounts';
 import { formatMoney } from '@/lib/currency';
 
 export default function Expenses() {
@@ -58,6 +59,7 @@ export default function Expenses() {
   const [error, setError] = useState<string | null>(null);
 
   const [categories, setCategories] = useState<Category[]>([]);
+  const [accountsList, setAccountsList] = useState<Account[]>([]);
 
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Expense | null>(null);
@@ -66,6 +68,7 @@ export default function Expenses() {
   const [description, setDescription] = useState('');
   const [date, setDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
   const [categoryId, setCategoryId] = useState<string>('');
+  const [accountId, setAccountId] = useState<string>('');
   const [saving, setSaving] = useState(false);
 
   const [importFile, setImportFile] = useState<File | null>(null);
@@ -124,6 +127,15 @@ export default function Expenses() {
     }
   }, [toast]);
 
+  const loadAccounts = useCallback(async () => {
+    try {
+      const accts = await listAccounts();
+      setAccountsList(accts);
+    } catch {
+      // Accounts are optional; silently ignore
+    }
+  }, []);
+
   const loadRecurring = useCallback(async () => {
     try {
       const data = await listRecurringExpenses();
@@ -140,13 +152,15 @@ export default function Expenses() {
     void refresh();
     void loadCategories();
     void loadRecurring();
-  }, [refresh, loadCategories, loadRecurring]);
+    void loadAccounts();
+  }, [refresh, loadCategories, loadRecurring, loadAccounts]);
 
   function resetForm() {
     setAmount('');
     setDescription('');
     setDate(new Date().toISOString().slice(0, 10));
     setCategoryId('');
+    setAccountId('');
     setEditing(null);
   }
 
@@ -161,6 +175,7 @@ export default function Expenses() {
     setDescription(exp.description || '');
     setDate(exp.date.slice(0, 10));
     setCategoryId(exp.category_id ? String(exp.category_id) : '');
+    setAccountId(exp.account_id ? String(exp.account_id) : '');
     setOpen(true);
   }
 
@@ -192,6 +207,7 @@ export default function Expenses() {
           description,
           date,
           category_id: categoryId ? Number(categoryId) : null,
+          account_id: accountId ? Number(accountId) : null,
         });
         setAllItems((prev) => prev.map((x) => (x.id === editing.id ? updated : x)));
         setItems((prev) => prev.map((x) => (x.id === editing.id ? updated : x)));
@@ -202,6 +218,7 @@ export default function Expenses() {
           description,
           date,
           category_id: categoryId ? Number(categoryId) : null,
+          account_id: accountId ? Number(accountId) : null,
         });
         setAllItems((prev) => [created, ...prev]);
         setItems((prev) => (page === 1 ? [created, ...prev].slice(0, pageSize) : prev));
@@ -394,6 +411,17 @@ export default function Expenses() {
                   ))}
                 </select>
               </div>
+              {accountsList.length > 0 && (
+                <div>
+                  <Label htmlFor="account">Account</Label>
+                  <select id="account" className="input" value={accountId} onChange={(e) => setAccountId(e.target.value)}>
+                    <option value="">No Account</option>
+                    {accountsList.map((a) => (
+                      <option key={a.id} value={a.id}>{a.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
             {error && <div className="error">{error}</div>}
             <DialogFooter>
@@ -431,6 +459,17 @@ export default function Expenses() {
               ))}
             </select>
           </div>
+          {accountsList.length > 0 && (
+            <div>
+              <Label htmlFor="q-account">Account</Label>
+              <select id="q-account" className="input" value={accountId} onChange={(e) => setAccountId(e.target.value)}>
+                <option value="">No Account</option>
+                {accountsList.map((a) => (
+                  <option key={a.id} value={a.id}>{a.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
           <Button onClick={onSubmit} disabled={saving}>Save Expense</Button>
         </div>
 

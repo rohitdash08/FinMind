@@ -1,4 +1,5 @@
 import { api } from './client';
+import type { AccountOverview } from './accounts';
 
 export type DashboardSummary = {
   period: { month: string };
@@ -16,6 +17,7 @@ export type DashboardSummary = {
     date: string;
     type: 'INCOME' | 'EXPENSE' | string;
     category_id: number | null;
+    account_id: number | null;
     currency: string;
   }>;
   upcoming_bills: Array<{
@@ -34,10 +36,14 @@ export type DashboardSummary = {
     amount: number;
     share_pct: number;
   }>;
+  account_overview: AccountOverview | null;
   errors?: string[];
 };
 
-export async function getDashboardSummary(month?: string): Promise<DashboardSummary> {
-  const query = month ? `?month=${encodeURIComponent(month)}` : '';
+export async function getDashboardSummary(month?: string, accountId?: number): Promise<DashboardSummary> {
+  const params = new URLSearchParams();
+  if (month) params.set('month', month);
+  if (accountId !== undefined && accountId !== null) params.set('account_id', String(accountId));
+  const query = params.toString() ? `?${params.toString()}` : '';
   return api<DashboardSummary>(`/dashboard/summary${query}`);
 }

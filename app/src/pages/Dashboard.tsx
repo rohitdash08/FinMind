@@ -18,8 +18,10 @@ import {
   AlertTriangle,
   Calendar,
   Plus,
+  Building2,
 } from 'lucide-react';
 import { getDashboardSummary, type DashboardSummary } from '@/api/dashboard';
+import { listAccounts, type Account } from '@/api/accounts';
 import { useNavigate } from 'react-router-dom';
 import { formatMoney } from '@/lib/currency';
 
@@ -33,13 +35,21 @@ export function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [selectedAccountId, setSelectedAccountId] = useState<number | undefined>(undefined);
+
+  useEffect(() => {
+    listAccounts()
+      .then(setAccounts)
+      .catch(() => { /* ignore – accounts are optional */ });
+  }, []);
 
   useEffect(() => {
     (async () => {
       setLoading(true);
       setError(null);
       try {
-        const res = await getDashboardSummary(month);
+        const res = await getDashboardSummary(month, selectedAccountId);
         setData(res);
       } catch (error: unknown) {
         setError(error instanceof Error ? error.message : 'Failed to load dashboard');
@@ -47,7 +57,7 @@ export function Dashboard() {
         setLoading(false);
       }
     })();
-  }, [month]);
+  }, [month, selectedAccountId]);
 
   const summary = useMemo(() => {
     if (!data) {
@@ -100,6 +110,7 @@ export function Dashboard() {
   const transactions = data?.recent_transactions ?? [];
   const upcomingBills = data?.upcoming_bills ?? [];
   const categoryBreakdown = data?.category_breakdown ?? [];
+  const accountOverview = data?.account_overview;
 
   return (
     <div className="page-wrap">
@@ -109,7 +120,20 @@ export function Dashboard() {
             <h1 className="page-title">Financial Dashboard</h1>
             <p className="page-subtitle">Live overview for {data?.period?.month || 'current period'}.</p>
           </div>
-          <div className="flex gap-3">
+          <div className="flex gap-3 flex-wrap">
+            {accounts.length > 0 && (
+              <select
+                className="input h-9 w-[160px]"
+                value={selectedAccountId ?? ''}
+                onChange={(e) => setSelectedAccountId(e.target.value ? Number(e.target.value) : undefined)}
+                aria-label="Filter by account"
+              >
+                <option value="">All Accounts</option>
+                {accounts.map((a) => (
+                  <option key={a.id} value={a.id}>{a.name}</option>
+                ))}
+              </select>
+            )}
             <label className="sr-only" htmlFor="dashboard-month">Dashboard month</label>
             <input
               id="dashboard-month"
@@ -165,6 +189,48 @@ export function Dashboard() {
           </FinancialCard>
         ))}
       </div>
+
+      {/* Account Breakdown Section */}
+      {accountOverview && accountOverview.accounts.length > 0 && !selectedAccountId && (
+        <div className="mb-8">
+          <FinancialCard variant="financial" className="fade-in-up">
+            <FinancialCardHeader>
+              <div className="flex items-center justify-between">
+                <FinancialCardTitle className="section-title">Account Breakdown</FinancialCardTitle>
+                <Button variant="ghost" size="sm" onClick={() => navigate('/accounts')}>Manage</Button>
+              </div>
+              <FinancialCardDescription>Balance across all accounts (Net Worth: {currency(accountOverview.total_balance)})</FinancialCardDescription>
+            </FinancialCardHeader>
+            <FinancialCardContent>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {accountOverview.accounts.map((acct) => (
+                  <div
+                    key={acct.id}
+                    className="interactive-row flex items-center justify-between p-3 rounded-lg border cursor-pointer"
+                    onClick={() => setSelectedAccountId(acct.id)}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div
+                        className="w-8 h-8 rounded-lg flex items-center justify-center text-white"
+                        style={{ backgroundColor: acct.color || '#3b82f6' }}
+                      >
+                        <Building2 className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="font-medium text-foreground text-sm">{acct.name}</div>
+                        <div className="text-xs text-muted-foreground">{acct.account_type}</div>
+                      </div>
+                    </div>
+                    <div className="text-sm font-semibold text-foreground">
+                      {currency(acct.balance, acct.currency)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </FinancialCardContent>
+          </FinancialCard>
+        </div>
+      )}
 
       <div className="grid lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2">

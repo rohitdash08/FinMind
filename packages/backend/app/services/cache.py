@@ -23,6 +23,14 @@ def dashboard_summary_key(user_id: int, ym: str) -> str:
     return f"user:{user_id}:dashboard_summary:{ym}"
 
 
+def accounts_key(user_id: int) -> str:
+    return f"user:{user_id}:accounts"
+
+
+def account_overview_key(user_id: int) -> str:
+    return f"user:{user_id}:account_overview"
+
+
 def cache_set(key: str, value, ttl_seconds: int | None = None):
     payload = json.dumps(value)
     if ttl_seconds:

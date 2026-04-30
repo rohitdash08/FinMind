@@ -4,8 +4,9 @@ from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from ..extensions import db
-from ..models import Bill, Expense, Category
+from ..models import Account, Bill, Expense, Category
 from ..services.cache import cache_get, cache_set, dashboard_summary_key
+from ..services.accounts import get_account_overview
 
 bp = Blueprint("dashboard", __name__)
 
@@ -17,7 +18,19 @@ def dashboard_summary():
     ym = (request.args.get("month") or date.today().strftime("%Y-%m")).strip()
     if not _is_valid_month(ym):
         return jsonify(error="invalid month, expected YYYY-MM"), 400
-    key = dashboard_summary_key(uid, ym)
+
+    # Optional account_id filter
+    account_id_param = request.args.get("account_id")
+    account_id = None
+    if account_id_param:
+        try:
+            account_id = int(account_id_param)
+        except ValueError:
+            return jsonify(error="invalid account_id"), 400
+
+    # Use a different cache key when filtering by account
+    cache_suffix = f":acct_{account_id}" if account_id else ""
+    key = dashboard_summary_key(uid, ym) + cache_suffix
     cached = cache_get(key)
     if cached:
         return jsonify(cached)
@@ -34,6 +47,7 @@ def dashboard_summary():
         "recent_transactions": [],
         "upcoming_bills": [],
         "category_breakdown": [],
+        "account_overview": None,
         "errors": [],
     }
 
@@ -41,26 +55,28 @@ def dashboard_summary():
     today = date.today()
 
     try:
-        income = (
-            db.session.query(func.coalesce(func.sum(Expense.amount), 0))
-            .filter(
-                Expense.user_id == uid,
-                extract("year", Expense.spent_at) == year,
-                extract("month", Expense.spent_at) == month,
-                Expense.expense_type == "INCOME",
-            )
-            .scalar()
+        income_q = db.session.query(
+            func.coalesce(func.sum(Expense.amount), 0)
+        ).filter(
+            Expense.user_id == uid,
+            extract("year", Expense.spent_at) == year,
+            extract("month", Expense.spent_at) == month,
+            Expense.expense_type == "INCOME",
         )
-        expenses = (
-            db.session.query(func.coalesce(func.sum(Expense.amount), 0))
-            .filter(
-                Expense.user_id == uid,
-                extract("year", Expense.spent_at) == year,
-                extract("month", Expense.spent_at) == month,
-                Expense.expense_type != "INCOME",
-            )
-            .scalar()
+        expenses_q = db.session.query(
+            func.coalesce(func.sum(Expense.amount), 0)
+        ).filter(
+            Expense.user_id == uid,
+            extract("year", Expense.spent_at) == year,
+            extract("month", Expense.spent_at) == month,
+            Expense.expense_type != "INCOME",
         )
+        if account_id is not None:
+            income_q = income_q.filter(Expense.account_id == account_id)
+            expenses_q = expenses_q.filter(Expense.account_id == account_id)
+
+        income = income_q.scalar()
+        expenses = expenses_q.scalar()
         payload["summary"]["monthly_income"] = float(income or 0)
         payload["summary"]["monthly_expenses"] = float(expenses or 0)
         payload["summary"]["net_flow"] = round(
@@ -72,9 +88,14 @@ def dashboard_summary():
         payload["errors"].append("summary_unavailable")
 
     try:
-        rows = (
+        recent_q = (
             db.session.query(Expense)
             .filter(Expense.user_id == uid)
+        )
+        if account_id is not None:
+            recent_q = recent_q.filter(Expense.account_id == account_id)
+        rows = (
+            recent_q
             .order_by(Expense.spent_at.desc(), Expense.id.desc())
             .limit(10)
             .all()
@@ -87,6 +108,7 @@ def dashboard_summary():
                 "date": e.spent_at.isoformat(),
                 "type": e.expense_type,
                 "category_id": e.category_id,
+                "account_id": e.account_id,
                 "currency": e.currency,
             }
             for e in rows
@@ -127,7 +149,7 @@ def dashboard_summary():
         payload["errors"].append("upcoming_bills_unavailable")
 
     try:
-        category_rows = (
+        cat_q = (
             db.session.query(
                 Expense.category_id,
                 func.coalesce(Category.name, "Uncategorized").label("category_name"),
@@ -143,6 +165,11 @@ def dashboard_summary():
                 extract("month", Expense.spent_at) == month,
                 Expense.expense_type != "INCOME",
             )
+        )
+        if account_id is not None:
+            cat_q = cat_q.filter(Expense.account_id == account_id)
+        category_rows = (
+            cat_q
             .group_by(Expense.category_id, Category.name)
             .order_by(func.sum(Expense.amount).desc())
             .all()
@@ -163,6 +190,13 @@ def dashboard_summary():
         ]
     except Exception:
         payload["errors"].append("category_breakdown_unavailable")
+
+    # Include account overview when not filtering by specific account
+    if account_id is None:
+        try:
+            payload["account_overview"] = get_account_overview(uid)
+        except Exception:
+            payload["errors"].append("account_overview_unavailable")
 
     cache_set(key, payload, ttl_seconds=300)
     return jsonify(payload)

@@ -6,6 +6,7 @@ export type Expense = {
   currency?: string;
   description: string;
   category_id: number | null;
+  account_id: number | null;
   date: string; // ISO date
 };
 
@@ -13,6 +14,7 @@ export type ExpenseCreate = {
   amount: number;
   description: string;
   category_id?: number | null;
+  account_id?: number | null;
   date: string; // ISO date
 };
 

@@ -5,8 +5,9 @@ from decimal import Decimal, InvalidOperation
 from flask import Blueprint, current_app, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..extensions import db
-from ..models import Expense, RecurringCadence, RecurringExpense, User
+from ..models import Account, Expense, RecurringCadence, RecurringExpense, User
 from ..services.cache import cache_delete_patterns, monthly_summary_key
+from ..services.accounts import _invalidate_account_cache
 from ..services import expense_import
 import logging
 
@@ -23,6 +24,7 @@ def list_expenses():
     to_date = request.args.get("to")
     search = (request.args.get("search") or "").strip()
     category_id = request.args.get("category_id")
+    account_id = request.args.get("account_id")
     try:
         page = max(1, int(request.args.get("page", "1")))
         page_size = min(200, max(1, int(request.args.get("page_size", "200"))))
@@ -36,6 +38,8 @@ def list_expenses():
             q = q.filter(Expense.spent_at <= date.fromisoformat(to_date))
         if category_id:
             q = q.filter(Expense.category_id == int(category_id))
+        if account_id:
+            q = q.filter(Expense.account_id == int(account_id))
     except ValueError:
         return jsonify(error="invalid filter values"), 400
     if search:
@@ -65,12 +69,18 @@ def create_expense():
     description = (data.get("description") or data.get("notes") or "").strip()
     if not description:
         return jsonify(error="description required"), 400
+    acct_id = data.get("account_id")
+    if acct_id is not None:
+        acct = db.session.get(Account, int(acct_id))
+        if not acct or acct.user_id != uid:
+            return jsonify(error="invalid account_id"), 400
     e = Expense(
         user_id=uid,
         amount=amount,
         currency=(data.get("currency") or (user.preferred_currency if user else "INR")),
         expense_type=str(data.get("expense_type") or "EXPENSE").upper(),
         category_id=data.get("category_id"),
+        account_id=int(acct_id) if acct_id is not None else None,
         notes=description,
         spent_at=date.fromisoformat(raw_date) if raw_date else date.today(),
     )
@@ -84,6 +94,8 @@ def create_expense():
             f"insights:{uid}:*",
         ]
     )
+    if e.account_id:
+        _invalidate_account_cache(uid)
     return jsonify(_expense_to_dict(e)), 201
 
 
@@ -221,6 +233,13 @@ def update_expense(expense_id: int):
         e.expense_type = str(data.get("expense_type") or "EXPENSE").upper()
     if "category_id" in data:
         e.category_id = data.get("category_id")
+    if "account_id" in data:
+        acct_id = data.get("account_id")
+        if acct_id is not None:
+            acct = db.session.get(Account, int(acct_id))
+            if not acct or acct.user_id != uid:
+                return jsonify(error="invalid account_id"), 400
+        e.account_id = int(acct_id) if acct_id is not None else None
     if "description" in data or "notes" in data:
         description = (data.get("description") or data.get("notes") or "").strip()
         if not description:
@@ -317,6 +336,7 @@ def _expense_to_dict(e: Expense) -> dict:
         "amount": float(e.amount),
         "currency": e.currency,
         "category_id": e.category_id,
+        "account_id": e.account_id,
         "expense_type": e.expense_type,
         "description": e.notes or "",
         "date": e.spent_at.isoformat(),

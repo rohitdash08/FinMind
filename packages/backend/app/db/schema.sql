@@ -18,6 +18,21 @@ CREATE TABLE IF NOT EXISTS categories (
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS accounts (
+  id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name VARCHAR(100) NOT NULL,
+  account_type VARCHAR(20) NOT NULL DEFAULT 'CHECKING',
+  currency VARCHAR(10) NOT NULL DEFAULT 'INR',
+  balance NUMERIC(12,2) NOT NULL DEFAULT 0,
+  icon VARCHAR(50),
+  color VARCHAR(20),
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_accounts_user ON accounts(user_id, is_active);
+
 CREATE TABLE IF NOT EXISTS expenses (
   id SERIAL PRIMARY KEY,
   user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -33,6 +48,9 @@ CREATE INDEX IF NOT EXISTS idx_expenses_user_spent_at ON expenses(user_id, spent
 
 ALTER TABLE expenses
   ADD COLUMN IF NOT EXISTS expense_type VARCHAR(20) NOT NULL DEFAULT 'EXPENSE';
+
+ALTER TABLE expenses
+  ADD COLUMN IF NOT EXISTS account_id INT REFERENCES accounts(id) ON DELETE SET NULL;
 
 DO $$ BEGIN
   CREATE TYPE recurring_cadence AS ENUM ('DAILY','WEEKLY','MONTHLY','YEARLY');
