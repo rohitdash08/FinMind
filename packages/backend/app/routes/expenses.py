@@ -6,7 +6,7 @@ from flask import Blueprint, current_app, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..extensions import db
 from ..models import Expense, RecurringCadence, RecurringExpense, User
-from ..services.cache import cache_delete_patterns, monthly_summary_key
+from ..services.cache import cache_delete_patterns, cache_manager
 from ..services import expense_import
 import logging
 
@@ -78,12 +78,9 @@ def create_expense():
     db.session.commit()
     logger.info("Created expense id=%s user=%s amount=%s", e.id, uid, e.amount)
     # Invalidate caches
-    cache_delete_patterns(
-        [
-            monthly_summary_key(uid, e.spent_at.strftime("%Y-%m")),
-            f"insights:{uid}:*",
-        ]
-    )
+    cache_manager.invalidate_user_type(uid, "monthly_summary")
+    cache_manager.invalidate_user_type(uid, "dashboard_summary")
+    cache_delete_patterns([f"insights:{uid}:*"])
     return jsonify(_expense_to_dict(e)), 201
 
 
@@ -386,10 +383,6 @@ def _is_duplicate(uid: int, row: dict) -> bool:
 
 def _invalidate_expense_cache(uid: int, at: str):
     ym = at[:7]
-    cache_delete_patterns(
-        [
-            monthly_summary_key(uid, ym),
-            f"insights:{uid}:*",
-            f"user:{uid}:dashboard_summary:*",
-        ]
-    )
+    cache_manager.invalidate_user_type(uid, "monthly_summary")
+    cache_manager.invalidate_user_type(uid, "dashboard_summary")
+    cache_delete_patterns([f"insights:{uid}:*"])
