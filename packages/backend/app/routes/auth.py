@@ -9,9 +9,16 @@ from flask_jwt_extended import (
     get_jwt_identity,
 )
 from ..extensions import db, redis_client
-from ..models import User
+from ..models import SecurityAlert, User
 import logging
 import time
+from ..services.login_security import (
+    client_ip,
+    record_failed_login,
+    record_successful_login,
+    serialize_alert,
+    user_agent,
+)
 
 bp = Blueprint("auth", __name__)
 logger = logging.getLogger("finmind.auth")
@@ -55,15 +62,23 @@ def login():
     data = request.get_json() or {}
     email = data.get("email")
     password = data.get("password")
+    ip_address = client_ip(request)
+    agent = user_agent(request)
     user = db.session.query(User).filter_by(email=email).first()
     if not user or not check_password_hash(user.password_hash, password):
-        logger.warning("Login failed for email=%s", email)
+        record_failed_login(email, ip_address, agent)
+        logger.warning("Login failed for email=%s ip=%s", email, ip_address)
         return jsonify(error="invalid credentials"), 401
+    alerts = record_successful_login(user, ip_address, agent)
     access = create_access_token(identity=str(user.id))
     refresh = create_refresh_token(identity=str(user.id))
     _store_refresh_session(refresh, str(user.id))
-    logger.info("Login success user_id=%s", user.id)
-    return jsonify(access_token=access, refresh_token=refresh)
+    logger.info("Login success user_id=%s ip=%s alerts=%s", user.id, ip_address, len(alerts))
+    return jsonify(
+        access_token=access,
+        refresh_token=refresh,
+        security_alerts=[serialize_alert(alert) for alert in alerts],
+    )
 
 
 @bp.get("/me")
@@ -99,6 +114,36 @@ def update_me():
         email=user.email,
         preferred_currency=user.preferred_currency or "INR",
     )
+
+
+@bp.get("/security/alerts")
+@jwt_required()
+def security_alerts():
+    uid = int(get_jwt_identity())
+    alerts = (
+        db.session.query(SecurityAlert)
+        .filter(SecurityAlert.user_id == uid)
+        .order_by(SecurityAlert.created_at.desc())
+        .limit(50)
+        .all()
+    )
+    return jsonify([serialize_alert(alert) for alert in alerts])
+
+
+@bp.post("/security/alerts/<int:alert_id>/acknowledge")
+@jwt_required()
+def acknowledge_security_alert(alert_id: int):
+    uid = int(get_jwt_identity())
+    alert = (
+        db.session.query(SecurityAlert)
+        .filter(SecurityAlert.id == alert_id, SecurityAlert.user_id == uid)
+        .first()
+    )
+    if not alert:
+        return jsonify(error="not found"), 404
+    alert.acknowledged = True
+    db.session.commit()
+    return jsonify(serialize_alert(alert))
 
 
 @bp.post("/refresh")
