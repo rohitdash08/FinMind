@@ -9,7 +9,7 @@ from flask_jwt_extended import (
     get_jwt_identity,
 )
 from ..extensions import db, redis_client
-from ..models import User
+from ..models import LoginActivity, User
 import logging
 import time
 
@@ -59,11 +59,12 @@ def login():
     if not user or not check_password_hash(user.password_hash, password):
         logger.warning("Login failed for email=%s", email)
         return jsonify(error="invalid credentials"), 401
+    alert = _record_login_activity(user)
     access = create_access_token(identity=str(user.id))
     refresh = create_refresh_token(identity=str(user.id))
     _store_refresh_session(refresh, str(user.id))
     logger.info("Login success user_id=%s", user.id)
-    return jsonify(access_token=access, refresh_token=refresh)
+    return jsonify(access_token=access, refresh_token=refresh, security_alert=alert)
 
 
 @bp.get("/me")
@@ -123,6 +124,60 @@ def logout():
     if jti:
         redis_client.delete(_refresh_key(jti))
     return jsonify(message="logged out"), 200
+
+
+def _client_ip() -> str:
+    forwarded_for = request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
+    return forwarded_for or request.remote_addr or "unknown"
+
+
+def _record_login_activity(user: User) -> dict:
+    ip_address = _client_ip()[:45]
+    user_agent = (request.headers.get("User-Agent") or "unknown")[:255]
+    previous = (
+        db.session.query(LoginActivity)
+        .filter_by(user_id=user.id)
+        .order_by(LoginActivity.created_at.desc())
+        .limit(20)
+        .all()
+    )
+
+    reasons = []
+    if previous and ip_address not in {item.ip_address for item in previous}:
+        reasons.append("new_ip")
+    if previous and user_agent not in {item.user_agent for item in previous}:
+        reasons.append("new_user_agent")
+
+    suspicious = bool(reasons)
+    reason = ",".join(reasons) if suspicious else None
+    activity = LoginActivity(
+        user_id=user.id,
+        ip_address=ip_address,
+        user_agent=user_agent,
+        suspicious=suspicious,
+        reason=reason,
+    )
+    db.session.add(activity)
+    db.session.commit()
+
+    if suspicious:
+        logger.warning(
+            "Suspicious login user_id=%s ip=%s user_agent=%s reason=%s",
+            user.id,
+            ip_address,
+            user_agent,
+            reason,
+        )
+
+    return {
+        "suspicious": suspicious,
+        "reason": reason,
+        "message": (
+            "New login environment detected. Review your account activity."
+            if suspicious
+            else "No unusual login activity detected."
+        ),
+    }
 
 
 def _refresh_key(jti: str) -> str:

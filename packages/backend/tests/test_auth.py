@@ -66,3 +66,32 @@ def test_auth_me_and_update_preferred_currency(client):
 
     r = client.patch("/auth/me", json={"preferred_currency": "ZZZ"}, headers=auth)
     assert r.status_code == 400
+
+
+def test_login_security_alert_flags_new_ip_and_user_agent(client):
+    email = "security-alert@test.com"
+    password = "secret123"
+    r = client.post("/auth/register", json={"email": email, "password": password})
+    assert r.status_code in (201, 409)
+
+    r = client.post(
+        "/auth/login",
+        json={"email": email, "password": password},
+        environ_base={"REMOTE_ADDR": "203.0.113.10"},
+        headers={"User-Agent": "FinMindTest/1.0"},
+    )
+    assert r.status_code == 200
+    alert = r.get_json()["security_alert"]
+    assert alert["suspicious"] is False
+
+    r = client.post(
+        "/auth/login",
+        json={"email": email, "password": password},
+        environ_base={"REMOTE_ADDR": "198.51.100.25"},
+        headers={"User-Agent": "UnexpectedBrowser/9.9"},
+    )
+    assert r.status_code == 200
+    alert = r.get_json()["security_alert"]
+    assert alert["suspicious"] is True
+    assert "new_ip" in alert["reason"]
+    assert "new_user_agent" in alert["reason"]

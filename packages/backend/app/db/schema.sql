@@ -117,6 +117,18 @@ CREATE TABLE IF NOT EXISTS user_subscriptions (
   started_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
+
+CREATE TABLE IF NOT EXISTS login_activities (
+  id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  ip_address VARCHAR(45) NOT NULL,
+  user_agent VARCHAR(255) NOT NULL,
+  suspicious BOOLEAN NOT NULL DEFAULT FALSE,
+  reason VARCHAR(255),
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_login_activities_user_created ON login_activities(user_id, created_at DESC);
+
 CREATE TABLE IF NOT EXISTS audit_logs (
   id SERIAL PRIMARY KEY,
   user_id INT REFERENCES users(id) ON DELETE SET NULL,

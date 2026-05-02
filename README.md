@@ -193,3 +193,7 @@ finmind/
 ---
 
 MIT Licensed. Built with ❤️.
+
+
+## Login anomaly alerts
+FinMind records successful login environments (IP address and user agent) and returns a `security_alert` object from `/auth/login`. A login is flagged as suspicious when it comes from a new IP address or browser/user-agent compared with recent successful logins for the same account. Suspicious events are also written to application logs for operator review.
