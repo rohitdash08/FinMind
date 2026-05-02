@@ -444,6 +444,51 @@ paths:
                 properties:
                   created: { type: integer }
 
+  /insights/weekly-summary:
+    get:
+      summary: Get weekly financial summary
+      tags: [Insights]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: week_start
+          required: false
+          schema: { type: string, format: date }
+          description: Monday/start date for the 7-day summary window. Defaults to current week.
+      responses:
+        '200':
+          description: Weekly income, expense trends, and summary insights
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+              example:
+                week_start: 2026-02-02
+                week_end: 2026-02-08
+                total_income: 500
+                total_expenses: 200
+                previous_week_expenses: 150
+                expense_change_pct: 33.33
+                net_flow: 300
+                transaction_count: 3
+                average_daily_expense: 28.57
+                top_categories:
+                  - category_id: uncat
+                    amount: 200
+                trend_insights:
+                  - Weekly expenses are up 33.33% versus the prior week.
+        '400':
+          description: Invalid week_start
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
   /insights/budget-suggestion:
     get:
       summary: Get monthly budget suggestion

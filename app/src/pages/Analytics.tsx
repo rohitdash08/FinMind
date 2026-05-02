@@ -10,7 +10,7 @@ import {
   FinancialCardTitle,
 } from '@/components/ui/financial-card';
 import { useToast } from '@/hooks/use-toast';
-import { getBudgetSuggestion, type BudgetSuggestion } from '@/api/insights';
+import { getBudgetSuggestion, getWeeklySummary, type BudgetSuggestion, type WeeklySummary } from '@/api/insights';
 import { formatMoney } from '@/lib/currency';
 
 const PERSONAS = [
@@ -26,18 +26,23 @@ export function Analytics() {
   const [geminiKey, setGeminiKey] = useState('');
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<BudgetSuggestion | null>(null);
+  const [weeklySummary, setWeeklySummary] = useState<WeeklySummary | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
     setError(null);
     try {
-      const payload = await getBudgetSuggestion({
-        month,
-        persona,
-        geminiApiKey: geminiKey.trim() || undefined,
-      });
+      const [payload, weeklyPayload] = await Promise.all([
+        getBudgetSuggestion({
+          month,
+          persona,
+          geminiApiKey: geminiKey.trim() || undefined,
+        }),
+        getWeeklySummary(),
+      ]);
       setData(payload);
+      setWeeklySummary(weeklyPayload);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to load insights';
       setError(message);
@@ -122,6 +127,43 @@ export function Analytics() {
         <div className="card text-red-600">{error}</div>
       ) : data ? (
         <div className="space-y-6">
+          {weeklySummary ? (
+            <FinancialCard variant="financial">
+              <FinancialCardHeader>
+                <FinancialCardTitle>Weekly Summary</FinancialCardTitle>
+                <FinancialCardDescription>
+                  {weeklySummary.week_start} to {weeklySummary.week_end}
+                </FinancialCardDescription>
+              </FinancialCardHeader>
+              <FinancialCardContent>
+                <div className="grid gap-3 md:grid-cols-4">
+                  <div className="rounded-lg border p-3">
+                    <div className="text-sm text-muted-foreground">Income</div>
+                    <div className="font-semibold">{formatMoney(weeklySummary.total_income)}</div>
+                  </div>
+                  <div className="rounded-lg border p-3">
+                    <div className="text-sm text-muted-foreground">Expenses</div>
+                    <div className="font-semibold">{formatMoney(weeklySummary.total_expenses)}</div>
+                  </div>
+                  <div className="rounded-lg border p-3">
+                    <div className="text-sm text-muted-foreground">Net Flow</div>
+                    <div className="font-semibold">{formatMoney(weeklySummary.net_flow)}</div>
+                  </div>
+                  <div className="rounded-lg border p-3">
+                    <div className="text-sm text-muted-foreground">Expense Trend</div>
+                    <div className="font-semibold">{weeklySummary.expense_change_pct.toFixed(2)}%</div>
+                  </div>
+                </div>
+                {weeklySummary.trend_insights.length ? (
+                  <ul className="mt-4 list-disc pl-5 space-y-1">
+                    {weeklySummary.trend_insights.map((insight) => (
+                      <li key={insight}>{insight}</li>
+                    ))}
+                  </ul>
+                ) : null}
+              </FinancialCardContent>
+            </FinancialCard>
+          ) : null}
           <div className="grid gap-4 md:grid-cols-4">
             <FinancialCard variant="financial">
               <FinancialCardHeader className="pb-2">

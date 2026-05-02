@@ -1,6 +1,50 @@
 from datetime import date, timedelta
 
 
+def test_weekly_summary_highlights_trends_and_insights(client, auth_header):
+    week_start = date(2026, 2, 2)
+    current_items = [
+        ("Groceries", 120, week_start),
+        ("Transport", 80, week_start + timedelta(days=2)),
+        ("Paycheck", 500, week_start + timedelta(days=4), "INCOME"),
+    ]
+    previous_items = [
+        ("Previous groceries", 100, week_start - timedelta(days=7)),
+        ("Previous transport", 50, week_start - timedelta(days=5)),
+    ]
+
+    for item in current_items + previous_items:
+        description, amount, spent_at, *expense_type = item
+        r = client.post(
+            "/expenses",
+            json={
+                "amount": amount,
+                "description": description,
+                "date": spent_at.isoformat(),
+                "expense_type": expense_type[0] if expense_type else "EXPENSE",
+            },
+            headers=auth_header,
+        )
+        assert r.status_code == 201
+
+    r = client.get(
+        f"/insights/weekly-summary?week_start={week_start.isoformat()}",
+        headers=auth_header,
+    )
+
+    assert r.status_code == 200
+    payload = r.get_json()
+    assert payload["week_start"] == "2026-02-02"
+    assert payload["week_end"] == "2026-02-08"
+    assert payload["total_expenses"] == 200.0
+    assert payload["total_income"] == 500.0
+    assert payload["net_flow"] == 300.0
+    assert payload["transaction_count"] == 3
+    assert payload["expense_change_pct"] == 33.33
+    assert payload["top_categories"][0] == {"category_id": "uncat", "amount": 200.0}
+    assert any("up 33.33%" in insight for insight in payload["trend_insights"])
+
+
 def test_budget_suggestion_returns_analytics_fields(client, auth_header):
     current = date.today().replace(day=10)
     previous = (current.replace(day=1) - timedelta(days=1)).replace(day=10)

@@ -65,7 +65,8 @@ OpenAPI: `backend/app/openapi.yaml`
 - Expenses: CRUD `/expenses`
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
-- Insights: `/insights/monthly`, `/insights/budget-suggestion`
+- Insights: `/insights/monthly`, `/insights/budget-suggestion`, `/insights/weekly-summary`
+  - `/insights/weekly-summary?week_start=YYYY-MM-DD` returns weekly income, expenses, net flow, top categories, prior-week expense delta, and trend insight copy for the Analytics page.
 
 ## MVP UI/UX Plan
 - Auth screens: register/login.

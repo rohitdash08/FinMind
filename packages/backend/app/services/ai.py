@@ -1,4 +1,5 @@
 import json
+from datetime import date, timedelta
 from urllib import request
 
 from sqlalchemy import extract, func
@@ -62,6 +63,116 @@ def _previous_month(ym: str) -> str:
     if month == 1:
         return f"{year - 1:04d}-12"
     return f"{year:04d}-{month - 1:02d}"
+
+
+def _weekly_totals(uid: int, start: date, end: date) -> tuple[float, float, int]:
+    rows = (
+        db.session.query(
+            Expense.expense_type, func.coalesce(func.sum(Expense.amount), 0)
+        )
+        .filter(
+            Expense.user_id == uid,
+            Expense.spent_at >= start,
+            Expense.spent_at <= end,
+        )
+        .group_by(Expense.expense_type)
+        .all()
+    )
+    income = 0.0
+    expenses = 0.0
+    for expense_type, amount in rows:
+        if expense_type == "INCOME":
+            income += float(amount or 0)
+        else:
+            expenses += float(amount or 0)
+    transaction_count = (
+        db.session.query(func.count(Expense.id))
+        .filter(
+            Expense.user_id == uid,
+            Expense.spent_at >= start,
+            Expense.spent_at <= end,
+        )
+        .scalar()
+        or 0
+    )
+    return income, expenses, int(transaction_count)
+
+
+def _weekly_category_spend(uid: int, start: date, end: date) -> list[dict]:
+    rows = (
+        db.session.query(
+            Expense.category_id, func.coalesce(func.sum(Expense.amount), 0)
+        )
+        .filter(
+            Expense.user_id == uid,
+            Expense.spent_at >= start,
+            Expense.spent_at <= end,
+            Expense.expense_type != "INCOME",
+        )
+        .group_by(Expense.category_id)
+        .all()
+    )
+    top = sorted(
+        ((str(k or "uncat"), float(v or 0)) for k, v in rows),
+        key=lambda x: x[1],
+        reverse=True,
+    )[:3]
+    return [{"category_id": k, "amount": round(v, 2)} for k, v in top]
+
+
+def _trend_insights(
+    current_expenses: float, previous_expenses: float, net_flow: float
+) -> tuple[float, list[str]]:
+    if previous_expenses > 0:
+        change_pct = round(
+            ((current_expenses - previous_expenses) / previous_expenses) * 100, 2
+        )
+    else:
+        change_pct = 0.0
+
+    direction = "up" if change_pct > 0 else "down" if change_pct < 0 else "flat"
+    insights = [
+        f"Weekly expenses are {direction} {abs(change_pct):.2f}% versus the prior week."
+    ]
+    if net_flow >= 0:
+        insights.append(
+            f"Positive weekly net flow of {net_flow:.2f}; protect the surplus before discretionary spend."
+        )
+    else:
+        insights.append(
+            f"Negative weekly net flow of {abs(net_flow):.2f}; reduce the largest expense category first."
+        )
+    return change_pct, insights
+
+
+def weekly_financial_summary(uid: int, week_start: str | None = None) -> dict:
+    start = (
+        date.fromisoformat(week_start)
+        if week_start
+        else date.today() - timedelta(days=date.today().weekday())
+    )
+    end = start + timedelta(days=6)
+    previous_start = start - timedelta(days=7)
+    previous_end = start - timedelta(days=1)
+
+    income, expenses, transaction_count = _weekly_totals(uid, start, end)
+    _, previous_expenses, _ = _weekly_totals(uid, previous_start, previous_end)
+    net_flow = income - expenses
+    change_pct, insights = _trend_insights(expenses, previous_expenses, net_flow)
+
+    return {
+        "week_start": start.isoformat(),
+        "week_end": end.isoformat(),
+        "total_income": round(income, 2),
+        "total_expenses": round(expenses, 2),
+        "previous_week_expenses": round(previous_expenses, 2),
+        "expense_change_pct": change_pct,
+        "net_flow": round(net_flow, 2),
+        "transaction_count": transaction_count,
+        "average_daily_expense": round(expenses / 7, 2),
+        "top_categories": _weekly_category_spend(uid, start, end),
+        "trend_insights": insights,
+    }
 
 
 def _build_analytics(uid: int, ym: str) -> dict:
