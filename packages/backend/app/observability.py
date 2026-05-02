@@ -60,6 +60,13 @@ class Observability:
             ["event", "channel", "status"],
             registry=self.registry,
         )
+        self.http_response_size_bytes = Histogram(
+            "finmind_http_response_size_bytes",
+            "HTTP response size in bytes.",
+            ["method", "endpoint"],
+            buckets=(100, 500, 1000, 5000, 10000, 50000, 100000, 500000),
+            registry=self.registry,
+        )
 
     def observe_http_request(
         self, method: str, endpoint: str, status_code: int, duration_seconds: float
@@ -78,6 +85,11 @@ class Observability:
         self.reminder_events_total.labels(
             event=event, channel=channel, status=status
         ).inc()
+
+    def observe_response_size(self, method: str, endpoint: str, size_bytes: int) -> None:
+        self.http_response_size_bytes.labels(
+            method=method, endpoint=endpoint
+        ).observe(size_bytes)
 
     def metrics_response(self) -> Response:
         if self.multiprocess_enabled:
@@ -129,6 +141,12 @@ def finalize_request(response: Response) -> Response:
                 endpoint=endpoint,
                 status_code=response.status_code,
                 duration_seconds=elapsed,
+            )
+            content_length = response.content_length or len(response.get_data())
+            obs.observe_response_size(
+                method=request.method,
+                endpoint=endpoint,
+                size_bytes=content_length,
             )
     return response
 

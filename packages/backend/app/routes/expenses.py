@@ -8,6 +8,7 @@ from ..extensions import db
 from ..models import Expense, RecurringCadence, RecurringExpense, User
 from ..services.cache import cache_delete_patterns, monthly_summary_key
 from ..services import expense_import
+from ..utils.pagination import paginate_query
 import logging
 
 bp = Blueprint("expenses", __name__)
@@ -23,11 +24,6 @@ def list_expenses():
     to_date = request.args.get("to")
     search = (request.args.get("search") or "").strip()
     category_id = request.args.get("category_id")
-    try:
-        page = max(1, int(request.args.get("page", "1")))
-        page_size = min(200, max(1, int(request.args.get("page_size", "200"))))
-    except ValueError:
-        return jsonify(error="invalid pagination"), 400
 
     try:
         if from_date:
@@ -41,15 +37,20 @@ def list_expenses():
     if search:
         q = q.filter(Expense.notes.ilike(f"%{search}%"))
 
-    items = (
-        q.order_by(Expense.spent_at.desc())
-        .offset((page - 1) * page_size)
-        .limit(page_size)
-        .all()
-    )
+    q = q.order_by(Expense.spent_at.desc())
+    items, total, page, page_size = paginate_query(q)
+    if items is None:
+        return jsonify(error=total), 400
+
     logger.info("List expenses user=%s count=%s", uid, len(items))
-    data = [_expense_to_dict(e) for e in items]
-    return jsonify(data)
+    return jsonify(
+        {
+            "items": [_expense_to_dict(e) for e in items],
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+        }
+    )
 
 
 @bp.post("")
