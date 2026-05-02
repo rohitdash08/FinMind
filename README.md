@@ -193,3 +193,14 @@ finmind/
 ---
 
 MIT Licensed. Built with ❤️.
+
+
+### Login anomaly detection
+
+FinMind records login security events server-side and warns users about suspicious activity:
+
+- new IP address after a successful login baseline exists;
+- new browser/device user agent after a successful login baseline exists;
+- bursts of five failed login attempts within fifteen minutes.
+
+Successful `/auth/login` responses include a `security_alerts` array. Authenticated users can review recent alerts with `GET /auth/security/alerts` and acknowledge one with `POST /auth/security/alerts/<id>/acknowledge`.
