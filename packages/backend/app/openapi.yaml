@@ -12,6 +12,7 @@ tags:
   - name: Bills
   - name: Reminders
   - name: Insights
+  - name: Digest
 paths:
   /auth/register:
     post:
@@ -475,6 +476,61 @@ paths:
                   wants: 360
                   savings: 240
                 tips: ["Cap dining spend to 80% of last month", "Automate weekly transfer to savings"]
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /digest/weekly:
+    get:
+      summary: Get smart weekly financial digest
+      description: Returns the Monday-Sunday summary containing the optional date, scoped to the authenticated user and selected currency.
+      tags: [Digest]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: date
+          required: false
+          schema: { type: string, format: date }
+          description: Anchor date for the week. Defaults to today.
+        - in: query
+          name: currency
+          required: false
+          schema: { type: string, example: USD }
+          description: Currency to summarize. Defaults to the user's preferred currency.
+      responses:
+        '200':
+          description: Weekly digest
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+              example:
+                period: { start_date: 2026-02-09, end_date: 2026-02-15 }
+                comparison:
+                  previous_period: { start_date: 2026-02-02, end_date: 2026-02-08 }
+                  previous_expenses: 50
+                  expense_delta: 7.75
+                  expense_percent_change: 15.5
+                currency: USD
+                totals: { income: 1000, expenses: 57.75, net_cash_flow: 942.25, transaction_count: 3 }
+                category_breakdown:
+                  - { category: Groceries, amount: 57.75, transaction_count: 2 }
+                category_trends:
+                  - { category: Groceries, current_amount: 57.75, previous_amount: 20, delta: 37.75, percent_change: 188.75, trend: up }
+                top_expenses:
+                  - { id: 1, description: Groceries, amount: 45.5, currency: USD, category: Groceries, date: 2026-02-09 }
+                upcoming_bills:
+                  - { id: 1, name: Electricity, amount: 80, currency: USD, due_date: 2026-02-15, cadence: MONTHLY }
+                highlights:
+                  - You ended the week positive by USD 942.25.
+        '400':
+          description: Invalid date
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
         '401':
           description: Unauthorized
           content:
