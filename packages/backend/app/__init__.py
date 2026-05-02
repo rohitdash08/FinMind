@@ -33,6 +33,9 @@ def create_app(settings: Settings | None = None) -> Flask:
         TWILIO_AUTH_TOKEN=cfg.twilio_auth_token,
         TWILIO_WHATSAPP_FROM=cfg.twilio_whatsapp_from,
         EMAIL_FROM=cfg.email_from,
+        DEFAULT_LOCALE=cfg.default_locale,
+        DEFAULT_CURRENCY=cfg.default_currency,
+        DEFAULT_TIMEZONE=cfg.default_timezone,
     )
 
     # Logging
@@ -114,6 +117,29 @@ def _ensure_schema_compatibility(app: Flask) -> None:
     except Exception:
         app.logger.exception(
             "Schema compatibility patch failed for users.preferred_currency"
+        )
+        conn.rollback()
+
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            ALTER TABLE users
+            ADD COLUMN IF NOT EXISTS preferred_locale VARCHAR(10)
+            NOT NULL DEFAULT 'en-US'
+            """
+        )
+        cur.execute(
+            """
+            ALTER TABLE users
+            ADD COLUMN IF NOT EXISTS preferred_timezone VARCHAR(50)
+            NOT NULL DEFAULT 'UTC'
+            """
+        )
+        conn.commit()
+    except Exception:
+        app.logger.exception(
+            "Schema compatibility patch failed for users locale columns"
         )
         conn.rollback()
     finally:

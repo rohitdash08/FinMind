@@ -11,6 +11,7 @@ pydantic-settings==2.4.0
 python-dotenv==1.0.1
 apscheduler==3.10.4
 requests==2.32.3
+babel==2.14.0
 pypdf==4.3.1
 openai==1.37.1
 twilio==9.3.2

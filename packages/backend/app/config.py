@@ -23,6 +23,10 @@ class Settings(BaseSettings):
     email_from: str | None = None
     smtp_url: str | None = None  # e.g. smtp+ssl://user:pass@mail:465
 
+    default_locale: str = "en-US"
+    default_currency: str = "INR"
+    default_timezone: str = "UTC"
+
     # pydantic-settings v2 configuration
     model_config = SettingsConfigDict(
         env_file=".env",

@@ -10,6 +10,7 @@ from flask_jwt_extended import (
 )
 from ..extensions import db, redis_client
 from ..models import User
+from ..services.locale import get_formatter, LocaleFormatter
 import logging
 import time
 
@@ -25,6 +26,23 @@ SUPPORTED_CURRENCIES = {
     "AUD",
     "CAD",
     "JPY",
+}
+
+SUPPORTED_TIMEZONES = {
+    "UTC",
+    "Asia/Kolkata",
+    "America/New_York",
+    "America/Los_Angeles",
+    "America/Chicago",
+    "Europe/London",
+    "Europe/Paris",
+    "Europe/Berlin",
+    "Asia/Tokyo",
+    "Asia/Shanghai",
+    "Asia/Singapore",
+    "Asia/Dubai",
+    "Australia/Sydney",
+    "Pacific/Auckland",
 }
 
 
@@ -77,6 +95,8 @@ def me():
         id=user.id,
         email=user.email,
         preferred_currency=user.preferred_currency or "INR",
+        preferred_locale=user.preferred_locale or "en-US",
+        preferred_timezone=user.preferred_timezone or "UTC",
     )
 
 
@@ -93,11 +113,49 @@ def update_me():
         if cur not in SUPPORTED_CURRENCIES:
             return jsonify(error="unsupported preferred_currency"), 400
         user.preferred_currency = cur
+    if "preferred_locale" in data:
+        loc = str(data.get("preferred_locale") or "").strip()
+        if loc not in LocaleFormatter.SUPPORTED_LOCALES:
+            return jsonify(error="unsupported preferred_locale"), 400
+        user.preferred_locale = loc
+    if "preferred_timezone" in data:
+        tz = str(data.get("preferred_timezone") or "").strip()
+        if tz not in SUPPORTED_TIMEZONES:
+            return jsonify(error="unsupported preferred_timezone"), 400
+        user.preferred_timezone = tz
     db.session.commit()
     return jsonify(
         id=user.id,
         email=user.email,
         preferred_currency=user.preferred_currency or "INR",
+        preferred_locale=user.preferred_locale or "en-US",
+        preferred_timezone=user.preferred_timezone or "UTC",
+    )
+
+
+@bp.get("/locale")
+@jwt_required()
+def get_locale():
+    """Get locale formatting info for the current user."""
+    uid = int(get_jwt_identity())
+    user = db.session.get(User, uid)
+    if not user:
+        return jsonify(error="not found"), 404
+    formatter = get_formatter(
+        getattr(user, "preferred_locale", None),
+        user.preferred_currency,
+    )
+    return jsonify(formatter.to_dict())
+
+
+@bp.get("/locale/options")
+@jwt_required()
+def get_locale_options():
+    """Get supported locale, currency, and timezone options."""
+    return jsonify(
+        locales=LocaleFormatter.SUPPORTED_LOCALES,
+        currencies=sorted(LocaleFormatter.CURRENCY_SYMBOLS.keys()),
+        timezones=sorted(SUPPORTED_TIMEZONES),
     )
 
 
