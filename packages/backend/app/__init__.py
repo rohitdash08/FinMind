@@ -118,3 +118,29 @@ def _ensure_schema_compatibility(app: Flask) -> None:
         conn.rollback()
     finally:
         conn.close()
+
+    # Performance indexes (issue #128)
+    conn = db.engine.raw_connection()
+    try:
+        cur = conn.cursor()
+        indexes = [
+            "CREATE INDEX IF NOT EXISTS ix_expenses_user_spent_at ON expenses (user_id, spent_at)",
+            "CREATE INDEX IF NOT EXISTS ix_expenses_user_category ON expenses (user_id, category_id)",
+            "CREATE INDEX IF NOT EXISTS ix_expenses_user_type_spent ON expenses (user_id, expense_type, spent_at)",
+            "CREATE INDEX IF NOT EXISTS ix_bills_user_due ON bills (user_id, next_due_date)",
+            "CREATE INDEX IF NOT EXISTS ix_bills_user_active ON bills (user_id, active)",
+            "CREATE INDEX IF NOT EXISTS ix_reminders_user_send_at ON reminders (user_id, send_at)",
+            "CREATE INDEX IF NOT EXISTS ix_reminders_pending ON reminders (user_id, sent, send_at)",
+            "CREATE INDEX IF NOT EXISTS ix_categories_user ON categories (user_id)",
+            "CREATE INDEX IF NOT EXISTS ix_recurring_user_active ON recurring_expenses (user_id, active)",
+            "CREATE INDEX IF NOT EXISTS ix_bg_jobs_status_retry ON background_jobs (status, next_retry_at)",
+            "CREATE INDEX IF NOT EXISTS ix_bg_jobs_type ON background_jobs (job_type)",
+        ]
+        for idx_sql in indexes:
+            cur.execute(idx_sql)
+        conn.commit()
+    except Exception:
+        app.logger.exception("Index creation failed during schema compatibility")
+        conn.rollback()
+    finally:
+        conn.close()
