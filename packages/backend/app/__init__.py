@@ -1,4 +1,5 @@
 from flask import Flask, jsonify
+from flask_compress import Compress
 from .config import Settings
 from .extensions import db, jwt
 from .routes import register_routes
@@ -47,6 +48,17 @@ def create_app(settings: Settings | None = None) -> Flask:
     app.extensions["observability"] = Observability()
     # CORS for local dev frontend
     CORS(app, resources={r"*": {"origins": "*"}}, supports_credentials=True)
+
+    # Response compression
+    app.config["COMPRESS_MIMETYPES"] = [
+        "application/json",
+        "text/html",
+        "text/css",
+        "text/xml",
+        "application/javascript",
+    ]
+    app.config["COMPRESS_MIN_SIZE"] = 500
+    Compress(app)
 
     # Redis (already global)
     # Blueprint routes
