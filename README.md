@@ -59,6 +59,16 @@ See `backend/app/db/schema.sql`. Key tables:
   - On expense/bill create/update/delete -> delete affected monthly_summary, upcoming_bills, insights
 - Rate limiting (optional): `rl:{userId}:{endpoint}:{minute}` with short TTL
 
+## Security API
+
+Login anomaly detection and suspicious activity alerts.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/security/alerts` | List login alerts (supports `?unread=true`) |
+| POST | `/security/alerts/mark-read` | Mark alerts as read |
+| GET | `/security/login-history` | Recent login history |
+
 ## API Endpoints
 OpenAPI: `backend/app/openapi.yaml`
 - Auth: `/auth/register`, `/auth/login`, `/auth/refresh`
