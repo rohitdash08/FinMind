@@ -127,6 +127,36 @@ class UserSubscription(db.Model):
     started_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
 
+class NotificationPriority(str, Enum):
+  LOW = "low"
+  MEDIUM = "medium"
+  HIGH = "high"
+  URGENT = "urgent"
+
+
+class NotificationGroup(str, Enum):
+  BILLS = "bills"
+  EXPENSES = "expenses"
+  BUDGET = "budget"
+  SECURITY = "security"
+  SYSTEM = "system"
+
+
+class Notification(db.Model):
+  __tablename__ = "notifications"
+  id = db.Column(db.Integer, primary_key=True)
+  user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+  title = db.Column(db.String(200), nullable=False)
+  message = db.Column(db.Text, nullable=False)
+  priority = db.Column(db.String(20), default=NotificationPriority.MEDIUM.value, nullable=False)
+  group = db.Column(db.String(20), default=NotificationGroup.SYSTEM.value, nullable=False)
+  read = db.Column(db.Boolean, default=False, nullable=False)
+  action_url = db.Column(db.String(500), nullable=True)
+  metadata_json = db.Column(db.JSON, nullable=True)
+  created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+  read_at = db.Column(db.DateTime, nullable=True)
+
+
 class AuditLog(db.Model):
     __tablename__ = "audit_logs"
     id = db.Column(db.Integer, primary_key=True)

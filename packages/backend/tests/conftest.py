@@ -1,5 +1,7 @@
 import os
 import pytest
+import fakeredis
+from unittest.mock import patch
 from app import create_app
 from app.config import Settings
 from app.extensions import db
@@ -19,6 +21,9 @@ def _setup_db(app):
         db.create_all()
 
 
+_fake_redis = fakeredis.FakeRedis(decode_responses=True)
+
+
 @pytest.fixture()
 def app_fixture():
     # Ensure a clean env for tests
@@ -28,21 +33,20 @@ def app_fixture():
         redis_url="redis://localhost:6379/15",
         jwt_secret="test-secret-with-32-plus-chars-1234567890",
     )
-    app = create_app(settings)
-    app.config.update(TESTING=True)
-    _setup_db(app)
-    try:
-        redis_client.flushdb()
-    except Exception:
-        pass
-    yield app
-    with app.app_context():
-        db.session.remove()
-        db.drop_all()
-    try:
-        redis_client.flushdb()
-    except Exception:
-        pass
+    with (
+      patch("app.extensions.redis_client", _fake_redis),
+      patch("app.routes.auth.redis_client", _fake_redis),
+      patch("app.services.cache.redis_client", _fake_redis),
+    ):
+        app = create_app(settings)
+        app.config.update(TESTING=True)
+        _setup_db(app)
+        _fake_redis.flushdb()
+        yield app
+        with app.app_context():
+            db.session.remove()
+            db.drop_all()
+        _fake_redis.flushdb()
 
 
 @pytest.fixture()
