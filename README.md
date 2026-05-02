@@ -66,6 +66,7 @@ OpenAPI: `backend/app/openapi.yaml`
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
 - Insights: `/insights/monthly`, `/insights/budget-suggestion`
+- Digest: JWT-protected `GET /digest/weekly` with optional `date=YYYY-MM-DD` and `currency=USD`; returns the Monday-Sunday income, expenses, net cash flow, previous-week comparison, category trends, top expenses, upcoming bills, and plain-language highlights for the authenticated user.
 
 ## MVP UI/UX Plan
 - Auth screens: register/login.
