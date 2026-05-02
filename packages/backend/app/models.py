@@ -25,6 +25,9 @@ class Category(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     name = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    __table_args__ = (
+        db.Index("ix_categories_user", "user_id"),
+    )
 
 
 class Expense(db.Model):
@@ -41,6 +44,11 @@ class Expense(db.Model):
         db.Integer, db.ForeignKey("recurring_expenses.id"), nullable=True
     )
     created_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
+    __table_args__ = (
+        db.Index("ix_expenses_user_spent_at", "user_id", "spent_at"),
+        db.Index("ix_expenses_user_category", "user_id", "category_id"),
+        db.Index("ix_expenses_user_type_spent", "user_id", "expense_type", "spent_at"),
+    )
 
 
 class RecurringCadence(str, Enum):
@@ -64,6 +72,9 @@ class RecurringExpense(db.Model):
     end_date = db.Column(db.Date, nullable=True)
     active = db.Column(db.Boolean, default=True, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    __table_args__ = (
+        db.Index("ix_recurring_user_active", "user_id", "active"),
+    )
 
 
 class BillCadence(str, Enum):
@@ -87,6 +98,10 @@ class Bill(db.Model):
     channel_email = db.Column(db.Boolean, default=True, nullable=False)
     active = db.Column(db.Boolean, default=True, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    __table_args__ = (
+        db.Index("ix_bills_user_due", "user_id", "next_due_date"),
+        db.Index("ix_bills_user_active", "user_id", "active"),
+    )
 
 
 class Reminder(db.Model):
@@ -98,6 +113,10 @@ class Reminder(db.Model):
     send_at = db.Column(db.DateTime, nullable=False)
     sent = db.Column(db.Boolean, default=False, nullable=False)
     channel = db.Column(db.String(20), default="email", nullable=False)
+    __table_args__ = (
+        db.Index("ix_reminders_user_send_at", "user_id", "send_at"),
+        db.Index("ix_reminders_pending", "user_id", "sent", "send_at"),
+    )
 
 
 class AdImpression(db.Model):
@@ -133,3 +152,22 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class BackgroundJob(db.Model):
+    __tablename__ = "background_jobs"
+    id = db.Column(db.Integer, primary_key=True)
+    job_type = db.Column(db.String(100), nullable=False)
+    payload = db.Column(db.Text, nullable=True)
+    status = db.Column(db.String(20), default="pending", nullable=False)
+    attempts = db.Column(db.Integer, default=0, nullable=False)
+    max_retries = db.Column(db.Integer, default=3, nullable=False)
+    last_error = db.Column(db.Text, nullable=True)
+    next_retry_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    started_at = db.Column(db.DateTime, nullable=True)
+    completed_at = db.Column(db.DateTime, nullable=True)
+    __table_args__ = (
+        db.Index("ix_bg_jobs_status_retry", "status", "next_retry_at"),
+        db.Index("ix_bg_jobs_type", "job_type"),
+    )
