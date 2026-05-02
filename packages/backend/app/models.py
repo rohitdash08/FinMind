@@ -133,3 +133,24 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class ReminderDeliveryStatus(str, Enum):
+  PENDING = "pending"
+  SENT = "sent"
+  DELIVERED = "delivered"
+  FAILED = "failed"
+  BOUNCED = "bounced"
+
+
+class ReminderDelivery(db.Model):
+  __tablename__ = "reminder_deliveries"
+  id = db.Column(db.Integer, primary_key=True)
+  reminder_id = db.Column(db.Integer, db.ForeignKey("reminders.id"), nullable=False)
+  status = db.Column(db.String(20), default=ReminderDeliveryStatus.PENDING.value, nullable=False)
+  channel = db.Column(db.String(20), nullable=False)
+  attempts = db.Column(db.Integer, default=0, nullable=False)
+  last_error = db.Column(db.Text, nullable=True)
+  delivered_at = db.Column(db.DateTime, nullable=True)
+  created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+  updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
