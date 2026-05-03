@@ -1,5 +1,19 @@
 import { api } from './client';
 
+export type WeeklySummary = {
+  week_start: string;
+  week_end: string;
+  total_income: number;
+  total_expenses: number;
+  previous_week_expenses: number;
+  expense_change_pct: number;
+  net_flow: number;
+  transaction_count: number;
+  average_daily_expense: number;
+  top_categories: Array<{ category_id: string; amount: number }>;
+  trend_insights: string[];
+};
+
 export type BudgetSuggestion = {
   month: string;
   suggested_total: number;
@@ -20,6 +34,11 @@ export type BudgetSuggestion = {
   warnings?: string[];
   net_flow?: number;
 };
+
+export async function getWeeklySummary(params?: { weekStart?: string }): Promise<WeeklySummary> {
+  const query = params?.weekStart ? `?week_start=${encodeURIComponent(params.weekStart)}` : '';
+  return api<WeeklySummary>(`/insights/weekly-summary${query}`);
+}
 
 export async function getBudgetSuggestion(params?: {
   month?: string;
