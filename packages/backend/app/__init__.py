@@ -2,6 +2,7 @@ from flask import Flask, jsonify
 from .config import Settings
 from .extensions import db, jwt
 from .routes import register_routes
+from . import models_savings  # noqa: F401 – register savings models
 from .observability import (
     Observability,
     configure_logging,
@@ -108,6 +109,22 @@ def _ensure_schema_compatibility(app: Flask) -> None:
             ALTER TABLE users
             ADD COLUMN IF NOT EXISTS preferred_currency VARCHAR(10)
             NOT NULL DEFAULT 'INR'
+            """
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS accounts (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id),
+                name VARCHAR(200) NOT NULL,
+                account_type VARCHAR(20) NOT NULL,
+                institution VARCHAR(200),
+                balance NUMERIC(12,2) NOT NULL DEFAULT 0,
+                currency VARCHAR(10) NOT NULL DEFAULT 'INR',
+                is_active BOOLEAN NOT NULL DEFAULT TRUE,
+                created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )
             """
         )
         conn.commit()
