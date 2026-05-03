@@ -90,3 +90,49 @@ def test_budget_suggestion_falls_back_when_gemini_fails(
     assert payload["method"] == "heuristic"
     assert "warnings" in payload
     assert "gemini_unavailable" in payload["warnings"]
+
+
+def test_weekly_digest_returns_correct_fields(client, auth_header):
+    today = date.today()
+    monday = today - timedelta(days=today.weekday())
+
+    # Add expense to current week
+    r = client.post(
+        "/expenses",
+        json={
+            "amount": 200.0,
+            "description": "Weekly spend",
+            "date": monday.isoformat(),
+            "expense_type": "EXPENSE",
+        },
+        headers=auth_header,
+    )
+    assert r.status_code == 201
+
+    # Add expense to previous week for comparison
+    prev_monday = monday - timedelta(days=7)
+    r = client.post(
+        "/expenses",
+        json={
+            "amount": 100.0,
+            "description": "Prev week spend",
+            "date": prev_monday.isoformat(),
+            "expense_type": "EXPENSE",
+        },
+        headers=auth_header,
+    )
+    assert r.status_code == 201
+
+    r = client.get(
+        f"/insights/weekly-digest?start_date={monday.isoformat()}", headers=auth_header
+    )
+    assert r.status_code == 200
+    payload = r.get_json()
+    assert "summary" in payload
+    assert "highlights" in payload
+    assert "insights" in payload
+    assert "analytics" in payload
+    assert payload["analytics"]["total_expenses"] == 200.0
+    assert payload["analytics"]["change_vs_prev_week_pct"] == 100.0
+    assert "period" in payload
+    assert payload["period"]["start"] == monday.isoformat()
