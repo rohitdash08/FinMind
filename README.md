@@ -66,6 +66,7 @@ OpenAPI: `backend/app/openapi.yaml`
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
 - Insights: `/insights/monthly`, `/insights/budget-suggestion`
+- Savings Goals: `POST/GET /savings`, `GET/PATCH/DELETE /savings/<id>`, `POST /savings/<id>/contribute`, `POST /savings/<id>/abandon`, `GET /savings/summary`
 
 ## MVP UI/UX Plan
 - Auth screens: register/login.
@@ -97,6 +98,7 @@ finmind/
       config.py
       extensions.py
       models.py
+      models_savings.py
       routes/
         __init__.py
         auth.py
@@ -104,11 +106,13 @@ finmind/
         bills.py
         reminders.py
         insights.py
+        savings.py
       services/
         __init__.py
         ai.py
         cache.py
         reminders.py
+        savings.py
       db/
         schema.sql
       openapi.yaml

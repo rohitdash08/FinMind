@@ -1,9 +1,26 @@
 import os
 import pytest
-from app import create_app
 from app.config import Settings
 from app.extensions import db
-from app.extensions import redis_client
+import fakeredis
+
+
+# Patch redis_client with fakeredis when real Redis is unavailable.
+# This must happen before importing create_app (which triggers route imports).
+_faker = fakeredis.FakeRedis(decode_responses=True)
+try:
+    from app.extensions import redis_client
+    redis_client.ping()
+except Exception:
+    import app.extensions as _ext
+    _ext.redis_client = _faker
+    # Patch all modules that imported redis_client at module level
+    import app.routes.auth as _auth
+    _auth.redis_client = _faker
+    import app.services.cache as _cache
+    _cache.redis_client = _faker
+
+from app import create_app
 from app import models  # noqa: F401 - ensure models are registered
 
 
@@ -31,18 +48,12 @@ def app_fixture():
     app = create_app(settings)
     app.config.update(TESTING=True)
     _setup_db(app)
-    try:
-        redis_client.flushdb()
-    except Exception:
-        pass
+    _faker.flushdb()
     yield app
     with app.app_context():
         db.session.remove()
         db.drop_all()
-    try:
-        redis_client.flushdb()
-    except Exception:
-        pass
+    _faker.flushdb()
 
 
 @pytest.fixture()
