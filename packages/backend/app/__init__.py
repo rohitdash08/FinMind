@@ -2,6 +2,7 @@ from flask import Flask, jsonify
 from .config import Settings
 from .extensions import db, jwt
 from .routes import register_routes
+from . import models_savings  # noqa: F401 – register savings models
 from .observability import (
     Observability,
     configure_logging,
