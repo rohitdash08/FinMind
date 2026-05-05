@@ -133,3 +133,31 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class DataRequestStatus(str, Enum):
+    PENDING = "PENDING"
+    PROCESSING = "PROCESSING"
+    COMPLETED = "COMPLETED"
+    EXPIRED = "EXPIRED"
+    FAILED = "FAILED"
+
+
+class DataRequestType(str, Enum):
+    EXPORT = "EXPORT"
+    DELETE = "DELETE"
+
+
+class DataRequest(db.Model):
+    """Tracks user data export and deletion requests (GDPR Art. 15 & 17)."""
+    __tablename__ = "data_requests"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    request_type = db.Column(db.String(20), nullable=False)
+    status = db.Column(db.String(20), default=DataRequestStatus.PENDING.value, nullable=False)
+    confirmation_token = db.Column(db.String(64), nullable=True)
+    token_expires_at = db.Column(db.DateTime, nullable=True)
+    package_path = db.Column(db.Text, nullable=True)
+    completed_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    metadata_json = db.Column(db.Text, nullable=True)
