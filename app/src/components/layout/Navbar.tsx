@@ -5,6 +5,7 @@ import { Menu, X, TrendingUp, ShieldCheck } from 'lucide-react';
 import { getToken, getRefreshToken, clearToken, clearRefreshToken } from '@/lib/auth';
 import { useToast } from '@/components/ui/use-toast';
 import { logout as logoutApi } from '@/api/auth';
+import { ThemeToggle } from '@/components/theme/ThemeToggle';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard' },
@@ -80,7 +81,8 @@ export function Navbar() {
           </div>
 
           <div className="hidden items-center gap-3 md:flex">
-            <div className="flex items-center gap-1 rounded-full border border-border/70 bg-white/70 px-3 py-1 text-[11px] text-muted-foreground">
+            <ThemeToggle />
+            <div className="flex items-center gap-1 rounded-full border border-border/70 bg-card/70 px-3 py-1 text-[11px] text-muted-foreground">
               <ShieldCheck className="h-3.5 w-3.5 text-primary" />
               Enterprise-grade security
             </div>
@@ -114,7 +116,7 @@ export function Navbar() {
 
         {isOpen && (
           <div className="md:hidden pb-4">
-            <div className="space-y-2 rounded-2xl border border-border/60 bg-white/90 p-3 shadow-md">
+            <div className="space-y-2 rounded-2xl border border-border/60 bg-card/90 p-3 shadow-md">
               {navigation.map((item) => {
                 const active = location.pathname === item.href;
                 return (
