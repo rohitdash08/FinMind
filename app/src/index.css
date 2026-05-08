@@ -73,6 +73,72 @@
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
 
+  .dark {
+    --background: 224 30% 8%;
+    --foreground: 210 20% 94%;
+
+    --card: 224 26% 12%;
+    --card-foreground: 210 20% 94%;
+
+    --popover: 224 26% 12%;
+    --popover-foreground: 210 20% 94%;
+
+    --primary: 161 72% 42%;
+    --primary-foreground: 0 0% 100%;
+    --primary-hover: 161 72% 48%;
+    --primary-light: 161 40% 16%;
+
+    --secondary: 219 43% 22%;
+    --secondary-foreground: 0 0% 100%;
+    --secondary-hover: 219 43% 28%;
+    --secondary-light: 218 30% 16%;
+
+    --accent: 44 93% 56%;
+    --accent-foreground: 220 34% 14%;
+    --accent-hover: 44 93% 50%;
+    --accent-light: 45 50% 16%;
+
+    --success: 142 60% 42%;
+    --success-foreground: 0 0% 100%;
+    --success-light: 142 40% 14%;
+
+    --warning: 36 90% 55%;
+    --warning-foreground: 0 0% 100%;
+    --warning-light: 36 50% 14%;
+
+    --destructive: 0 72% 55%;
+    --destructive-foreground: 0 0% 100%;
+    --destructive-light: 0 50% 14%;
+
+    --muted: 218 20% 16%;
+    --muted-foreground: 218 14% 60%;
+    --muted-dark: 218 18% 24%;
+
+    --border: 218 20% 20%;
+    --input: 218 20% 20%;
+    --ring: 161 72% 42%;
+
+    --gradient-primary: linear-gradient(135deg, hsl(161 72% 42%), hsl(167 72% 48%));
+    --gradient-secondary: linear-gradient(135deg, hsl(219 43% 22%), hsl(221 38% 28%));
+    --gradient-hero: linear-gradient(135deg, hsl(219 43% 22%), hsl(161 72% 42%) 65%, hsl(44 93% 56%));
+    --gradient-card: linear-gradient(150deg, hsl(224 26% 12%), hsl(224 24% 10%));
+
+    --shadow-sm: 0 6px 20px hsl(220 40% 2% / 0.3);
+    --shadow-md: 0 12px 30px hsl(220 40% 2% / 0.4);
+    --shadow-lg: 0 20px 48px hsl(220 40% 2% / 0.5);
+    --shadow-xl: 0 28px 64px hsl(220 40% 2% / 0.6);
+    --shadow-primary: 0 14px 36px hsl(161 72% 42% / 0.2);
+
+    --sidebar-background: 224 26% 10%;
+    --sidebar-foreground: 210 20% 90%;
+    --sidebar-primary: 210 20% 94%;
+    --sidebar-primary-foreground: 224 26% 10%;
+    --sidebar-accent: 218 20% 16%;
+    --sidebar-accent-foreground: 210 20% 94%;
+    --sidebar-border: 218 20% 20%;
+    --sidebar-ring: 161 72% 42%;
+  }
+
   * {
     @apply border-border;
   }
@@ -116,8 +182,8 @@
 
   .page-header {
     @apply relative mb-8 overflow-hidden rounded-2xl border p-6 shadow-md backdrop-blur-xl md:p-8;
-    border-color: hsl(0 0% 100% / 0.5);
-    background-color: hsl(0 0% 100% / 0.75);
+    border-color: hsl(var(--border) / 0.5);
+    background-color: hsl(var(--card) / 0.75);
   }
 
   .page-header::before {
@@ -138,14 +204,14 @@
 
   .glass-nav {
     @apply sticky top-0 z-50 border-b shadow-sm backdrop-blur-xl;
-    border-color: hsl(0 0% 100% / 0.5);
-    background-color: hsl(0 0% 100% / 0.72);
+    border-color: hsl(var(--border) / 0.5);
+    background-color: hsl(var(--card) / 0.72);
   }
 
   .card {
     @apply rounded-2xl border p-5 shadow-md backdrop-blur;
-    border-color: hsl(0 0% 100% / 0.5);
-    background-color: hsl(0 0% 100% / 0.9);
+    border-color: hsl(var(--border) / 0.5);
+    background-color: hsl(var(--card) / 0.9);
   }
 
   .card-interactive {
@@ -232,7 +298,7 @@
   input.input,
   select.input,
   textarea.input {
-    @apply h-11 w-full rounded-lg border border-input bg-white px-3 text-sm outline-none transition-all focus:border-primary focus:ring-2;
+    @apply h-11 w-full rounded-lg border border-input bg-card px-3 text-sm outline-none transition-all focus:border-primary focus:ring-2;
     --tw-ring-color: hsl(var(--primary) / 0.2);
   }
 
@@ -251,7 +317,7 @@
   }
 
   .btn.secondary {
-    @apply border border-input bg-white text-foreground hover:bg-muted;
+    @apply border border-input bg-card text-foreground hover:bg-muted;
   }
 
   .list {
@@ -268,17 +334,17 @@
     background-image: linear-gradient(
       to right,
       hsl(var(--primary) / 0.1),
-      hsl(0 0% 100%),
+      hsl(var(--card)),
       hsl(var(--accent) / 0.2)
     );
   }
 
   .auth-shell {
-    @apply min-h-screen bg-gradient-to-br from-background via-white;
+    @apply min-h-screen bg-gradient-to-br from-background via-card;
     background-image: linear-gradient(
       to bottom right,
       hsl(var(--background)),
-      hsl(0 0% 100%),
+      hsl(var(--card)),
       hsl(var(--primary-light) / 0.4)
     );
   }
