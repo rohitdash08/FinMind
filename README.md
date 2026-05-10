@@ -65,6 +65,8 @@ OpenAPI: `backend/app/openapi.yaml`
 - Expenses: CRUD `/expenses`
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
+- Reminder jobs: monitor `/reminders/jobs/status`, inspect `/reminders/jobs/failed`,
+  retry `/reminders/jobs/{id}/retry`
 - Insights: `/insights/monthly`, `/insights/budget-suggestion`
 
 ## MVP UI/UX Plan
@@ -182,6 +184,12 @@ finmind/
 ## Notes on Free-Tier Reminders
 - Primary: schedule via APScheduler in-process with persistence in Postgres (job table) and a simple daily trigger. Alternatively, use Railway/Render cron to hit `/reminders/run`.
 - Twilio WhatsApp free trial supports sandbox; email via SMTP (e.g., SendGrid free tier).
+- Reminder dispatch is retry-safe: failed delivery attempts are retained with
+  `retry_count`, `last_error`, `last_attempt_at`, and `next_retry_at`. The
+  backend retries at 5, 15, and 45 minute intervals, then marks the reminder as
+  failed for operator review. Use `/reminders/jobs/status` for aggregate health,
+  `/reminders/jobs/failed` for the dead-letter list, and
+  `/reminders/jobs/{id}/retry` to reset a failed reminder for another attempt.
 
 ## Security & Scalability
 - JWT access/refresh, secure cookies OR Authorization header.
