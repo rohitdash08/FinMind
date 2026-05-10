@@ -374,13 +374,102 @@ paths:
 
   /reminders/run:
     post:
-      summary: Process due reminders
+      summary: Process due reminders and retries
       tags: [Reminders]
       security: [{ bearerAuth: [] }]
       responses:
-        '200': { description: Processed count }
+        '200':
+          description: Processed count by outcome
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  processed: { type: integer }
+                  sent: { type: integer }
+                  retrying: { type: integer }
+                  failed: { type: integer }
         '401':
           description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /reminders/jobs/status:
+    get:
+      summary: Get reminder job health
+      tags: [Reminders]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Aggregate reminder job status for the current user
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  pending: { type: integer }
+                  retrying: { type: integer }
+                  failed: { type: integer }
+                  sent: { type: integer }
+                  latest_attempt_at:
+                    type: string
+                    format: date-time
+                    nullable: true
+
+  /reminders/jobs/failed:
+    get:
+      summary: List failed reminder jobs
+      tags: [Reminders]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Dead-lettered reminders for operator review
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id: { type: integer }
+                    message: { type: string }
+                    channel: { type: string }
+                    retry_count: { type: integer }
+                    last_error: { type: string, nullable: true }
+                    last_attempt_at:
+                      type: string
+                      format: date-time
+                      nullable: true
+
+  /reminders/jobs/{reminderId}/retry:
+    post:
+      summary: Reset a failed reminder for another attempt
+      tags: [Reminders]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: reminderId
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Failed reminder was reset
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: integer }
+                  retry_count: { type: integer }
+                  failed: { type: boolean }
+        '400':
+          description: Reminder is not failed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404':
+          description: Not found
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
@@ -580,6 +669,12 @@ components:
         send_at: { type: string, format: date-time }
         sent: { type: boolean }
         channel: { type: string, enum: [email, whatsapp] }
+        retry_count: { type: integer }
+        next_retry_at: { type: string, format: date-time, nullable: true }
+        last_attempt_at: { type: string, format: date-time, nullable: true }
+        sent_at: { type: string, format: date-time, nullable: true }
+        failed: { type: boolean }
+        last_error: { type: string, nullable: true }
     NewReminder:
       type: object
       required: [message, send_at]
