@@ -10,6 +10,7 @@ from flask_jwt_extended import (
 )
 from ..extensions import db, redis_client
 from ..models import User
+from ..services.security import record_login_attempt, get_security_alerts
 import logging
 import time
 
@@ -53,17 +54,37 @@ def register():
 @bp.post("/login")
 def login():
     data = request.get_json() or {}
-    email = data.get("email")
+    email = data.get("email") or ""
     password = data.get("password")
+    ip = (
+        request.headers.get("X-Forwarded-For", request.remote_addr or "unknown")
+        .split(",")[0]
+        .strip()
+    )
+
     user = db.session.query(User).filter_by(email=email).first()
     if not user or not check_password_hash(user.password_hash, password):
-        logger.warning("Login failed for email=%s", email)
+        logger.warning("Login failed for email=%s ip=%s", email, ip)
+        record_login_attempt(
+            email=email, ip=ip, success=False, user_id=user.id if user else None
+        )
         return jsonify(error="invalid credentials"), 401
+
+    record_login_attempt(email=email, ip=ip, success=True, user_id=user.id)
     access = create_access_token(identity=str(user.id))
     refresh = create_refresh_token(identity=str(user.id))
     _store_refresh_session(refresh, str(user.id))
-    logger.info("Login success user_id=%s", user.id)
+    logger.info("Login success user_id=%s ip=%s", user.id, ip)
     return jsonify(access_token=access, refresh_token=refresh)
+
+
+@bp.get("/security-alerts")
+@jwt_required()
+def security_alerts():
+    """Return recent login security events for the current user."""
+    uid = int(get_jwt_identity())
+    alerts = get_security_alerts(uid)
+    return jsonify(alerts=alerts)
 
 
 @bp.get("/me")
