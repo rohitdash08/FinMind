@@ -52,6 +52,10 @@ def create_app(settings: Settings | None = None) -> Flask:
     # Blueprint routes
     register_routes(app)
 
+    # Response compression
+    from .middleware.compression import init_compression
+    init_compression(app)
+
     # Backward-compatible schema patch for existing databases.
     with app.app_context():
         _ensure_schema_compatibility(app)
