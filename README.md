@@ -65,7 +65,10 @@ OpenAPI: `backend/app/openapi.yaml`
 - Expenses: CRUD `/expenses`
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
-- Insights: `/insights/monthly`, `/insights/budget-suggestion`
+- Insights: `/insights/monthly`, `/insights/budget-suggestion`, `/insights/weekly-summary`
+
+### Weekly Financial Digest
+`GET /insights/weekly-summary` returns an authenticated, on-demand digest for the current ISO week. Pass `week_start=YYYY-MM-DD` to inspect another Monday-starting week and `currency=USD` to isolate one currency. The response includes weekly income, expenses, net flow, transaction count, average daily spend, previous-week deltas, daily totals, category shares, upcoming bills due that week, and deterministic smart insights.
 
 ## MVP UI/UX Plan
 - Auth screens: register/login.
