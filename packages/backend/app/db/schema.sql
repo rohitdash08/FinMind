@@ -123,3 +123,17 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   action VARCHAR(100) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS financial_accounts (
+  id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name VARCHAR(200) NOT NULL,
+  account_type VARCHAR(50) NOT NULL,
+  currency VARCHAR(10) NOT NULL DEFAULT 'INR',
+  balance NUMERIC(14,2) NOT NULL DEFAULT 0,
+  institution VARCHAR(200),
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_financial_accounts_user ON financial_accounts(user_id);
