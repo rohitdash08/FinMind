@@ -5,7 +5,7 @@ from decimal import Decimal, InvalidOperation
 from flask import Blueprint, current_app, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..extensions import db
-from ..models import Expense, RecurringCadence, RecurringExpense, User
+from ..models import Expense, FinancialAccount, RecurringCadence, RecurringExpense, User
 from ..services.cache import cache_delete_patterns, monthly_summary_key
 from ..services import expense_import
 import logging
@@ -23,6 +23,7 @@ def list_expenses():
     to_date = request.args.get("to")
     search = (request.args.get("search") or "").strip()
     category_id = request.args.get("category_id")
+    account_id = request.args.get("account_id")
     try:
         page = max(1, int(request.args.get("page", "1")))
         page_size = min(200, max(1, int(request.args.get("page_size", "200"))))
@@ -36,6 +37,8 @@ def list_expenses():
             q = q.filter(Expense.spent_at <= date.fromisoformat(to_date))
         if category_id:
             q = q.filter(Expense.category_id == int(category_id))
+        if account_id:
+            q = q.filter(Expense.account_id == int(account_id))
     except ValueError:
         return jsonify(error="invalid filter values"), 400
     if search:
@@ -67,6 +70,7 @@ def create_expense():
         return jsonify(error="description required"), 400
     e = Expense(
         user_id=uid,
+        account_id=_account_id_for_user(uid, data.get("account_id")),
         amount=amount,
         currency=(data.get("currency") or (user.preferred_currency if user else "INR")),
         expense_type=str(data.get("expense_type") or "EXPENSE").upper(),
@@ -221,6 +225,8 @@ def update_expense(expense_id: int):
         e.expense_type = str(data.get("expense_type") or "EXPENSE").upper()
     if "category_id" in data:
         e.category_id = data.get("category_id")
+    if "account_id" in data:
+        e.account_id = _account_id_for_user(uid, data.get("account_id"))
     if "description" in data or "notes" in data:
         description = (data.get("description") or data.get("notes") or "").strip()
         if not description:
@@ -295,6 +301,7 @@ def import_commit():
             continue
         expense = Expense(
             user_id=uid,
+            account_id=_account_id_for_user(uid, t.get("account_id")),
             amount=t["amount"],
             currency=t.get("currency") or (user.preferred_currency if user else "INR"),
             expense_type=str(t.get("expense_type") or "EXPENSE").upper(),
@@ -314,6 +321,7 @@ def import_commit():
 def _expense_to_dict(e: Expense) -> dict:
     return {
         "id": e.id,
+        "account_id": e.account_id,
         "amount": float(e.amount),
         "currency": e.currency,
         "category_id": e.category_id,
@@ -350,6 +358,21 @@ def _parse_recurring_cadence(raw: str | None) -> str | None:
     if val in {"DAILY", "WEEKLY", "MONTHLY", "YEARLY"}:
         return val
     return None
+
+
+def _account_id_for_user(uid: int, raw) -> int | None:
+    if raw in (None, ""):
+        return None
+    try:
+        account_id = int(raw)
+    except (TypeError, ValueError):
+        return None
+    exists = (
+        db.session.query(FinancialAccount.id)
+        .filter_by(id=account_id, user_id=uid, active=True)
+        .first()
+    )
+    return account_id if exists else None
 
 
 def _advance_recurrence_date(at: date, cadence: str) -> date:

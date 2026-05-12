@@ -31,6 +31,9 @@ class Expense(db.Model):
     __tablename__ = "expenses"
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    account_id = db.Column(
+        db.Integer, db.ForeignKey("financial_accounts.id"), nullable=True
+    )
     category_id = db.Column(db.Integer, db.ForeignKey("categories.id"), nullable=True)
     amount = db.Column(db.Numeric(12, 2), nullable=False)
     currency = db.Column(db.String(10), default="INR", nullable=False)
@@ -41,6 +44,19 @@ class Expense(db.Model):
         db.Integer, db.ForeignKey("recurring_expenses.id"), nullable=True
     )
     created_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
+
+
+class FinancialAccount(db.Model):
+    __tablename__ = "financial_accounts"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    name = db.Column(db.String(120), nullable=False)
+    account_type = db.Column(db.String(30), nullable=False)
+    balance = db.Column(db.Numeric(12, 2), default=0, nullable=False)
+    currency = db.Column(db.String(10), default="INR", nullable=False)
+    institution = db.Column(db.String(160), nullable=True)
+    active = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
 
 class RecurringCadence(str, Enum):

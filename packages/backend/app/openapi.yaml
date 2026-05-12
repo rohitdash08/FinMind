@@ -9,6 +9,7 @@ tags:
   - name: Auth
   - name: Categories
   - name: Expenses
+  - name: Accounts
   - name: Bills
   - name: Reminders
   - name: Insights
@@ -481,6 +482,108 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
 
+  /accounts:
+    get:
+      summary: List financial accounts
+      tags: [Accounts]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Active accounts owned by the current user
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/FinancialAccount' }
+    post:
+      summary: Create financial account
+      tags: [Accounts]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewFinancialAccount'
+            example:
+              name: Main Checking
+              account_type: CHECKING
+              balance: 1500
+              currency: USD
+              institution: Acme Bank
+      responses:
+        '201': { description: Created }
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /accounts/{accountId}:
+    patch:
+      summary: Update financial account
+      tags: [Accounts]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: accountId
+          required: true
+          schema: { type: integer }
+      responses:
+        '200': { description: Updated }
+        '404': { description: Not found }
+    delete:
+      summary: Soft delete financial account
+      tags: [Accounts]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: accountId
+          required: true
+          schema: { type: integer }
+      responses:
+        '200': { description: Deleted }
+        '404': { description: Not found }
+
+  /accounts/overview:
+    get:
+      summary: Multi-account financial overview
+      tags: [Accounts]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: month
+          required: false
+          schema: { type: string, pattern: '^\d{4}-\d{2}$' }
+      responses:
+        '200':
+          description: Net worth, account activity, currency groups, and recent linked transactions.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+              example:
+                period: { month: 2026-05 }
+                summary:
+                  account_count: 3
+                  assets: 7000
+                  liabilities: 300
+                  net_worth: 6700
+                accounts:
+                  - id: 1
+                    name: Main Checking
+                    account_type: CHECKING
+                    balance: 2000
+                    currency: USD
+                    monthly_income: 3000
+                    monthly_expenses: 120
+        '400':
+          description: Invalid month
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -503,10 +606,32 @@ components:
       properties:
         id: { type: integer }
         name: { type: string }
+    FinancialAccount:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        account_type: { type: string }
+        balance: { type: number, format: float }
+        currency: { type: string }
+        institution: { type: string, nullable: true }
+        active: { type: boolean }
+    NewFinancialAccount:
+      type: object
+      required: [name, account_type]
+      properties:
+        name: { type: string }
+        account_type:
+          type: string
+          enum: [CHECKING, SAVINGS, CREDIT_CARD, INVESTMENT, LOAN, CASH, OTHER]
+        balance: { type: number, format: float }
+        currency: { type: string }
+        institution: { type: string }
     Expense:
       type: object
       properties:
         id: { type: integer }
+        account_id: { type: integer, nullable: true }
         amount: { type: number, format: float }
         currency: { type: string }
         category_id: { type: integer }
@@ -519,6 +644,7 @@ components:
       properties:
         amount: { type: number, format: float }
         currency: { type: string, default: USD }
+        account_id: { type: integer, nullable: true }
         category_id: { type: integer, nullable: true }
         expense_type: { type: string, default: EXPENSE }
         description: { type: string, nullable: true }

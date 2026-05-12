@@ -62,10 +62,14 @@ See `backend/app/db/schema.sql`. Key tables:
 ## API Endpoints
 OpenAPI: `backend/app/openapi.yaml`
 - Auth: `/auth/register`, `/auth/login`, `/auth/refresh`
-- Expenses: CRUD `/expenses`
+- Expenses: CRUD `/expenses` with optional `account_id` linking
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
 - Insights: `/insights/monthly`, `/insights/budget-suggestion`
+- Accounts: CRUD `/accounts`, consolidated `/accounts/overview`
+
+### Multi-Account Overview
+FinMind supports user-owned financial accounts for checking, savings, credit cards, investments, loans, cash, and other balances. Create accounts with `POST /accounts`, link transactions by passing `account_id` to `/expenses`, and read `GET /accounts/overview?month=YYYY-MM` for assets, liabilities, net worth, currency groups, account type breakdown, per-account monthly income/expense activity, and recent linked transactions.
 
 ## MVP UI/UX Plan
 - Auth screens: register/login.

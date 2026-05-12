@@ -8,6 +8,7 @@ import { Dashboard } from "./pages/Dashboard";
 import { Budgets } from "./pages/Budgets";
 import { Bills } from "./pages/Bills";
 import { Analytics } from "./pages/Analytics";
+import { Accounts } from "./pages/Accounts";
 import Reminders from "./pages/Reminders";
 import Expenses from "./pages/Expenses";
 import { SignIn } from "./pages/SignIn";
@@ -64,6 +65,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Expenses />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="accounts"
+              element={
+                <ProtectedRoute>
+                  <Accounts />
                 </ProtectedRoute>
               }
             />
