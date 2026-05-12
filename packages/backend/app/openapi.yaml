@@ -374,13 +374,84 @@ paths:
 
   /reminders/run:
     post:
-      summary: Process due reminders
+      summary: Process due reminders with retry tracking
       tags: [Reminders]
       security: [{ bearerAuth: [] }]
       responses:
-        '200': { description: Processed count }
+        '200':
+          description: Reminder run result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReminderRunResult'
         '401':
           description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /reminders/jobs/status:
+    get:
+      summary: Get reminder job health and retry totals
+      tags: [Reminders]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Reminder job status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReminderJobStatus'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /reminders/jobs/failed:
+    get:
+      summary: List failed reminder jobs for the current user
+      tags: [Reminders]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Failed reminder jobs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ReminderJob'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /reminders/jobs/{reminderId}/retry:
+    post:
+      summary: Reset a failed reminder job for retry
+      tags: [Reminders]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: reminderId
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Reset reminder job
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReminderJob'
+        '400':
+          description: Reminder is already sent
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404':
+          description: Not found
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
@@ -580,6 +651,12 @@ components:
         send_at: { type: string, format: date-time }
         sent: { type: boolean }
         channel: { type: string, enum: [email, whatsapp] }
+        retry_status: { type: string, enum: [PENDING, RETRYING, FAILED, SENT] }
+        retry_count: { type: integer }
+        max_retries: { type: integer }
+        next_retry_at: { type: string, format: date-time, nullable: true }
+        last_attempt_at: { type: string, format: date-time, nullable: true }
+        last_error: { type: string, nullable: true }
     NewReminder:
       type: object
       required: [message, send_at]
@@ -587,3 +664,25 @@ components:
         message: { type: string }
         send_at: { type: string, format: date-time }
         channel: { type: string, enum: [email, whatsapp], default: email }
+    ReminderRunResult:
+      type: object
+      properties:
+        processed: { type: integer }
+        sent: { type: integer }
+        retrying: { type: integer }
+        failed: { type: integer }
+    ReminderJobStatus:
+      type: object
+      properties:
+        total: { type: integer }
+        sent: { type: integer }
+        pending: { type: integer }
+        retrying: { type: integer }
+        failed: { type: integer }
+        healthy: { type: boolean }
+    ReminderJob:
+      allOf:
+        - $ref: '#/components/schemas/Reminder'
+        - type: object
+          properties:
+            failed_at: { type: string, format: date-time, nullable: true }

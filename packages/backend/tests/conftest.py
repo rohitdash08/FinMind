@@ -3,8 +3,55 @@ import pytest
 from app import create_app
 from app.config import Settings
 from app.extensions import db
-from app.extensions import redis_client
 from app import models  # noqa: F401 - ensure models are registered
+
+
+class InMemoryRedis:
+    def __init__(self):
+        self.data = {}
+
+    def setex(self, key, _ttl, value):
+        self.data[key] = value
+        return True
+
+    def set(self, key, value):
+        self.data[key] = value
+        return True
+
+    def get(self, key):
+        return self.data.get(key)
+
+    def delete(self, *keys):
+        removed = 0
+        for key in keys:
+            if key in self.data:
+                removed += 1
+            self.data.pop(key, None)
+        return removed
+
+    def scan(self, cursor=0, match=None, count=100):
+        import fnmatch
+
+        keys = list(self.data.keys())
+        if match:
+            keys = [key for key in keys if fnmatch.fnmatch(key, match)]
+        return 0, keys[:count]
+
+    def flushdb(self):
+        self.data.clear()
+        return True
+
+
+def _install_test_redis():
+    fake = InMemoryRedis()
+    import app.extensions as extensions
+    import app.routes.auth as auth
+    import app.services.cache as cache
+
+    extensions.redis_client = fake
+    auth.redis_client = fake
+    cache.redis_client = fake
+    return fake
 
 
 class TestSettings(Settings):
@@ -30,19 +77,14 @@ def app_fixture():
     )
     app = create_app(settings)
     app.config.update(TESTING=True)
+    fake_redis = _install_test_redis()
     _setup_db(app)
-    try:
-        redis_client.flushdb()
-    except Exception:
-        pass
+    fake_redis.flushdb()
     yield app
     with app.app_context():
         db.session.remove()
         db.drop_all()
-    try:
-        redis_client.flushdb()
-    except Exception:
-        pass
+    fake_redis.flushdb()
 
 
 @pytest.fixture()
