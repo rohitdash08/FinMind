@@ -23,3 +23,13 @@ def budget_suggestion():
     )
     logger.info("Budget suggestion served user=%s month=%s", uid, ym)
     return jsonify(suggestion)
+
+
+@bp.get("/weekly-digest")
+@jwt_required()
+def weekly_digest():
+    from ..services.digest import generate_weekly_digest
+    uid = int(get_jwt_identity())
+    digest = generate_weekly_digest(uid)
+    logger.info("Weekly digest served for user=%s", uid)
+    return jsonify(digest)
