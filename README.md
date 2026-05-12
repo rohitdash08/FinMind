@@ -65,7 +65,15 @@ OpenAPI: `backend/app/openapi.yaml`
 - Expenses: CRUD `/expenses`
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
-- Insights: `/insights/monthly`, `/insights/budget-suggestion`
+- Insights: `/insights/monthly`, `/insights/budget-suggestion`,
+  `/insights/weekly-summary`
+
+### Weekly Financial Digest
+- `GET /insights/weekly-summary?week_start=YYYY-MM-DD`
+- Returns a seven-day summary with income, expenses, net flow, prior-week
+  comparisons, daily totals, category breakdown, largest expenses, highlights,
+  structured insights, and recommendations.
+- If `week_start` is omitted, the backend uses the Monday of the current week.
 
 ## MVP UI/UX Plan
 - Auth screens: register/login.

@@ -1,11 +1,12 @@
 import json
+from datetime import date, timedelta
 from urllib import request
 
 from sqlalchemy import extract, func
 
 from ..config import Settings
 from ..extensions import db
-from ..models import Expense
+from ..models import Category, Expense
 
 _settings = Settings()
 DEFAULT_PERSONA = (
@@ -62,6 +63,313 @@ def _previous_month(ym: str) -> str:
     if month == 1:
         return f"{year - 1:04d}-12"
     return f"{year:04d}-{month - 1:02d}"
+
+
+def _round_money(value: float) -> float:
+    return round(float(value or 0), 2)
+
+
+def _pct_change(current: float, previous: float) -> float:
+    if previous == 0:
+        return 0.0 if current == 0 else 100.0
+    return round(((current - previous) / previous) * 100, 2)
+
+
+def _parse_week_start(week_start: str | None) -> date:
+    if not week_start:
+        today = date.today()
+        return today - timedelta(days=today.weekday())
+    return date.fromisoformat(week_start)
+
+
+def _weekly_rows(uid: int, start: date, end: date) -> list[Expense]:
+    return (
+        db.session.query(Expense)
+        .filter(
+            Expense.user_id == uid,
+            Expense.spent_at >= start,
+            Expense.spent_at <= end,
+        )
+        .order_by(Expense.spent_at.asc(), Expense.id.asc())
+        .all()
+    )
+
+
+def _category_names(uid: int) -> dict[int, str]:
+    rows = db.session.query(Category.id, Category.name).filter_by(user_id=uid).all()
+    return {int(category_id): name for category_id, name in rows}
+
+
+def _sum_rows(rows: list[Expense]) -> tuple[float, float]:
+    income = 0.0
+    expenses = 0.0
+    for row in rows:
+        amount = float(row.amount or 0)
+        if row.expense_type == "INCOME":
+            income += amount
+        else:
+            expenses += amount
+    return income, expenses
+
+
+def _daily_breakdown(rows: list[Expense], start: date) -> list[dict]:
+    daily = {
+        start
+        + timedelta(days=offset): {
+            "date": (start + timedelta(days=offset)).isoformat(),
+            "income": 0.0,
+            "expenses": 0.0,
+            "net_flow": 0.0,
+            "transaction_count": 0,
+        }
+        for offset in range(7)
+    }
+    for row in rows:
+        day = daily[row.spent_at]
+        amount = float(row.amount or 0)
+        if row.expense_type == "INCOME":
+            day["income"] += amount
+        else:
+            day["expenses"] += amount
+        day["transaction_count"] += 1
+        day["net_flow"] = day["income"] - day["expenses"]
+
+    return [
+        {
+            **values,
+            "income": _round_money(values["income"]),
+            "expenses": _round_money(values["expenses"]),
+            "net_flow": _round_money(values["net_flow"]),
+        }
+        for values in daily.values()
+    ]
+
+
+def _category_breakdown(
+    rows: list[Expense], category_names: dict[int, str], total_expenses: float
+) -> list[dict]:
+    totals: dict[str, dict] = {}
+    for row in rows:
+        if row.expense_type == "INCOME":
+            continue
+        key = str(row.category_id or "uncategorized")
+        label = category_names.get(row.category_id, "Uncategorized")
+        item = totals.setdefault(
+            key,
+            {
+                "category_id": row.category_id,
+                "category_name": label,
+                "amount": 0.0,
+                "transaction_count": 0,
+                "share_pct": 0.0,
+            },
+        )
+        item["amount"] += float(row.amount or 0)
+        item["transaction_count"] += 1
+
+    breakdown = []
+    for item in totals.values():
+        amount = _round_money(item["amount"])
+        item["amount"] = amount
+        item["share_pct"] = (
+            round((amount / total_expenses) * 100, 2) if total_expenses > 0 else 0.0
+        )
+        breakdown.append(item)
+    return sorted(breakdown, key=lambda item: item["amount"], reverse=True)
+
+
+def _largest_expenses(
+    rows: list[Expense], category_names: dict[int, str], limit: int = 5
+) -> list[dict]:
+    expense_rows = [row for row in rows if row.expense_type != "INCOME"]
+    top_rows = sorted(
+        expense_rows, key=lambda row: float(row.amount or 0), reverse=True
+    )
+    return [
+        {
+            "id": row.id,
+            "description": row.notes or "Transaction",
+            "amount": _round_money(float(row.amount or 0)),
+            "currency": row.currency,
+            "date": row.spent_at.isoformat(),
+            "category_id": row.category_id,
+            "category_name": category_names.get(row.category_id, "Uncategorized"),
+        }
+        for row in top_rows[:limit]
+    ]
+
+
+def _build_weekly_narrative(
+    current_income: float,
+    current_expenses: float,
+    previous_expenses: float,
+    category_breakdown: list[dict],
+    daily_breakdown: list[dict],
+    transaction_count: int,
+) -> tuple[list[str], list[dict], list[str]]:
+    net_flow = current_income - current_expenses
+    highlights: list[str] = []
+    insights: list[dict] = []
+    recommendations: list[str] = []
+
+    if transaction_count == 0:
+        highlights.append("No transactions were recorded for this week.")
+        insights.append(
+            {
+                "type": "activity",
+                "severity": "info",
+                "title": "No weekly activity",
+                "detail": "Add income and expense transactions to generate trends.",
+            }
+        )
+        recommendations.append("Log this week's transactions to unlock the digest.")
+        return highlights, insights, recommendations
+
+    highlights.append(
+        "Weekly net flow was "
+        f"{_round_money(net_flow)} from {_round_money(current_income)} income and "
+        f"{_round_money(current_expenses)} expenses."
+    )
+
+    expense_change = _pct_change(current_expenses, previous_expenses)
+    if previous_expenses > 0:
+        direction = "higher" if expense_change >= 0 else "lower"
+        highlights.append(
+            f"Expenses were {abs(expense_change):.2f}% {direction} than last week."
+        )
+
+    if net_flow < 0:
+        insights.append(
+            {
+                "type": "cash_flow",
+                "severity": "warning",
+                "title": "Negative weekly cash flow",
+                "detail": (
+                    "Expenses exceeded income by "
+                    f"{_round_money(abs(net_flow))} this week."
+                ),
+            }
+        )
+        recommendations.append("Review discretionary purchases before next week.")
+    else:
+        insights.append(
+            {
+                "type": "cash_flow",
+                "severity": "positive",
+                "title": "Positive weekly cash flow",
+                "detail": f"Income exceeded expenses by {_round_money(net_flow)}.",
+            }
+        )
+        recommendations.append("Move part of the weekly surplus to savings.")
+
+    if category_breakdown:
+        top_category = category_breakdown[0]
+        insights.append(
+            {
+                "type": "category",
+                "severity": "info",
+                "title": f"{top_category['category_name']} led spending",
+                "detail": (
+                    f"{top_category['category_name']} represented "
+                    f"{top_category['share_pct']:.2f}% of weekly expenses."
+                ),
+            }
+        )
+        if top_category["share_pct"] >= 40:
+            recommendations.append(
+                f"Set a cap for {top_category['category_name']} next week."
+            )
+
+    expense_days = [day for day in daily_breakdown if day["expenses"] > 0]
+    if expense_days:
+        busiest_day = max(expense_days, key=lambda day: day["expenses"])
+        share = (
+            round((busiest_day["expenses"] / current_expenses) * 100, 2)
+            if current_expenses > 0
+            else 0.0
+        )
+        insights.append(
+            {
+                "type": "daily_trend",
+                "severity": "info",
+                "title": "Highest spend day",
+                "detail": (
+                    f"{busiest_day['date']} accounted for {share:.2f}% "
+                    "of weekly expenses."
+                ),
+            }
+        )
+
+    if current_income == 0 and current_expenses > 0:
+        recommendations.append("Record income deposits to track true cash flow.")
+
+    return highlights, insights, recommendations
+
+
+def weekly_financial_summary(uid: int, week_start: str | None = None) -> dict:
+    start = _parse_week_start(week_start)
+    end = start + timedelta(days=6)
+    previous_start = start - timedelta(days=7)
+    previous_end = start - timedelta(days=1)
+
+    rows = _weekly_rows(uid, start, end)
+    previous_rows = _weekly_rows(uid, previous_start, previous_end)
+    category_names = _category_names(uid)
+
+    current_income, current_expenses = _sum_rows(rows)
+    previous_income, previous_expenses = _sum_rows(previous_rows)
+    net_flow = current_income - current_expenses
+    previous_net_flow = previous_income - previous_expenses
+
+    daily = _daily_breakdown(rows, start)
+    categories = _category_breakdown(rows, category_names, current_expenses)
+    highlights, insights, recommendations = _build_weekly_narrative(
+        current_income,
+        current_expenses,
+        previous_expenses,
+        categories,
+        daily,
+        len(rows),
+    )
+
+    income_count = len([row for row in rows if row.expense_type == "INCOME"])
+    expense_count = len(rows) - income_count
+    savings_rate = (
+        round((net_flow / current_income) * 100, 2) if current_income > 0 else 0.0
+    )
+
+    return {
+        "period": {
+            "week_start": start.isoformat(),
+            "week_end": end.isoformat(),
+            "previous_week_start": previous_start.isoformat(),
+            "previous_week_end": previous_end.isoformat(),
+        },
+        "summary": {
+            "income": _round_money(current_income),
+            "expenses": _round_money(current_expenses),
+            "net_flow": _round_money(net_flow),
+            "transaction_count": len(rows),
+            "income_transaction_count": income_count,
+            "expense_transaction_count": expense_count,
+            "savings_rate_pct": savings_rate,
+        },
+        "comparison": {
+            "previous_income": _round_money(previous_income),
+            "previous_expenses": _round_money(previous_expenses),
+            "previous_net_flow": _round_money(previous_net_flow),
+            "income_change_pct": _pct_change(current_income, previous_income),
+            "expense_change_pct": _pct_change(current_expenses, previous_expenses),
+            "net_flow_change": _round_money(net_flow - previous_net_flow),
+        },
+        "category_breakdown": categories,
+        "daily_breakdown": daily,
+        "largest_expenses": _largest_expenses(rows, category_names),
+        "highlights": highlights,
+        "insights": insights,
+        "recommendations": recommendations,
+        "method": "heuristic",
+    }
 
 
 def _build_analytics(uid: int, ym: str) -> dict:
