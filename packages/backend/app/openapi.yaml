@@ -374,13 +374,111 @@ paths:
 
   /reminders/run:
     post:
-      summary: Process due reminders
+      summary: Process due reminder jobs with retry handling
       tags: [Reminders]
       security: [{ bearerAuth: [] }]
       responses:
-        '200': { description: Processed count }
+        '200':
+          description: Processed job counts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  processed: { type: integer }
+                  sent: { type: integer }
+                  retrying: { type: integer }
+                  failed: { type: integer }
+              example:
+                processed: 2
+                sent: 1
+                retrying: 1
+                failed: 0
         '401':
           description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /reminders/jobs/stats:
+    get:
+      summary: Get reminder job retry and monitoring statistics
+      tags: [Reminders]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Aggregated reminder job health for the authenticated user
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total: { type: integer }
+                  pending: { type: integer }
+                  retrying: { type: integer }
+                  sent: { type: integer }
+                  failed: { type: integer }
+                  due_now: { type: integer }
+                  next_retry_at: { type: string, format: date-time, nullable: true }
+                  last_failure_at: { type: string, format: date-time, nullable: true }
+              example:
+                total: 8
+                pending: 3
+                retrying: 1
+                sent: 3
+                failed: 1
+                due_now: 1
+                next_retry_at: 2026-05-12T10:15:00
+                last_failure_at: 2026-05-12T10:10:00
+
+  /reminders/jobs:
+    get:
+      summary: List reminder jobs, optionally filtered by retry status
+      tags: [Reminders]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: status
+          required: false
+          schema: { type: string, enum: [PENDING, RETRYING, SENT, FAILED] }
+        - in: query
+          name: limit
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+      responses:
+        '200':
+          description: Reminder jobs for the authenticated user
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Reminder'
+        '400':
+          description: Invalid filter
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /reminders/{reminderId}/retry:
+    post:
+      summary: Reset a failed or retrying reminder job for manual retry
+      tags: [Reminders]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: reminderId
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Reset reminder job
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reminder'
+        '404':
+          description: Reminder not found for the authenticated user
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
@@ -579,7 +677,15 @@ components:
         message: { type: string }
         send_at: { type: string, format: date-time }
         sent: { type: boolean }
-        channel: { type: string, enum: [email, whatsapp] }
+        channel: { type: string }
+        job_status: { type: string, enum: [PENDING, RETRYING, SENT, FAILED] }
+        retry_count: { type: integer }
+        max_attempts: { type: integer }
+        next_retry_at: { type: string, format: date-time, nullable: true }
+        last_attempt_at: { type: string, format: date-time, nullable: true }
+        sent_at: { type: string, format: date-time, nullable: true }
+        failed_at: { type: string, format: date-time, nullable: true }
+        last_error: { type: string, nullable: true }
     NewReminder:
       type: object
       required: [message, send_at]

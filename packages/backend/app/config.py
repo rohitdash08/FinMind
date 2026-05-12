@@ -22,6 +22,8 @@ class Settings(BaseSettings):
 
     email_from: str | None = None
     smtp_url: str | None = None  # e.g. smtp+ssl://user:pass@mail:465
+    reminder_job_max_attempts: int = 3
+    reminder_job_backoff_seconds: str = "300,900,2700"
 
     # pydantic-settings v2 configuration
     model_config = SettingsConfigDict(

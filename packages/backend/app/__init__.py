@@ -33,6 +33,8 @@ def create_app(settings: Settings | None = None) -> Flask:
         TWILIO_AUTH_TOKEN=cfg.twilio_auth_token,
         TWILIO_WHATSAPP_FROM=cfg.twilio_whatsapp_from,
         EMAIL_FROM=cfg.email_from,
+        REMINDER_JOB_MAX_ATTEMPTS=cfg.reminder_job_max_attempts,
+        REMINDER_JOB_BACKOFF_SECONDS=cfg.reminder_job_backoff_seconds,
     )
 
     # Logging
@@ -110,10 +112,73 @@ def _ensure_schema_compatibility(app: Flask) -> None:
             NOT NULL DEFAULT 'INR'
             """
         )
+        cur.execute(
+            """
+            ALTER TABLE reminders
+            ADD COLUMN IF NOT EXISTS job_status VARCHAR(20)
+            NOT NULL DEFAULT 'PENDING'
+            """
+        )
+        cur.execute(
+            """
+            ALTER TABLE reminders
+            ADD COLUMN IF NOT EXISTS retry_count INT NOT NULL DEFAULT 0
+            """
+        )
+        cur.execute(
+            """
+            ALTER TABLE reminders
+            ADD COLUMN IF NOT EXISTS max_attempts INT NOT NULL DEFAULT 3
+            """
+        )
+        cur.execute(
+            """
+            ALTER TABLE reminders
+            ADD COLUMN IF NOT EXISTS next_retry_at TIMESTAMP
+            """
+        )
+        cur.execute(
+            """
+            ALTER TABLE reminders
+            ADD COLUMN IF NOT EXISTS last_attempt_at TIMESTAMP
+            """
+        )
+        cur.execute(
+            """
+            ALTER TABLE reminders
+            ADD COLUMN IF NOT EXISTS sent_at TIMESTAMP
+            """
+        )
+        cur.execute(
+            """
+            ALTER TABLE reminders
+            ADD COLUMN IF NOT EXISTS failed_at TIMESTAMP
+            """
+        )
+        cur.execute(
+            """
+            ALTER TABLE reminders
+            ADD COLUMN IF NOT EXISTS last_error VARCHAR(1000)
+            """
+        )
+        cur.execute(
+            """
+            UPDATE reminders
+            SET job_status = 'SENT',
+                sent_at = COALESCE(sent_at, send_at)
+            WHERE sent IS TRUE AND job_status <> 'SENT'
+            """
+        )
+        cur.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_reminders_job_due
+            ON reminders(user_id, job_status, sent, send_at, next_retry_at)
+            """
+        )
         conn.commit()
     except Exception:
         app.logger.exception(
-            "Schema compatibility patch failed for users.preferred_currency"
+            "Schema compatibility patch failed for users/reminder job columns"
         )
         conn.rollback()
     finally:

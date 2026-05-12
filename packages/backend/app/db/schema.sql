@@ -91,9 +91,42 @@ CREATE TABLE IF NOT EXISTS reminders (
   message VARCHAR(500) NOT NULL,
   send_at TIMESTAMP NOT NULL,
   sent BOOLEAN NOT NULL DEFAULT FALSE,
-  channel VARCHAR(20) NOT NULL DEFAULT 'email'
+  channel VARCHAR(20) NOT NULL DEFAULT 'email',
+  job_status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+  retry_count INT NOT NULL DEFAULT 0,
+  max_attempts INT NOT NULL DEFAULT 3,
+  next_retry_at TIMESTAMP,
+  last_attempt_at TIMESTAMP,
+  sent_at TIMESTAMP,
+  failed_at TIMESTAMP,
+  last_error VARCHAR(1000)
 );
 CREATE INDEX IF NOT EXISTS idx_reminders_due ON reminders(user_id, sent, send_at);
+
+ALTER TABLE reminders
+  ADD COLUMN IF NOT EXISTS job_status VARCHAR(20) NOT NULL DEFAULT 'PENDING';
+ALTER TABLE reminders
+  ADD COLUMN IF NOT EXISTS retry_count INT NOT NULL DEFAULT 0;
+ALTER TABLE reminders
+  ADD COLUMN IF NOT EXISTS max_attempts INT NOT NULL DEFAULT 3;
+ALTER TABLE reminders
+  ADD COLUMN IF NOT EXISTS next_retry_at TIMESTAMP;
+ALTER TABLE reminders
+  ADD COLUMN IF NOT EXISTS last_attempt_at TIMESTAMP;
+ALTER TABLE reminders
+  ADD COLUMN IF NOT EXISTS sent_at TIMESTAMP;
+ALTER TABLE reminders
+  ADD COLUMN IF NOT EXISTS failed_at TIMESTAMP;
+ALTER TABLE reminders
+  ADD COLUMN IF NOT EXISTS last_error VARCHAR(1000);
+
+UPDATE reminders
+SET job_status = 'SENT',
+    sent_at = COALESCE(sent_at, send_at)
+WHERE sent IS TRUE AND job_status <> 'SENT';
+
+CREATE INDEX IF NOT EXISTS idx_reminders_job_due
+  ON reminders(user_id, job_status, sent, send_at, next_retry_at);
 
 CREATE TABLE IF NOT EXISTS ad_impressions (
   id SERIAL PRIMARY KEY,

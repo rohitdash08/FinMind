@@ -4,7 +4,15 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..extensions import db
 from ..models import Bill, Reminder
 from ..observability import track_reminder_event
-from ..services.reminders import send_reminder
+from ..services.reminder_jobs import (
+    VALID_STATUSES,
+    configured_max_attempts,
+    process_due_reminders,
+    reminder_job_stats,
+    reminder_jobs_query,
+    reset_reminder_for_retry,
+    serialize_reminder_job,
+)
 import logging
 
 bp = Blueprint("reminders", __name__)
@@ -22,18 +30,7 @@ def list_reminders():
         .all()
     )
     logger.info("List reminders user=%s count=%s", uid, len(items))
-    return jsonify(
-        [
-            {
-                "id": r.id,
-                "message": r.message,
-                "send_at": r.send_at.isoformat(),
-                "sent": r.sent,
-                "channel": r.channel,
-            }
-            for r in items
-        ]
-    )
+    return jsonify([serialize_reminder_job(r) for r in items])
 
 
 @bp.post("")
@@ -46,6 +43,7 @@ def create_reminder():
         message=data["message"],
         send_at=datetime.fromisoformat(data["send_at"]),
         channel=data.get("channel", "email"),
+        max_attempts=configured_max_attempts(),
     )
     db.session.add(r)
     db.session.commit()
@@ -148,6 +146,7 @@ def autopay_result_followup(bill_id: int):
                 message=message,
                 send_at=now,
                 channel=channel,
+                max_attempts=configured_max_attempts(),
             )
         )
         created += 1
@@ -160,23 +159,47 @@ def autopay_result_followup(bill_id: int):
 @jwt_required()
 def run_due():
     uid = int(get_jwt_identity())
-    now = datetime.utcnow() + timedelta(minutes=1)
-    items = (
-        db.session.query(Reminder)
-        .filter(
-            Reminder.user_id == uid,
-            Reminder.sent.is_(False),
-            Reminder.send_at <= now,
-        )
-        .all()
-    )
-    for r in items:
-        send_reminder(r)
-        r.sent = True
-        track_reminder_event(event="sent", channel=r.channel)
+    summary = process_due_reminders(uid)
+    logger.info("Processed due reminders user=%s result=%s", uid, summary)
+    return jsonify(summary)
+
+
+@bp.get("/jobs/stats")
+@jwt_required()
+def job_stats():
+    uid = int(get_jwt_identity())
+    return jsonify(reminder_job_stats(uid))
+
+
+@bp.get("/jobs")
+@jwt_required()
+def list_jobs():
+    uid = int(get_jwt_identity())
+    status = request.args.get("status")
+    if status:
+        status = status.upper().strip()
+        if status not in VALID_STATUSES:
+            return jsonify(error="unsupported status"), 400
+    try:
+        limit = min(max(int(request.args.get("limit", 50)), 1), 100)
+    except ValueError:
+        return jsonify(error="limit must be an integer"), 400
+
+    jobs = reminder_jobs_query(uid, status=status).limit(limit).all()
+    return jsonify([serialize_reminder_job(job) for job in jobs])
+
+
+@bp.post("/<int:reminder_id>/retry")
+@jwt_required()
+def retry_reminder(reminder_id: int):
+    uid = int(get_jwt_identity())
+    reminder = db.session.get(Reminder, reminder_id)
+    if not reminder or reminder.user_id != uid:
+        return jsonify(error="not found"), 404
+    reset_reminder_for_retry(reminder)
     db.session.commit()
-    logger.info("Processed due reminders user=%s count=%s", uid, len(items))
-    return jsonify(processed=len(items))
+    logger.info("Reset reminder job for retry id=%s user=%s", reminder.id, uid)
+    return jsonify(serialize_reminder_job(reminder)), 200
 
 
 def _bill_channels(bill: Bill) -> list[str]:
@@ -218,6 +241,7 @@ def _create_reminder_if_missing(
             channel=channel,
             send_at=send_at,
             message=message,
+            max_attempts=configured_max_attempts(),
         )
     )
     return True
