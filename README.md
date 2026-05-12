@@ -64,7 +64,7 @@ OpenAPI: `backend/app/openapi.yaml`
 - Auth: `/auth/register`, `/auth/login`, `/auth/refresh`
 - Expenses: CRUD `/expenses`
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
-- Reminders: CRUD `/reminders`, trigger `/reminders/run`
+- Reminders: CRUD `/reminders`, trigger `/reminders/run`, monitor `/reminders/jobs/status`, inspect `/reminders/jobs/failed`, reset `/reminders/jobs/{id}/retry`
 - Insights: `/insights/monthly`, `/insights/budget-suggestion`
 
 ## MVP UI/UX Plan
@@ -180,7 +180,8 @@ finmind/
 - See `CONTRIBUTING.md` for fork-first contribution flow and PR requirements.
 
 ## Notes on Free-Tier Reminders
-- Primary: schedule via APScheduler in-process with persistence in Postgres (job table) and a simple daily trigger. Alternatively, use Railway/Render cron to hit `/reminders/run`.
+- Primary: schedule via APScheduler in-process with persistence in Postgres and a simple daily trigger. Alternatively, use Railway/Render cron to hit `/reminders/run`.
+- Reminder sends are treated as jobs: failed sends are not marked sent, they get exponential backoff retry state, then move to `FAILED` after the retry limit. Operators can use `/reminders/jobs/status` for health totals, `/reminders/jobs/failed` for dead-letter inspection, and `/reminders/jobs/{id}/retry` to reset a failed reminder after fixing the underlying sender issue.
 - Twilio WhatsApp free trial supports sandbox; email via SMTP (e.g., SendGrid free tier).
 
 ## Security & Scalability
