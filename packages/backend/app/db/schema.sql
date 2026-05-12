@@ -123,3 +123,25 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   action VARCHAR(100) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS login_events (
+  id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  ip_address VARCHAR(45) NOT NULL,
+  user_agent VARCHAR(500),
+  success BOOLEAN NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_login_events_user ON login_events(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_login_events_ip ON login_events(user_id, ip_address);
+
+CREATE TABLE IF NOT EXISTS login_anomalies (
+  id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  login_event_id INT NOT NULL REFERENCES login_events(id) ON DELETE CASCADE,
+  anomaly_type VARCHAR(20) NOT NULL,
+  detail VARCHAR(500) NOT NULL,
+  acknowledged BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_login_anomalies_user ON login_anomalies(user_id, created_at DESC);
