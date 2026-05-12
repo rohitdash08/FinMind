@@ -123,3 +123,12 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   action VARCHAR(100) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+-- Performance indexes for high-frequency financial queries
+CREATE INDEX IF NOT EXISTS idx_expenses_user_spent_at ON expenses(user_id, spent_at DESC);
+CREATE INDEX IF NOT EXISTS idx_expenses_user_category ON expenses(user_id, category_id);
+CREATE INDEX IF NOT EXISTS idx_expenses_user_type ON expenses(user_id, expense_type);
+CREATE INDEX IF NOT EXISTS idx_bills_user_active_due ON bills(user_id, active, next_due_date);
+CREATE INDEX IF NOT EXISTS idx_recurring_user_active ON recurring_expenses(user_id, active);
+CREATE INDEX IF NOT EXISTS idx_categories_user ON categories(user_id);
+CREATE INDEX IF NOT EXISTS idx_reminders_user_sent ON reminders(user_id, sent, send_at);
