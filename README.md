@@ -66,6 +66,7 @@ OpenAPI: `backend/app/openapi.yaml`
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
 - Insights: `/insights/monthly`, `/insights/budget-suggestion`
+- Weekly Digest: `/weekly-digest` combines dashboard totals, upcoming bills, category concentration, and AI budget guidance into a shareable narrative summary.
 
 ## MVP UI/UX Plan
 - Auth screens: register/login.
