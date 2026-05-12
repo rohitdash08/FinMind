@@ -48,6 +48,7 @@ See `backend/app/db/schema.sql`. Key tables:
 - users, categories, expenses, bills, reminders
 - ad_impressions, subscription_plans, user_subscriptions
 - refresh_tokens (optional if rotating), audit_logs
+- login_events, login_anomalies
 
 ## Redis Caching Policy
 - Keys
@@ -66,6 +67,26 @@ OpenAPI: `backend/app/openapi.yaml`
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
 - Insights: `/insights/monthly`, `/insights/budget-suggestion`
+- Security: `/security/login-history`, `/security/anomalies`, `/security/anomalies/{id}/acknowledge`
+
+## Login Anomaly Detection
+Automatic detection of suspicious login activity with email alerts.
+
+### Detection Strategies
+| Strategy | Trigger | Applies To |
+|----------|---------|------------|
+| **New IP** | Login from an IP address not previously seen for the user | Successful logins |
+| **New Device** | Login from an unrecognized User-Agent | Successful logins |
+| **Brute Force** | 5+ failed login attempts within a 15-minute window | Failed logins |
+| **Odd Hour** | Login between 2:00-5:00 AM UTC | Successful logins |
+
+### Security Endpoints
+- `GET /security/login-history` — Paginated login event history (IP, device, success/fail, timestamp)
+- `GET /security/anomalies` — Paginated list of detected anomalies with acknowledgment status
+- `POST /security/anomalies/{id}/acknowledge` — Mark an anomaly as reviewed
+
+### Email Alerts
+When anomalies are detected, an email alert is sent to the user (requires SMTP configuration via `SMTP_URL` and `EMAIL_FROM` environment variables). Alerts include the anomaly details and instructions to change password if the activity was not recognized.
 
 ## MVP UI/UX Plan
 - Auth screens: register/login.

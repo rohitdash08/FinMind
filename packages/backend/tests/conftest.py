@@ -3,7 +3,7 @@ import pytest
 from app import create_app
 from app.config import Settings
 from app.extensions import db
-from app.extensions import redis_client
+import app.extensions as extensions
 from app import models  # noqa: F401 - ensure models are registered
 
 
@@ -12,6 +12,38 @@ class TestSettings(Settings):
     database_url: str = "sqlite+pysqlite:///:memory:"
     redis_url: str = "redis://localhost:6379/15"  # not used in tests
     jwt_secret: str = "test-secret"
+
+
+class FakeRedis:
+    """In-memory Redis substitute for tests."""
+
+    def __init__(self):
+        self._store = {}
+
+    def get(self, key):
+        entry = self._store.get(key)
+        if entry is None:
+            return None
+        return entry["value"]
+
+    def set(self, key, value):
+        self._store[key] = {"value": value, "ttl": None}
+
+    def setex(self, key, ttl, value):
+        self._store[key] = {"value": value, "ttl": ttl}
+
+    def delete(self, *keys):
+        for k in keys:
+            self._store.pop(k, None)
+
+    def flushdb(self):
+        self._store.clear()
+
+    def scan(self, cursor=0, match=None, count=100):
+        import fnmatch
+
+        matched = [k for k in self._store if fnmatch.fnmatch(k, match or "*")]
+        return 0, matched
 
 
 def _setup_db(app):
@@ -28,21 +60,24 @@ def app_fixture():
         redis_url="redis://localhost:6379/15",
         jwt_secret="test-secret-with-32-plus-chars-1234567890",
     )
+    # Replace the global redis_client with a fake in-memory implementation
+    fake_redis = FakeRedis()
+    original_redis = extensions.redis_client
+    extensions.redis_client = fake_redis
+    # Also patch the reference in auth module
+    from app.routes import auth
+
+    auth.redis_client = fake_redis
+
     app = create_app(settings)
     app.config.update(TESTING=True)
     _setup_db(app)
-    try:
-        redis_client.flushdb()
-    except Exception:
-        pass
     yield app
     with app.app_context():
         db.session.remove()
         db.drop_all()
-    try:
-        redis_client.flushdb()
-    except Exception:
-        pass
+    extensions.redis_client = original_redis
+    auth.redis_client = original_redis
 
 
 @pytest.fixture()
