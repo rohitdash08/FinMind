@@ -481,6 +481,70 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
 
+  /insights/weekly-summary:
+    get:
+      summary: Get weekly financial digest
+      tags: [Insights]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: week_start
+          required: false
+          description: Monday date for the requested week. Defaults to the current ISO week.
+          schema: { type: string, format: date }
+        - in: query
+          name: currency
+          required: false
+          description: Optional currency filter such as USD or INR.
+          schema: { type: string }
+      responses:
+        '200':
+          description: Weekly digest with totals, comparisons, category shares, bills, and insights.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+              example:
+                period:
+                  week_start: 2026-05-04
+                  week_end: 2026-05-10
+                  previous_week_start: 2026-04-27
+                  currency: USD
+                summary:
+                  income: 1000
+                  expenses: 250
+                  net_flow: 750
+                  transaction_count: 4
+                  average_daily_expense: 35.71
+                previous_week:
+                  income: 0
+                  expenses: 70
+                  net_flow: -70
+                  expense_delta: 180
+                  expense_delta_pct: 257.14
+                category_breakdown:
+                  - category_id: 1
+                    category_name: Food
+                    amount: 200
+                    share_pct: 80
+                    previous_amount: 70
+                    change_amount: 130
+                insights:
+                  - type: top_category
+                    severity: info
+                    message: Food is the top spending category at 80% of weekly expenses.
+        '400':
+          description: Invalid week_start
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
 components:
   securitySchemes:
     bearerAuth:

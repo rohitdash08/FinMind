@@ -10,7 +10,7 @@ import {
   FinancialCardTitle,
 } from '@/components/ui/financial-card';
 import { useToast } from '@/hooks/use-toast';
-import { getBudgetSuggestion, type BudgetSuggestion } from '@/api/insights';
+import { getBudgetSuggestion, getWeeklySummary, type BudgetSuggestion, type WeeklySummary } from '@/api/insights';
 import { formatMoney } from '@/lib/currency';
 
 const PERSONAS = [
@@ -22,22 +22,32 @@ const PERSONAS = [
 export function Analytics() {
   const { toast } = useToast();
   const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  const [weekStart, setWeekStart] = useState(getCurrentMonday);
+  const [currency, setCurrency] = useState('');
   const [persona, setPersona] = useState(PERSONAS[0]);
   const [geminiKey, setGeminiKey] = useState('');
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<BudgetSuggestion | null>(null);
+  const [weekly, setWeekly] = useState<WeeklySummary | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
     setError(null);
     try {
-      const payload = await getBudgetSuggestion({
-        month,
-        persona,
-        geminiApiKey: geminiKey.trim() || undefined,
-      });
+      const [payload, weeklyPayload] = await Promise.all([
+        getBudgetSuggestion({
+          month,
+          persona,
+          geminiApiKey: geminiKey.trim() || undefined,
+        }),
+        getWeeklySummary({
+          weekStart,
+          currency: currency.trim().toUpperCase() || undefined,
+        }),
+      ]);
       setData(payload);
+      setWeekly(weeklyPayload);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to load insights';
       setError(message);
@@ -83,6 +93,16 @@ export function Analytics() {
               />
             </div>
             <div>
+              <Label htmlFor="analytics-week">Week Start</Label>
+              <Input
+                id="analytics-week"
+                aria-label="weekly summary week start"
+                type="date"
+                value={weekStart}
+                onChange={(e) => setWeekStart(e.target.value)}
+              />
+            </div>
+            <div>
               <Label htmlFor="analytics-persona">Persona</Label>
               <select
                 id="analytics-persona"
@@ -97,6 +117,17 @@ export function Analytics() {
                   </option>
                 ))}
               </select>
+            </div>
+            <div>
+              <Label htmlFor="analytics-currency">Currency</Label>
+              <Input
+                id="analytics-currency"
+                aria-label="weekly summary currency"
+                value={currency}
+                onChange={(e) => setCurrency(e.target.value.toUpperCase())}
+                placeholder="All"
+                maxLength={10}
+              />
             </div>
             <div className="md:col-span-2">
               <Label htmlFor="analytics-key">Gemini API Key (optional BYOK)</Label>
@@ -122,6 +153,83 @@ export function Analytics() {
         <div className="card text-red-600">{error}</div>
       ) : data ? (
         <div className="space-y-6">
+          {weekly ? (
+            <FinancialCard variant="financial">
+              <FinancialCardHeader>
+                <FinancialCardTitle>Weekly Digest</FinancialCardTitle>
+                <FinancialCardDescription>
+                  {weekly.period.week_start} to {weekly.period.week_end}
+                </FinancialCardDescription>
+              </FinancialCardHeader>
+              <FinancialCardContent>
+                <div className="grid gap-3 md:grid-cols-4">
+                  <div className="rounded-lg border p-3">
+                    <div className="text-sm text-muted-foreground">Income</div>
+                    <div className="font-semibold">
+                      {formatMoney(weekly.summary.income, weekly.period.currency || undefined)}
+                    </div>
+                  </div>
+                  <div className="rounded-lg border p-3">
+                    <div className="text-sm text-muted-foreground">Expenses</div>
+                    <div className="font-semibold">
+                      {formatMoney(weekly.summary.expenses, weekly.period.currency || undefined)}
+                    </div>
+                  </div>
+                  <div className="rounded-lg border p-3">
+                    <div className="text-sm text-muted-foreground">Net Flow</div>
+                    <div className="font-semibold">
+                      {formatMoney(weekly.summary.net_flow, weekly.period.currency || undefined)}
+                    </div>
+                  </div>
+                  <div className="rounded-lg border p-3">
+                    <div className="text-sm text-muted-foreground">Vs Last Week</div>
+                    <div className="font-semibold">
+                      {formatMoney(weekly.previous_week.expense_delta, weekly.period.currency || undefined)}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid gap-4 md:grid-cols-2">
+                  <div>
+                    <div className="mb-2 text-sm font-semibold">Top Categories</div>
+                    {weekly.category_breakdown.length ? (
+                      <div className="space-y-2">
+                        {weekly.category_breakdown.slice(0, 4).map((item) => (
+                          <div key={`${item.category_id}-${item.category_name}`} className="rounded-lg border p-3">
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="font-medium">{item.category_name}</span>
+                              <span>{formatMoney(item.amount, weekly.period.currency || undefined)}</span>
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {item.share_pct}% of weekly expenses, change {formatMoney(item.change_amount, weekly.period.currency || undefined)}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-sm text-muted-foreground">No category spending this week.</div>
+                    )}
+                  </div>
+                  <div>
+                    <div className="mb-2 text-sm font-semibold">Smart Signals</div>
+                    <div className="space-y-2">
+                      {weekly.insights.map((item) => (
+                        <div key={`${item.type}-${item.message}`} className="rounded-lg border p-3 text-sm">
+                          {item.message}
+                        </div>
+                      ))}
+                      {weekly.upcoming_bills.length ? (
+                        <div className="rounded-lg border p-3 text-sm">
+                          Next bill: {weekly.upcoming_bills[0].name} on {weekly.upcoming_bills[0].next_due_date}
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              </FinancialCardContent>
+            </FinancialCard>
+          ) : null}
+
           <div className="grid gap-4 md:grid-cols-4">
             <FinancialCard variant="financial">
               <FinancialCardHeader className="pb-2">
@@ -195,4 +303,12 @@ export function Analytics() {
       ) : null}
     </div>
   );
+}
+
+function getCurrentMonday() {
+  const now = new Date();
+  const day = now.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  now.setDate(now.getDate() + diff);
+  return now.toISOString().slice(0, 10);
 }
