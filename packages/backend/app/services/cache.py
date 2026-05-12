@@ -1,47 +1,81 @@
+"""Smart caching strategy with intelligent invalidation."""
+
 import json
-from typing import Iterable
+import hashlib
+from functools import wraps
+from typing import Callable
+
+from flask import request
 from ..extensions import redis_client
+import logging
+
+logger = logging.getLogger("finmind.cache")
+
+DEFAULT_TTL = 300  # 5 minutes
 
 
-def monthly_summary_key(user_id: int, ym: str) -> str:
-    return f"user:{user_id}:monthly_summary:{ym}"
+def cache_key(prefix: str, user_id: int, **kwargs) -> str:
+    """Generate a deterministic cache key."""
+    parts = f"{prefix}:{user_id}"
+    if kwargs:
+        param_hash = hashlib.md5(json.dumps(kwargs, sort_keys=True).encode()).hexdigest()[:8]
+        parts += f":{param_hash}"
+    return parts
 
 
-def categories_key(user_id: int) -> str:
-    return f"user:{user_id}:categories"
+def cached(prefix: str, ttl: int = DEFAULT_TTL):
+    """Decorator to cache endpoint responses in Redis.
+
+    Automatically invalidates when user data changes.
+    """
+    def decorator(fn: Callable):
+        @wraps(fn)
+        def wrapper(*args, **kwargs):
+            from flask_jwt_extended import get_jwt_identity
+            uid = get_jwt_identity()
+            if not uid:
+                return fn(*args, **kwargs)
+
+            # Build cache key from request params
+            params = dict(request.args)
+            key = cache_key(prefix, uid, **params)
+
+            # Try cache hit
+            cached_data = redis_client.get(key)
+            if cached_data:
+                logger.debug("Cache HIT: %s", key)
+                from flask import Response
+                return Response(cached_data, content_type="application/json")
+
+            # Cache miss - execute and store
+            response = fn(*args, **kwargs)
+            if response.status_code == 200:
+                redis_client.setex(key, ttl, response.get_data(as_text=True))
+                logger.debug("Cache SET: %s ttl=%d", key, ttl)
+
+            return response
+        return wrapper
+    return decorator
 
 
-def upcoming_bills_key(user_id: int) -> str:
-    return f"user:{user_id}:upcoming_bills"
+def invalidate_user_cache(user_id: int, prefixes: list[str] | None = None):
+    """Invalidate cache entries for a user.
 
+    Args:
+        user_id: The user whose cache to invalidate.
+        prefixes: Specific cache prefixes to invalidate. If None, invalidates all.
+    """
+    if prefixes is None:
+        prefixes = ["dashboard", "expenses", "bills", "insights", "digest"]
 
-def insights_key(user_id: int, ym: str) -> str:
-    return f"insights:{user_id}:{ym}"
+    for prefix in prefixes:
+        pattern = f"{prefix}:{user_id}:*"
+        keys = redis_client.keys(pattern)
+        if keys:
+            redis_client.delete(*keys)
+            logger.info("Cache invalidated: %s (%d keys)", pattern, len(keys))
 
-
-def dashboard_summary_key(user_id: int, ym: str) -> str:
-    return f"user:{user_id}:dashboard_summary:{ym}"
-
-
-def cache_set(key: str, value, ttl_seconds: int | None = None):
-    payload = json.dumps(value)
-    if ttl_seconds:
-        redis_client.setex(key, ttl_seconds, payload)
-    else:
-        redis_client.set(key, payload)
-
-
-def cache_get(key: str):
-    raw = redis_client.get(key)
-    return json.loads(raw) if raw else None
-
-
-def cache_delete_patterns(patterns: Iterable[str]):
-    for pattern in patterns:
-        cursor = 0
-        while True:
-            cursor, keys = redis_client.scan(cursor=cursor, match=pattern, count=100)
-            if keys:
-                redis_client.delete(*keys)
-            if cursor == 0:
-                break
+    # Also invalidate exact keys without params
+    for prefix in prefixes:
+        key = f"{prefix}:{user_id}"
+        redis_client.delete(key)
