@@ -3,8 +3,46 @@ import pytest
 from app import create_app
 from app.config import Settings
 from app.extensions import db
-from app.extensions import redis_client
 from app import models  # noqa: F401 - ensure models are registered
+
+
+class FakeRedis:
+    def __init__(self):
+        self._store = {}
+
+    def set(self, key, value):
+        self._store[key] = value
+        return True
+
+    def setex(self, key, _ttl, value):
+        self._store[key] = value
+        return True
+
+    def get(self, key):
+        return self._store.get(key)
+
+    def delete(self, *keys):
+        removed = 0
+        for key in keys:
+            if key in self._store:
+                removed += 1
+                self._store.pop(key, None)
+        return removed
+
+    def scan(self, cursor=0, match=None, count=100):
+        import fnmatch
+
+        keys = list(self._store)
+        if match:
+            keys = [key for key in keys if fnmatch.fnmatch(key, match)]
+        return 0, keys[:count]
+
+    def flushdb(self):
+        self._store.clear()
+        return True
+
+
+fake_redis = FakeRedis()
 
 
 class TestSettings(Settings):
@@ -31,18 +69,24 @@ def app_fixture():
     app = create_app(settings)
     app.config.update(TESTING=True)
     _setup_db(app)
-    try:
-        redis_client.flushdb()
-    except Exception:
-        pass
+    fake_redis.flushdb()
     yield app
     with app.app_context():
         db.session.remove()
         db.drop_all()
-    try:
-        redis_client.flushdb()
-    except Exception:
-        pass
+    fake_redis.flushdb()
+
+
+@pytest.fixture(autouse=True)
+def redis_stub(monkeypatch):
+    import app.routes.auth as auth_routes
+    import app.services.cache as cache_service
+
+    fake_redis.flushdb()
+    monkeypatch.setattr(auth_routes, "redis_client", fake_redis)
+    monkeypatch.setattr(cache_service, "redis_client", fake_redis)
+    yield
+    fake_redis.flushdb()
 
 
 @pytest.fixture()

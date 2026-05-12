@@ -80,3 +80,87 @@ def test_autopay_generates_precheck_and_result_followup_for_both_channels(
     followups = [x for x in reminders if "Autopay succeeded" in x["message"]]
     assert len(followups) == 2
     assert sorted([x["channel"] for x in followups]) == ["email", "whatsapp"]
+
+
+def test_run_due_retries_failed_delivery_and_exposes_job_status(
+    client, auth_header, monkeypatch
+):
+    from app.services import reminder_jobs
+
+    bill_id = _create_bill(client, auth_header, due_date="2026-03-20")
+    r = client.post(
+        f"/reminders/bills/{bill_id}/autopay-result",
+        json={"status": "FAILED"},
+        headers=auth_header,
+    )
+    assert r.status_code == 200
+
+    def process_with_failure(reminders, *, now):
+        return reminder_jobs.process_due_reminders(
+            reminders, now=now, sender=lambda reminder: False
+        )
+
+    monkeypatch.setattr(
+        "app.routes.reminders.process_due_reminders", process_with_failure
+    )
+
+    r = client.post("/reminders/run", headers=auth_header)
+    assert r.status_code == 200
+    assert r.get_json()["processed"] == 2
+    assert r.get_json()["retry_scheduled"] == 2
+    assert r.get_json()["sent"] == 0
+
+    r = client.get("/reminders/jobs", headers=auth_header)
+    assert r.status_code == 200
+    assert r.get_json()["retrying"] == 2
+    assert r.get_json()["failed"] == 0
+
+    r = client.get("/reminders", headers=auth_header)
+    reminders = r.get_json()
+    assert all(item["retry_count"] == 1 for item in reminders)
+    assert all(item["next_retry_at"] for item in reminders)
+    assert all(item["sent"] is False for item in reminders)
+
+
+def test_retry_failed_reminder_resets_failure_state(client, auth_header, monkeypatch):
+    from app.services import reminder_jobs
+
+    bill_id = _create_bill(client, auth_header, due_date="2026-03-20")
+    r = client.post(
+        f"/reminders/bills/{bill_id}/autopay-result",
+        json={"status": "FAILED"},
+        headers=auth_header,
+    )
+    assert r.status_code == 200
+
+    def always_fail(reminder):
+        reminder.max_retries = 1
+        return False
+
+    def process_with_failure(reminders, *, now):
+        return reminder_jobs.process_due_reminders(
+            reminders, now=now, sender=always_fail
+        )
+
+    monkeypatch.setattr(
+        "app.routes.reminders.process_due_reminders", process_with_failure
+    )
+
+    r = client.post("/reminders/run", headers=auth_header)
+    assert r.status_code == 200
+    assert r.get_json()["failed"] == 2
+
+    reminder_id = client.get("/reminders", headers=auth_header).get_json()[0]["id"]
+    r = client.post(f"/reminders/{reminder_id}/retry", headers=auth_header)
+    assert r.status_code == 200
+    assert r.get_json() == {"id": reminder_id, "retry_scheduled": True}
+
+    reminder = [
+        item
+        for item in client.get("/reminders", headers=auth_header).get_json()
+        if item["id"] == reminder_id
+    ][0]
+    assert reminder["failed"] is False
+    assert reminder["retry_count"] == 0
+    assert reminder["last_error"] is None
+    assert reminder["next_retry_at"] is not None

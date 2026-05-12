@@ -110,6 +110,23 @@ def _ensure_schema_compatibility(app: Flask) -> None:
             NOT NULL DEFAULT 'INR'
             """
         )
+        cur.execute(
+            """
+            ALTER TABLE reminders
+              ADD COLUMN IF NOT EXISTS retry_count INT NOT NULL DEFAULT 0,
+              ADD COLUMN IF NOT EXISTS max_retries INT NOT NULL DEFAULT 3,
+              ADD COLUMN IF NOT EXISTS next_retry_at TIMESTAMP,
+              ADD COLUMN IF NOT EXISTS last_attempt_at TIMESTAMP,
+              ADD COLUMN IF NOT EXISTS last_error VARCHAR(500),
+              ADD COLUMN IF NOT EXISTS failed BOOLEAN NOT NULL DEFAULT FALSE
+            """
+        )
+        cur.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_reminders_retry
+            ON reminders(user_id, sent, failed, next_retry_at)
+            """
+        )
         conn.commit()
     except Exception:
         app.logger.exception(

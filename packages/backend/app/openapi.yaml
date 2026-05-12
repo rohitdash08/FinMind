@@ -344,7 +344,17 @@ paths:
                 items:
                   $ref: '#/components/schemas/Reminder'
               example:
-                - { id: 6, message: Pay credit card, send_at: 2025-08-11T10:00:00Z, sent: false, channel: email }
+                - id: 6
+                  message: Pay credit card
+                  send_at: 2025-08-11T10:00:00Z
+                  sent: false
+                  channel: email
+                  retry_count: 1
+                  max_retries: 3
+                  next_retry_at: 2025-08-11T10:05:00Z
+                  last_attempt_at: 2025-08-11T10:00:00Z
+                  last_error: SMTP timeout
+                  failed: false
         '401':
           description: Unauthorized
           content:
@@ -378,9 +388,68 @@ paths:
       tags: [Reminders]
       security: [{ bearerAuth: [] }]
       responses:
-        '200': { description: Processed count }
+        '200':
+          description: Reminder delivery summary
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  processed: { type: integer }
+                  sent: { type: integer }
+                  retry_scheduled: { type: integer }
+                  failed: { type: integer }
         '401':
           description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /reminders/jobs:
+    get:
+      summary: Get reminder job retry/monitoring status
+      tags: [Reminders]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Reminder job counters
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  pending: { type: integer }
+                  due: { type: integer }
+                  retrying: { type: integer }
+                  failed: { type: integer }
+
+  /reminders/{reminderId}/retry:
+    post:
+      summary: Manually retry a failed reminder
+      tags: [Reminders]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: reminderId
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Retry scheduled
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: integer }
+                  retry_scheduled: { type: boolean }
+        '400':
+          description: Reminder already sent
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404':
+          description: Reminder not found
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
@@ -580,6 +649,12 @@ components:
         send_at: { type: string, format: date-time }
         sent: { type: boolean }
         channel: { type: string, enum: [email, whatsapp] }
+        retry_count: { type: integer }
+        max_retries: { type: integer }
+        next_retry_at: { type: string, format: date-time, nullable: true }
+        last_attempt_at: { type: string, format: date-time, nullable: true }
+        last_error: { type: string, nullable: true }
+        failed: { type: boolean }
     NewReminder:
       type: object
       required: [message, send_at]
