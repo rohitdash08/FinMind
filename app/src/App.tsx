@@ -8,6 +8,7 @@ import { Dashboard } from "./pages/Dashboard";
 import { Budgets } from "./pages/Budgets";
 import { Bills } from "./pages/Bills";
 import { Analytics } from "./pages/Analytics";
+import { WeeklyDigestPage } from "./pages/WeeklyDigest";
 import Reminders from "./pages/Reminders";
 import Expenses from "./pages/Expenses";
 import { SignIn } from "./pages/SignIn";
@@ -72,6 +73,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Analytics />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="weekly-digest"
+              element={
+                <ProtectedRoute>
+                  <WeeklyDigestPage />
                 </ProtectedRoute>
               }
             />
