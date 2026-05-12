@@ -481,6 +481,66 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
 
+  /insights/weekly-summary:
+    get:
+      summary: Get weekly financial digest
+      tags: [Insights]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: week_start
+          required: false
+          description: Inclusive first day of the seven-day digest window.
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: Weekly summary with trends and recommendations
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WeeklySummary'
+              example:
+                period:
+                  week_start: 2026-05-04
+                  week_end: 2026-05-10
+                  previous_week_start: 2026-04-27
+                  previous_week_end: 2026-05-03
+                summary:
+                  income: 1000
+                  expenses: 350
+                  net_flow: 650
+                  transaction_count: 3
+                  income_transaction_count: 1
+                  expense_transaction_count: 2
+                  savings_rate_pct: 65
+                comparison:
+                  previous_income: 1000
+                  previous_expenses: 200
+                  previous_net_flow: 800
+                  income_change_pct: 0
+                  expense_change_pct: 75
+                  net_flow_change: -150
+                highlights:
+                  - Weekly net flow was 650.0 from 1000.0 income and 350.0 expenses.
+                insights:
+                  - type: cash_flow
+                    severity: positive
+                    title: Positive weekly cash flow
+                    detail: Income exceeded expenses by 650.0.
+                recommendations:
+                  - Move part of the weekly surplus to savings.
+                method: heuristic
+        '400':
+          description: Invalid week_start
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -587,3 +647,76 @@ components:
         message: { type: string }
         send_at: { type: string, format: date-time }
         channel: { type: string, enum: [email, whatsapp], default: email }
+    WeeklySummary:
+      type: object
+      properties:
+        period:
+          type: object
+          properties:
+            week_start: { type: string, format: date }
+            week_end: { type: string, format: date }
+            previous_week_start: { type: string, format: date }
+            previous_week_end: { type: string, format: date }
+        summary:
+          type: object
+          properties:
+            income: { type: number, format: float }
+            expenses: { type: number, format: float }
+            net_flow: { type: number, format: float }
+            transaction_count: { type: integer }
+            income_transaction_count: { type: integer }
+            expense_transaction_count: { type: integer }
+            savings_rate_pct: { type: number, format: float }
+        comparison:
+          type: object
+          properties:
+            previous_income: { type: number, format: float }
+            previous_expenses: { type: number, format: float }
+            previous_net_flow: { type: number, format: float }
+            income_change_pct: { type: number, format: float }
+            expense_change_pct: { type: number, format: float }
+            net_flow_change: { type: number, format: float }
+        category_breakdown:
+          type: array
+          items:
+            type: object
+            properties:
+              category_id: { type: integer, nullable: true }
+              category_name: { type: string }
+              amount: { type: number, format: float }
+              transaction_count: { type: integer }
+              share_pct: { type: number, format: float }
+        daily_breakdown:
+          type: array
+          items:
+            type: object
+            properties:
+              date: { type: string, format: date }
+              income: { type: number, format: float }
+              expenses: { type: number, format: float }
+              net_flow: { type: number, format: float }
+              transaction_count: { type: integer }
+        largest_expenses:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: integer }
+              description: { type: string }
+              amount: { type: number, format: float }
+              currency: { type: string }
+              date: { type: string, format: date }
+              category_id: { type: integer, nullable: true }
+              category_name: { type: string }
+        highlights:
+          type: array
+          items: { type: string }
+        insights:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        recommendations:
+          type: array
+          items: { type: string }
+        method: { type: string }
