@@ -108,3 +108,53 @@ def test_dashboard_summary_supports_month_filter(client, auth_header):
     data_b = r.get_json()
     assert data_b["period"]["month"] == month_b.strftime("%Y-%m")
     assert data_b["summary"]["monthly_expenses"] == 999.0
+
+
+def test_dashboard_summary_groups_by_financial_account(client, auth_header):
+    r = client.post(
+        "/accounts",
+        json={"name": "Checking", "account_type": "CHECKING", "opening_balance": 1000},
+        headers=auth_header,
+    )
+    assert r.status_code == 201
+    checking_id = r.get_json()["id"]
+
+    r = client.post(
+        "/accounts",
+        json={"name": "Savings", "account_type": "SAVINGS", "opening_balance": 5000},
+        headers=auth_header,
+    )
+    assert r.status_code == 201
+    savings_id = r.get_json()["id"]
+
+    today = date.today()
+    for account_id, amount, description, expense_type in [
+        (checking_id, 2500, "Salary", "INCOME"),
+        (checking_id, 400, "Rent", "EXPENSE"),
+        (savings_id, 100, "Interest", "INCOME"),
+    ]:
+        r = client.post(
+            "/expenses",
+            json={
+                "account_id": account_id,
+                "amount": amount,
+                "description": description,
+                "date": today.isoformat(),
+                "expense_type": expense_type,
+            },
+            headers=auth_header,
+        )
+        assert r.status_code == 201
+
+    r = client.get(
+        f"/dashboard/summary?month={today.strftime('%Y-%m')}", headers=auth_header
+    )
+    assert r.status_code == 200
+    payload = r.get_json()
+    accounts = {item["name"]: item for item in payload["account_overview"]}
+    assert accounts["Checking"]["monthly_income"] == 2500
+    assert accounts["Checking"]["monthly_expenses"] == 400
+    assert accounts["Checking"]["projected_balance"] == 3100
+    assert accounts["Savings"]["monthly_income"] == 100
+    assert accounts["Savings"]["projected_balance"] == 5100
+    assert any(t["account_id"] == checking_id for t in payload["recent_transactions"])

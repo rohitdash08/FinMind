@@ -1,10 +1,10 @@
 from datetime import date
-from sqlalchemy import extract, func
+from sqlalchemy import case, extract, func
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from ..extensions import db
-from ..models import Bill, Expense, Category
+from ..models import Bill, Expense, Category, FinancialAccount
 from ..services.cache import cache_get, cache_set, dashboard_summary_key
 
 bp = Blueprint("dashboard", __name__)
@@ -34,6 +34,7 @@ def dashboard_summary():
         "recent_transactions": [],
         "upcoming_bills": [],
         "category_breakdown": [],
+        "account_overview": [],
         "errors": [],
     }
 
@@ -86,6 +87,7 @@ def dashboard_summary():
                 "amount": float(e.amount),
                 "date": e.spent_at.isoformat(),
                 "type": e.expense_type,
+                "account_id": e.account_id,
                 "category_id": e.category_id,
                 "currency": e.currency,
             }
@@ -125,6 +127,90 @@ def dashboard_summary():
         payload["summary"]["upcoming_bills_count"] = len(bills)
     except Exception:
         payload["errors"].append("upcoming_bills_unavailable")
+
+    try:
+        account_rows = (
+            db.session.query(
+                FinancialAccount,
+                func.coalesce(
+                    func.sum(
+                        case(
+                            (Expense.expense_type == "INCOME", Expense.amount),
+                            else_=0,
+                        )
+                    ),
+                    0,
+                ).label("income"),
+                func.coalesce(
+                    func.sum(
+                        case(
+                            (Expense.expense_type != "INCOME", Expense.amount),
+                            else_=0,
+                        )
+                    ),
+                    0,
+                ).label("expenses"),
+            )
+            .outerjoin(
+                Expense,
+                (Expense.account_id == FinancialAccount.id)
+                & (Expense.user_id == uid)
+                & (extract("year", Expense.spent_at) == year)
+                & (extract("month", Expense.spent_at) == month),
+            )
+            .filter(FinancialAccount.user_id == uid, FinancialAccount.active.is_(True))
+            .group_by(FinancialAccount.id)
+            .order_by(FinancialAccount.name)
+            .all()
+        )
+        unassigned_income = (
+            db.session.query(func.coalesce(func.sum(Expense.amount), 0))
+            .filter(
+                Expense.user_id == uid,
+                Expense.account_id.is_(None),
+                extract("year", Expense.spent_at) == year,
+                extract("month", Expense.spent_at) == month,
+                Expense.expense_type == "INCOME",
+            )
+            .scalar()
+        )
+        unassigned_expenses = (
+            db.session.query(func.coalesce(func.sum(Expense.amount), 0))
+            .filter(
+                Expense.user_id == uid,
+                Expense.account_id.is_(None),
+                extract("year", Expense.spent_at) == year,
+                extract("month", Expense.spent_at) == month,
+                Expense.expense_type != "INCOME",
+            )
+            .scalar()
+        )
+        payload["account_overview"] = [
+            _account_row_to_dict(account, income, expenses)
+            for account, income, expenses in account_rows
+        ]
+        if float(unassigned_income or 0) or float(unassigned_expenses or 0):
+            payload["account_overview"].append(
+                {
+                    "account_id": None,
+                    "name": "Unassigned",
+                    "account_type": "OTHER",
+                    "currency": None,
+                    "opening_balance": 0.0,
+                    "monthly_income": float(unassigned_income or 0),
+                    "monthly_expenses": float(unassigned_expenses or 0),
+                    "net_flow": round(
+                        float(unassigned_income or 0) - float(unassigned_expenses or 0),
+                        2,
+                    ),
+                    "projected_balance": round(
+                        float(unassigned_income or 0) - float(unassigned_expenses or 0),
+                        2,
+                    ),
+                }
+            )
+    except Exception:
+        payload["errors"].append("account_overview_unavailable")
 
     try:
         category_rows = (
@@ -176,3 +262,21 @@ def _is_valid_month(ym: str) -> bool:
         return False
     m = int(month)
     return 1 <= m <= 12
+
+
+def _account_row_to_dict(account: FinancialAccount, income, expenses) -> dict:
+    income_value = float(income or 0)
+    expense_value = float(expenses or 0)
+    opening_balance = float(account.opening_balance or 0)
+    net_flow = round(income_value - expense_value, 2)
+    return {
+        "account_id": account.id,
+        "name": account.name,
+        "account_type": account.account_type,
+        "currency": account.currency,
+        "opening_balance": opening_balance,
+        "monthly_income": income_value,
+        "monthly_expenses": expense_value,
+        "net_flow": net_flow,
+        "projected_balance": round(opening_balance + net_flow, 2),
+    }
