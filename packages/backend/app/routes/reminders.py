@@ -30,6 +30,9 @@ def list_reminders():
                 "send_at": r.send_at.isoformat(),
                 "sent": r.sent,
                 "channel": r.channel,
+                "retry_count": r.retry_count,
+                "max_attempts": r.max_attempts,
+                "last_error": r.last_error,
             }
             for r in items
         ]
@@ -41,11 +44,18 @@ def list_reminders():
 def create_reminder():
     uid = int(get_jwt_identity())
     data = request.get_json() or {}
+    try:
+        max_attempts = int(data.get("max_attempts", 3))
+    except (TypeError, ValueError):
+        return jsonify(error="max_attempts must be an integer"), 400
+    if max_attempts < 1:
+        return jsonify(error="max_attempts must be >= 1"), 400
     r = Reminder(
         user_id=uid,
         message=data["message"],
         send_at=datetime.fromisoformat(data["send_at"]),
         channel=data.get("channel", "email"),
+        max_attempts=max_attempts,
     )
     db.session.add(r)
     db.session.commit()
@@ -167,16 +177,57 @@ def run_due():
             Reminder.user_id == uid,
             Reminder.sent.is_(False),
             Reminder.send_at <= now,
+            Reminder.retry_count < Reminder.max_attempts,
         )
         .all()
     )
+    sent = 0
+    failed = 0
+    retried = 0
     for r in items:
-        send_reminder(r)
-        r.sent = True
-        track_reminder_event(event="sent", channel=r.channel)
+        if _attempt_send(r):
+            sent += 1
+        else:
+            failed += 1
+            if r.retry_count < r.max_attempts:
+                retried += 1
     db.session.commit()
-    logger.info("Processed due reminders user=%s count=%s", uid, len(items))
-    return jsonify(processed=len(items))
+    logger.info(
+        "Processed due reminders user=%s processed=%s sent=%s failed=%s retried=%s",
+        uid,
+        len(items),
+        sent,
+        failed,
+        retried,
+    )
+    return jsonify(processed=len(items), sent=sent, failed=failed, retried=retried)
+
+
+@bp.get("/jobs/health")
+@jwt_required()
+def reminder_jobs_health():
+    uid = int(get_jwt_identity())
+    now = datetime.utcnow()
+    due = (
+        db.session.query(Reminder)
+        .filter(
+            Reminder.user_id == uid,
+            Reminder.sent.is_(False),
+            Reminder.send_at <= now,
+            Reminder.retry_count < Reminder.max_attempts,
+        )
+        .count()
+    )
+    exhausted = (
+        db.session.query(Reminder)
+        .filter(
+            Reminder.user_id == uid,
+            Reminder.sent.is_(False),
+            Reminder.retry_count >= Reminder.max_attempts,
+        )
+        .count()
+    )
+    return jsonify(due=due, exhausted=exhausted), 200
 
 
 def _bill_channels(bill: Bill) -> list[str]:
@@ -221,3 +272,34 @@ def _create_reminder_if_missing(
         )
     )
     return True
+
+
+def _attempt_send(reminder: Reminder) -> bool:
+    try:
+        ok = bool(send_reminder(reminder))
+    except Exception as error:  # pragma: no cover - defensive around providers
+        ok = False
+        reminder.last_error = str(error)[:500]
+        logger.exception("Reminder send raised id=%s", reminder.id)
+
+    if ok:
+        reminder.sent = True
+        reminder.last_error = None
+        track_reminder_event(event="sent", channel=reminder.channel)
+        return True
+
+    reminder.retry_count += 1
+    reminder.last_error = reminder.last_error or "provider returned false"
+    if reminder.retry_count < reminder.max_attempts:
+        reminder.send_at = datetime.utcnow() + _retry_delay(reminder.retry_count)
+        track_reminder_event(event="retry_scheduled", channel=reminder.channel)
+    else:
+        track_reminder_event(
+            event="failed", channel=reminder.channel, status="exhausted"
+        )
+    return False
+
+
+def _retry_delay(retry_count: int) -> timedelta:
+    minutes = min(60, 2 ** max(0, retry_count - 1))
+    return timedelta(minutes=minutes)

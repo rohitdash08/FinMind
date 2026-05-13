@@ -1,4 +1,5 @@
 from datetime import date
+from datetime import datetime, timedelta
 
 
 def _create_bill(client, auth_header, *, due_date: str, autopay_enabled: bool = False):
@@ -80,3 +81,91 @@ def test_autopay_generates_precheck_and_result_followup_for_both_channels(
     followups = [x for x in reminders if "Autopay succeeded" in x["message"]]
     assert len(followups) == 2
     assert sorted([x["channel"] for x in followups]) == ["email", "whatsapp"]
+
+
+def test_due_reminders_retry_failed_send_and_expose_health(
+    client, auth_header, monkeypatch
+):
+    attempts = {"count": 0}
+
+    def fake_send(_reminder):
+        attempts["count"] += 1
+        return False
+
+    monkeypatch.setattr("app.routes.reminders.send_reminder", fake_send)
+    send_at = (datetime.utcnow() - timedelta(minutes=5)).isoformat()
+    created = client.post(
+        "/reminders",
+        json={
+            "message": "Retry me",
+            "send_at": send_at,
+            "channel": "email",
+            "max_attempts": 2,
+        },
+        headers=auth_header,
+    )
+    assert created.status_code == 201
+
+    run = client.post("/reminders/run", headers=auth_header)
+    assert run.status_code == 200
+    assert run.get_json() == {"processed": 1, "sent": 0, "failed": 1, "retried": 1}
+    assert attempts["count"] == 1
+
+    listed = client.get("/reminders", headers=auth_header)
+    reminder = listed.get_json()[0]
+    assert reminder["sent"] is False
+    assert reminder["retry_count"] == 1
+    assert reminder["max_attempts"] == 2
+    assert reminder["last_error"] == "provider returned false"
+    assert datetime.fromisoformat(reminder["send_at"]) > datetime.utcnow()
+
+    health = client.get("/reminders/jobs/health", headers=auth_header)
+    assert health.status_code == 200
+    assert health.get_json() == {"due": 0, "exhausted": 0}
+
+
+def test_due_reminders_mark_exhausted_after_max_attempts(
+    client, auth_header, monkeypatch
+):
+    monkeypatch.setattr("app.routes.reminders.send_reminder", lambda _reminder: False)
+    send_at = (datetime.utcnow() - timedelta(minutes=5)).isoformat()
+    created = client.post(
+        "/reminders",
+        json={
+            "message": "Do not retry",
+            "send_at": send_at,
+            "channel": "email",
+            "max_attempts": 1,
+        },
+        headers=auth_header,
+    )
+    assert created.status_code == 201
+
+    run = client.post("/reminders/run", headers=auth_header)
+    assert run.status_code == 200
+    assert run.get_json() == {"processed": 1, "sent": 0, "failed": 1, "retried": 0}
+
+    health = client.get("/reminders/jobs/health", headers=auth_header)
+    assert health.status_code == 200
+    assert health.get_json() == {"due": 0, "exhausted": 1}
+
+
+def test_due_reminders_clear_retry_state_on_success(client, auth_header, monkeypatch):
+    monkeypatch.setattr("app.routes.reminders.send_reminder", lambda _reminder: True)
+    send_at = (datetime.utcnow() - timedelta(minutes=5)).isoformat()
+    created = client.post(
+        "/reminders",
+        json={"message": "Send me", "send_at": send_at, "channel": "email"},
+        headers=auth_header,
+    )
+    assert created.status_code == 201
+
+    run = client.post("/reminders/run", headers=auth_header)
+    assert run.status_code == 200
+    assert run.get_json() == {"processed": 1, "sent": 1, "failed": 0, "retried": 0}
+
+    listed = client.get("/reminders", headers=auth_header)
+    reminder = listed.get_json()[0]
+    assert reminder["sent"] is True
+    assert reminder["retry_count"] == 0
+    assert reminder["last_error"] is None

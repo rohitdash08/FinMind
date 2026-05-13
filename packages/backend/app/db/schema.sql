@@ -91,9 +91,17 @@ CREATE TABLE IF NOT EXISTS reminders (
   message VARCHAR(500) NOT NULL,
   send_at TIMESTAMP NOT NULL,
   sent BOOLEAN NOT NULL DEFAULT FALSE,
-  channel VARCHAR(20) NOT NULL DEFAULT 'email'
+  channel VARCHAR(20) NOT NULL DEFAULT 'email',
+  retry_count INT NOT NULL DEFAULT 0,
+  max_attempts INT NOT NULL DEFAULT 3,
+  last_error VARCHAR(500)
 );
 CREATE INDEX IF NOT EXISTS idx_reminders_due ON reminders(user_id, sent, send_at);
+
+ALTER TABLE reminders
+  ADD COLUMN IF NOT EXISTS retry_count INT NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS max_attempts INT NOT NULL DEFAULT 3,
+  ADD COLUMN IF NOT EXISTS last_error VARCHAR(500);
 
 CREATE TABLE IF NOT EXISTS ad_impressions (
   id SERIAL PRIMARY KEY,

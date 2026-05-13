@@ -110,6 +110,14 @@ def _ensure_schema_compatibility(app: Flask) -> None:
             NOT NULL DEFAULT 'INR'
             """
         )
+        cur.execute(
+            """
+            ALTER TABLE reminders
+            ADD COLUMN IF NOT EXISTS retry_count INT NOT NULL DEFAULT 0,
+            ADD COLUMN IF NOT EXISTS max_attempts INT NOT NULL DEFAULT 3,
+            ADD COLUMN IF NOT EXISTS last_error VARCHAR(500)
+            """
+        )
         conn.commit()
     except Exception:
         app.logger.exception(
