@@ -1,5 +1,10 @@
 from datetime import date, timedelta
 
+from flask_jwt_extended import create_access_token
+
+from app.extensions import db
+from app.models import Category, Expense, User
+
 
 def test_budget_suggestion_returns_analytics_fields(client, auth_header):
     current = date.today().replace(day=10)
@@ -90,3 +95,80 @@ def test_budget_suggestion_falls_back_when_gemini_fails(
     assert payload["method"] == "heuristic"
     assert "warnings" in payload
     assert "gemini_unavailable" in payload["warnings"]
+
+
+def _auth_header_without_redis(app_fixture):
+    with app_fixture.app_context():
+        user = User(email="digest@example.com", password_hash="unused")
+        db.session.add(user)
+        db.session.commit()
+        token = create_access_token(identity=str(user.id))
+    return user.id, {"Authorization": f"Bearer {token}"}
+
+
+def test_weekly_digest_returns_summary_trends_and_actions(client, app_fixture):
+    uid, auth_header = _auth_header_without_redis(app_fixture)
+    week_start = date(2026, 5, 11)
+    previous_week = week_start - timedelta(days=7)
+    with app_fixture.app_context():
+        groceries = Category(user_id=uid, name="Groceries")
+        db.session.add(groceries)
+        db.session.flush()
+        db.session.add_all(
+            [
+                Expense(
+                    user_id=uid,
+                    category_id=groceries.id,
+                    amount=100,
+                    expense_type="EXPENSE",
+                    notes="Groceries",
+                    spent_at=week_start,
+                ),
+                Expense(
+                    user_id=uid,
+                    amount=50,
+                    expense_type="EXPENSE",
+                    notes="Transport",
+                    spent_at=week_start + timedelta(days=1),
+                ),
+                Expense(
+                    user_id=uid,
+                    amount=300,
+                    expense_type="INCOME",
+                    notes="Freelance",
+                    spent_at=week_start + timedelta(days=2),
+                ),
+                Expense(
+                    user_id=uid,
+                    amount=100,
+                    expense_type="EXPENSE",
+                    notes="Prior week",
+                    spent_at=previous_week,
+                ),
+            ]
+        )
+        db.session.commit()
+
+    r = client.get(
+        f"/insights/weekly-digest?week_start={week_start.isoformat()}",
+        headers=auth_header,
+    )
+    assert r.status_code == 200
+    payload = r.get_json()
+    assert payload["period"]["week_start"] == week_start.isoformat()
+    assert payload["summary"]["income"] == 300.0
+    assert payload["summary"]["expenses"] == 150.0
+    assert payload["summary"]["net_flow"] == 150.0
+    assert payload["summary"]["previous_week_expenses"] == 100.0
+    assert payload["summary"]["spending_change_pct"] == 50.0
+    assert payload["top_categories"][0]["category_name"] == "Groceries"
+    assert payload["insights"]
+    assert payload["recommended_actions"]
+
+
+def test_weekly_digest_rejects_invalid_week_start(client, app_fixture):
+    _, auth_header = _auth_header_without_redis(app_fixture)
+
+    r = client.get("/insights/weekly-digest?week_start=not-a-date", headers=auth_header)
+    assert r.status_code == 400
+    assert r.get_json()["error"] == "invalid week_start, expected YYYY-MM-DD"
