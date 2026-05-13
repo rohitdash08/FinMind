@@ -480,6 +480,65 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
+  /insights/weekly-summary:
+    get:
+      summary: Get weekly financial digest
+      tags: [Insights]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: week_start
+          required: false
+          description: Any date in the requested week. The API normalizes it to Monday-Sunday.
+          schema: { type: string, format: date }
+        - in: query
+          name: currency
+          required: false
+          description: Optional currency filter, for example USD or EUR.
+          schema: { type: string }
+      responses:
+        '200':
+          description: Weekly digest with trends, categories, bills, and insights
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+              example:
+                period:
+                  week_start: 2026-05-11
+                  week_end: 2026-05-17
+                  previous_week_start: 2026-05-04
+                  previous_week_end: 2026-05-10
+                currency: USD
+                summary:
+                  income: 1200
+                  expenses: 300
+                  net: 900
+                  transaction_count: 2
+                  previous_expenses: 200
+                  expense_change_pct: 50
+                  expense_trend: up
+                category_breakdown:
+                  - category_id: 1
+                    category_name: Groceries
+                    amount: 300
+                    share_pct: 100
+                insights:
+                  - Expenses rose 50.00% versus last week.
+                recommendations:
+                  - Review the categories with the largest weekly increase.
+                method: deterministic
+        '400':
+          description: Invalid week_start
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
 
 components:
   securitySchemes:
