@@ -1,17 +1,27 @@
 import os
 import pytest
+import unittest.mock
 from app import create_app
 from app.config import Settings
 from app.extensions import db
-from app.extensions import redis_client
 from app import models  # noqa: F401 - ensure models are registered
+
+# Mock redis to prevent connection hangs in test env
+redis_mock = unittest.mock.MagicMock()
 
 
 class TestSettings(Settings):
     # Override defaults for tests
     database_url: str = "sqlite+pysqlite:///:memory:"
-    redis_url: str = "redis://localhost:6379/15"  # not used in tests
+    redis_url: str = "redis://localhost:6379/15"
     jwt_secret: str = "test-secret"
+
+
+@pytest.fixture(autouse=True)
+def mock_redis():
+    import app.extensions as ext
+    with unittest.mock.patch.object(ext, 'redis_client', redis_mock):
+        yield
 
 
 def _setup_db(app):
