@@ -33,6 +33,8 @@ def create_app(settings: Settings | None = None) -> Flask:
         TWILIO_AUTH_TOKEN=cfg.twilio_auth_token,
         TWILIO_WHATSAPP_FROM=cfg.twilio_whatsapp_from,
         EMAIL_FROM=cfg.email_from,
+        JOB_RETRY_MAX_ATTEMPTS=cfg.job_retry_max_attempts,
+        JOB_RETRY_BASE_DELAY_SECONDS=cfg.job_retry_base_delay_seconds,
     )
 
     # Logging
@@ -108,6 +110,18 @@ def _ensure_schema_compatibility(app: Flask) -> None:
             ALTER TABLE users
             ADD COLUMN IF NOT EXISTS preferred_currency VARCHAR(10)
             NOT NULL DEFAULT 'INR'
+            """
+        )
+        cur.execute(
+            """
+            ALTER TABLE reminders
+            ADD COLUMN IF NOT EXISTS delivery_attempts INT NOT NULL DEFAULT 0
+            """
+        )
+        cur.execute(
+            """
+            ALTER TABLE reminders
+            ADD COLUMN IF NOT EXISTS last_error VARCHAR(500)
             """
         )
         conn.commit()

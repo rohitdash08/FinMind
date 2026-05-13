@@ -98,6 +98,8 @@ class Reminder(db.Model):
     send_at = db.Column(db.DateTime, nullable=False)
     sent = db.Column(db.Boolean, default=False, nullable=False)
     channel = db.Column(db.String(20), default="email", nullable=False)
+    delivery_attempts = db.Column(db.Integer, default=0, nullable=False)
+    last_error = db.Column(db.String(500), nullable=True)
 
 
 class AdImpression(db.Model):

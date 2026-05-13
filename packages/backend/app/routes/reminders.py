@@ -4,6 +4,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..extensions import db
 from ..models import Bill, Reminder
 from ..observability import track_reminder_event
+from ..services.jobs import run_with_retry
 from ..services.reminders import send_reminder
 import logging
 
@@ -30,6 +31,8 @@ def list_reminders():
                 "send_at": r.send_at.isoformat(),
                 "sent": r.sent,
                 "channel": r.channel,
+                "delivery_attempts": r.delivery_attempts,
+                "last_error": r.last_error,
             }
             for r in items
         ]
@@ -170,13 +173,38 @@ def run_due():
         )
         .all()
     )
+    sent = 0
+    failed = 0
+    retries = 0
     for r in items:
-        send_reminder(r)
-        r.sent = True
-        track_reminder_event(event="sent", channel=r.channel)
+        result = run_with_retry(
+            job_name="send_reminder",
+            operation=lambda reminder=r: send_reminder(reminder),
+            logger=logger,
+        )
+        r.delivery_attempts += result.attempts
+        retries += max(0, result.attempts - 1)
+        if result.success:
+            r.sent = True
+            r.last_error = None
+            sent += 1
+            track_reminder_event(event="sent", channel=r.channel)
+        else:
+            failed += 1
+            r.last_error = (result.error or "delivery failed")[:500]
+            track_reminder_event(
+                event="send_failed", channel=r.channel, status="failed"
+            )
     db.session.commit()
-    logger.info("Processed due reminders user=%s count=%s", uid, len(items))
-    return jsonify(processed=len(items))
+    logger.info(
+        "Processed due reminders user=%s count=%s sent=%s failed=%s retries=%s",
+        uid,
+        len(items),
+        sent,
+        failed,
+        retries,
+    )
+    return jsonify(processed=len(items), sent=sent, failed=failed, retries=retries)
 
 
 def _bill_channels(bill: Bill) -> list[str]:

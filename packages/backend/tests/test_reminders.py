@@ -1,4 +1,9 @@
-from datetime import date
+from datetime import date, datetime, timedelta
+
+from flask_jwt_extended import create_access_token
+
+from app.extensions import db
+from app.models import User
 
 
 def _create_bill(client, auth_header, *, due_date: str, autopay_enabled: bool = False):
@@ -80,3 +85,68 @@ def test_autopay_generates_precheck_and_result_followup_for_both_channels(
     followups = [x for x in reminders if "Autopay succeeded" in x["message"]]
     assert len(followups) == 2
     assert sorted([x["channel"] for x in followups]) == ["email", "whatsapp"]
+
+
+def _auth_header_without_redis(app_fixture):
+    with app_fixture.app_context():
+        user = User(email="retry@example.com", password_hash="unused")
+        db.session.add(user)
+        db.session.commit()
+        token = create_access_token(identity=str(user.id))
+    return {"Authorization": f"Bearer {token}"}
+
+
+def test_run_due_retries_transient_delivery_failures(client, app_fixture, monkeypatch):
+    attempts = {"count": 0}
+
+    def flaky_send(_reminder):
+        attempts["count"] += 1
+        return attempts["count"] >= 3
+
+    monkeypatch.setattr("app.routes.reminders.send_reminder", flaky_send)
+    auth_header = _auth_header_without_redis(app_fixture)
+    send_at = (datetime.utcnow() - timedelta(minutes=5)).isoformat()
+    r = client.post(
+        "/reminders",
+        json={"message": "Retry me", "send_at": send_at, "channel": "email"},
+        headers=auth_header,
+    )
+    assert r.status_code == 201
+
+    r = client.post("/reminders/run", headers=auth_header)
+    assert r.status_code == 200
+    payload = r.get_json()
+    assert payload == {"processed": 1, "sent": 1, "failed": 0, "retries": 2}
+    assert attempts["count"] == 3
+
+    r = client.get("/reminders", headers=auth_header)
+    reminder = r.get_json()[0]
+    assert reminder["sent"] is True
+    assert reminder["delivery_attempts"] == 3
+    assert reminder["last_error"] is None
+
+
+def test_run_due_keeps_failed_reminders_unsent(client, app_fixture, monkeypatch):
+    def failed_send(_reminder):
+        raise RuntimeError("smtp timeout")
+
+    monkeypatch.setattr("app.routes.reminders.send_reminder", failed_send)
+    auth_header = _auth_header_without_redis(app_fixture)
+    send_at = (datetime.utcnow() - timedelta(minutes=5)).isoformat()
+    r = client.post(
+        "/reminders",
+        json={"message": "Do not mark sent", "send_at": send_at, "channel": "email"},
+        headers=auth_header,
+    )
+    assert r.status_code == 201
+
+    r = client.post("/reminders/run", headers=auth_header)
+    assert r.status_code == 200
+    payload = r.get_json()
+    assert payload == {"processed": 1, "sent": 0, "failed": 1, "retries": 2}
+
+    r = client.get("/reminders", headers=auth_header)
+    reminder = r.get_json()[0]
+    assert reminder["sent"] is False
+    assert reminder["delivery_attempts"] == 3
+    assert reminder["last_error"] == "smtp timeout"
