@@ -65,7 +65,25 @@ OpenAPI: `backend/app/openapi.yaml`
 - Expenses: CRUD `/expenses`
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
-- Insights: `/insights/monthly`, `/insights/budget-suggestion`
+- Insights: `/insights/monthly`, `/insights/budget-suggestion`, `/insights/weekly-summary`
+
+## Weekly Smart Digest
+
+`GET /insights/weekly-summary` returns an authenticated Monday-Sunday digest for
+the current week by default. Pass `week_start=YYYY-MM-DD` to inspect another
+week and `currency=USD` or another code to filter a multi-currency account.
+
+The response includes:
+
+- income, expense, net-flow, transaction count, previous-week expense total,
+  percentage delta, and trend direction;
+- seven daily buckets for the selected week;
+- category spending shares and top expenses;
+- bills due during the selected week;
+- deterministic insights and recommendations that work without an LLM key.
+
+This keeps the digest production-safe for free-tier users while still allowing
+the existing Gemini-powered budget suggestion flow to remain optional.
 
 ## MVP UI/UX Plan
 - Auth screens: register/login.
