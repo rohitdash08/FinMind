@@ -30,8 +30,10 @@ jest.mock('@/hooks/use-toast', () => ({
 }));
 
 const getBudgetSuggestionMock = jest.fn();
+const getWeeklySummaryMock = jest.fn();
 jest.mock('@/api/insights', () => ({
   getBudgetSuggestion: (...args: unknown[]) => getBudgetSuggestionMock(...args),
+  getWeeklySummary: (...args: unknown[]) => getWeeklySummaryMock(...args),
 }));
 
 describe('Analytics integration', () => {
@@ -52,12 +54,92 @@ describe('Analytics integration', () => {
       method: 'heuristic',
       warnings: [],
     });
+    getWeeklySummaryMock.mockResolvedValue({
+      period: {
+        week_start: '2026-05-04',
+        week_end: '2026-05-10',
+        previous_week_start: '2026-04-27',
+        previous_week_end: '2026-05-03',
+        currency: 'USD',
+      },
+      summary: {
+        income: 1000,
+        expenses: 250,
+        net_flow: 750,
+        transaction_count: 4,
+        income_transaction_count: 1,
+        expense_transaction_count: 3,
+        average_daily_expense: 35.71,
+        savings_rate_pct: 75,
+      },
+      comparison: {
+        previous_income: 0,
+        previous_expenses: 100,
+        previous_net_flow: -100,
+        income_delta: 1000,
+        expense_delta: 150,
+        net_flow_delta: 850,
+        income_change_pct: null,
+        expense_change_pct: 150,
+        net_flow_change_pct: null,
+      },
+      daily_breakdown: [],
+      category_breakdown: [
+        {
+          category_id: 1,
+          category_name: 'Food',
+          amount: 200,
+          transaction_count: 2,
+          share_pct: 80,
+          previous_amount: 70,
+          change_amount: 130,
+          change_pct: 185.71,
+        },
+      ],
+      category_trends: [],
+      largest_expenses: [
+        {
+          id: 1,
+          description: 'Groceries',
+          amount: 120,
+          currency: 'USD',
+          date: '2026-05-04',
+          category_id: 1,
+          category_name: 'Food',
+        },
+      ],
+      upcoming_bills: [
+        {
+          id: 1,
+          name: 'Internet',
+          amount: 45,
+          currency: 'USD',
+          next_due_date: '2026-05-09',
+          cadence: 'MONTHLY',
+          autopay_enabled: false,
+        },
+      ],
+      highlights: ['Food led spending at USD 200.00 (80.00% of expenses).'],
+      insights: [
+        {
+          type: 'top_category',
+          severity: 'info',
+          title: 'Food led spending',
+          detail: 'Food represented 80.00% of weekly expenses.',
+        },
+      ],
+      recommendations: ['Move part of this week\'s surplus to savings.'],
+      method: 'heuristic',
+    });
   });
 
   it('loads and renders insights data', async () => {
     render(<Analytics />);
     await waitFor(() => expect(getBudgetSuggestionMock).toHaveBeenCalled());
+    await waitFor(() => expect(getWeeklySummaryMock).toHaveBeenCalled());
     expect(screen.getByText(/live spending analytics/i)).toBeInTheDocument();
+    expect(screen.getByText(/weekly digest/i)).toBeInTheDocument();
+    expect(screen.getByText(/food represented 80/i)).toBeInTheDocument();
     expect(screen.getByText(/suggested budget/i)).toBeInTheDocument();
     expect(screen.getByText(/tip a/i)).toBeInTheDocument();
   });
@@ -68,6 +150,9 @@ describe('Analytics integration', () => {
 
     await userEvent.clear(screen.getByLabelText(/analytics month/i));
     await userEvent.type(screen.getByLabelText(/analytics month/i), '2026-01');
+    await userEvent.clear(screen.getByLabelText(/weekly summary week start/i));
+    await userEvent.type(screen.getByLabelText(/weekly summary week start/i), '2026-05-04');
+    await userEvent.type(screen.getByLabelText(/weekly summary currency/i), 'usd');
     await userEvent.selectOptions(screen.getByLabelText(/analytics persona/i), 'Debt-focused planner');
     await userEvent.type(screen.getByLabelText(/gemini api key/i), 'abc123');
     await userEvent.click(screen.getByRole('button', { name: /refresh insights/i }));
@@ -78,6 +163,14 @@ describe('Analytics integration', () => {
           month: '2026-01',
           persona: 'Debt-focused planner',
           geminiApiKey: 'abc123',
+        }),
+      ),
+    );
+    await waitFor(() =>
+      expect(getWeeklySummaryMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          weekStart: '2026-05-04',
+          currency: 'USD',
         }),
       ),
     );
