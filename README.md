@@ -176,6 +176,14 @@ finmind/
 - Logs are emitted as JSON with `request_id` and shipped to Loki via Promtail.
 - Pre-provisioned Grafana dashboard: `FinMind Operations and KPI`.
 
+## Weekly Financial Digest
+- `GET /insights/weekly-digest?week_start=YYYY-MM-DD` returns a weekly summary
+  for the authenticated user.
+- The response includes income, expenses, net flow, prior-week comparison,
+  top spending categories, trend insights, and recommended next actions.
+- The digest is deterministic and works without paid AI API keys; it can be used
+  by schedulers, email jobs, or dashboard cards.
+
 ## Contribution Policy
 - See `CONTRIBUTING.md` for fork-first contribution flow and PR requirements.
 
