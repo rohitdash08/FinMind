@@ -57,6 +57,8 @@ export function Dashboard() {
         monthly_expenses: 0,
         upcoming_bills_total: 0,
         upcoming_bills_count: 0,
+        total_account_balance: 0,
+        account_count: 0,
       };
     }
     return data.summary;
@@ -88,6 +90,14 @@ export function Dashboard() {
       description: 'Current month',
     },
     {
+      title: 'Account Balance',
+      amount: currency(summary.total_account_balance),
+      change: `${summary.account_count} account(s)`,
+      trend: summary.total_account_balance >= 0 ? 'up' : 'down',
+      icon: Wallet,
+      description: 'Active accounts',
+    },
+    {
       title: 'Upcoming Bills',
       amount: currency(summary.upcoming_bills_total),
       change: `${summary.upcoming_bills_count} bill(s)`,
@@ -98,6 +108,7 @@ export function Dashboard() {
   ] as const;
 
   const transactions = data?.recent_transactions ?? [];
+  const accounts = data?.accounts ?? [];
   const upcomingBills = data?.upcoming_bills ?? [];
   const categoryBreakdown = data?.category_breakdown ?? [];
 
@@ -141,7 +152,7 @@ export function Dashboard() {
         </div>
       )}
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-8">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5 mb-8">
         {summaryCards.map((card, index) => (
           <FinancialCard key={index} variant="financial" className="group card-interactive fade-in-up">
             <FinancialCardHeader className="pb-3">
@@ -210,6 +221,32 @@ export function Dashboard() {
         </div>
 
         <div className="space-y-6">
+          <FinancialCard variant="financial" className="fade-in-up">
+            <FinancialCardHeader>
+              <FinancialCardTitle className="section-title">Accounts</FinancialCardTitle>
+              <FinancialCardDescription>Active balances across accounts</FinancialCardDescription>
+            </FinancialCardHeader>
+            <FinancialCardContent>
+              {accounts.length === 0 ? (
+                <div className="text-sm text-muted-foreground">No accounts added.</div>
+              ) : (
+                <div className="space-y-3">
+                  {accounts.map((account) => (
+                    <div key={account.id} className="interactive-row flex items-center justify-between">
+                      <div>
+                        <div className="font-medium text-foreground text-sm">{account.name}</div>
+                        <div className="text-xs text-muted-foreground capitalize">{account.account_type}</div>
+                      </div>
+                      <div className="text-sm font-semibold text-foreground">
+                        {currency(account.balance, account.currency)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </FinancialCardContent>
+          </FinancialCard>
+
           <FinancialCard variant="financial" className="fade-in-up">
             <FinancialCardHeader>
               <div className="flex items-center justify-between">

@@ -8,7 +8,16 @@ export type DashboardSummary = {
     monthly_expenses: number;
     upcoming_bills_total: number;
     upcoming_bills_count: number;
+    total_account_balance: number;
+    account_count: number;
   };
+  accounts: Array<{
+    id: number;
+    name: string;
+    account_type: string;
+    balance: number;
+    currency: string;
+  }>;
   recent_transactions: Array<{
     id: number;
     description: string;
