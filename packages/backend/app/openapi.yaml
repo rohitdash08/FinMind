@@ -481,6 +481,62 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
 
+  /insights/weekly-digest:
+    get:
+      summary: Get weekly financial digest
+      tags: [Insights]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: week_start
+          required: false
+          description: Any date in the requested week. The response normalizes to Monday.
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: Weekly digest with totals, trend and recommendations
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+              example:
+                week_start: 2025-08-04
+                week_end: 2025-08-10
+                total_income: 1200
+                total_expenses: 250
+                net_flow: 950
+                average_daily_expense: 35.71
+                previous_week:
+                  week_start: 2025-07-28
+                  week_end: 2025-08-03
+                  total_income: 1000
+                  total_expenses: 200
+                  net_flow: 800
+                trend:
+                  income_change_pct: 20
+                  expense_change_pct: 25
+                  net_flow_change: 150
+                top_categories:
+                  - category_id: null
+                    category_name: Uncategorized
+                    amount: 250
+                insights:
+                  - This week is cash-flow positive based on recorded activity.
+                recommended_actions:
+                  - Move part of the positive weekly balance into savings.
+                method: heuristic
+        '400':
+          description: Invalid week_start
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
 components:
   securitySchemes:
     bearerAuth:

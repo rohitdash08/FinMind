@@ -3,8 +3,31 @@ import pytest
 from app import create_app
 from app.config import Settings
 from app.extensions import db
-from app.extensions import redis_client
 from app import models  # noqa: F401 - ensure models are registered
+
+
+class FakeRedis:
+    def __init__(self):
+        self.data = {}
+
+    def flushdb(self):
+        self.data.clear()
+
+    def set(self, key, value):
+        self.data[key] = value
+
+    def setex(self, key, _ttl, value):
+        self.data[key] = value
+
+    def get(self, key):
+        return self.data.get(key)
+
+    def delete(self, *keys):
+        for key in keys:
+            self.data.pop(key, None)
+
+    def scan(self, cursor=0, match=None, count=100):
+        return 0, []
 
 
 class TestSettings(Settings):
@@ -20,9 +43,13 @@ def _setup_db(app):
 
 
 @pytest.fixture()
-def app_fixture():
+def app_fixture(monkeypatch):
     # Ensure a clean env for tests
     os.environ.setdefault("FLASK_ENV", "testing")
+    fake_redis = FakeRedis()
+    monkeypatch.setattr("app.extensions.redis_client", fake_redis)
+    monkeypatch.setattr("app.routes.auth.redis_client", fake_redis)
+    monkeypatch.setattr("app.services.cache.redis_client", fake_redis)
     settings = TestSettings(
         database_url="sqlite+pysqlite:///:memory:",
         redis_url="redis://localhost:6379/15",
@@ -32,7 +59,7 @@ def app_fixture():
     app.config.update(TESTING=True)
     _setup_db(app)
     try:
-        redis_client.flushdb()
+        fake_redis.flushdb()
     except Exception:
         pass
     yield app
@@ -40,7 +67,7 @@ def app_fixture():
         db.session.remove()
         db.drop_all()
     try:
-        redis_client.flushdb()
+        fake_redis.flushdb()
     except Exception:
         pass
 
