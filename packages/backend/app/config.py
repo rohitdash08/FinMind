@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     email_from: str | None = None
     smtp_url: str | None = None  # e.g. smtp+ssl://user:pass@mail:465
 
+    job_retry_max_attempts: int = 3
+    job_retry_base_delay_seconds: float = 0.0
+
     # pydantic-settings v2 configuration
     model_config = SettingsConfigDict(
         env_file=".env",

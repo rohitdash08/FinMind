@@ -173,8 +173,18 @@ finmind/
   - request count by endpoint/status
   - request duration histograms (latency, including dashboard p95 KPI)
   - reminder event counters (engagement KPI)
+  - background job counters for attempts, retries, successes, and failures
 - Logs are emitted as JSON with `request_id` and shipped to Loki via Promtail.
 - Pre-provisioned Grafana dashboard: `FinMind Operations and KPI`.
+
+## Background Job Retry
+- Due reminder delivery is retried before a reminder is marked as sent.
+- Configure retry behavior with `JOB_RETRY_MAX_ATTEMPTS` and
+  `JOB_RETRY_BASE_DELAY_SECONDS`.
+- `/reminders/run` returns `processed`, `sent`, `failed`, and `retries` so cron
+  runners and dashboards can detect degraded delivery.
+- Failed reminders stay unsent and keep `last_error` plus cumulative
+  `delivery_attempts` for operator follow-up.
 
 ## Contribution Policy
 - See `CONTRIBUTING.md` for fork-first contribution flow and PR requirements.

@@ -60,6 +60,12 @@ class Observability:
             ["event", "channel", "status"],
             registry=self.registry,
         )
+        self.background_job_events_total = Counter(
+            "finmind_background_job_events_total",
+            "Background job attempts, retries, successes, and failures.",
+            ["job", "event"],
+            registry=self.registry,
+        )
 
     def observe_http_request(
         self, method: str, endpoint: str, status_code: int, duration_seconds: float
@@ -78,6 +84,9 @@ class Observability:
         self.reminder_events_total.labels(
             event=event, channel=channel, status=status
         ).inc()
+
+    def record_background_job_event(self, job: str, event: str) -> None:
+        self.background_job_events_total.labels(job=job, event=event).inc()
 
     def metrics_response(self) -> Response:
         if self.multiprocess_enabled:
@@ -137,3 +146,9 @@ def track_reminder_event(event: str, channel: str, status: str = "ok") -> None:
     obs = current_app.extensions.get("observability")
     if obs:
         obs.record_reminder_event(event=event, channel=channel, status=status)
+
+
+def track_background_job_event(job: str, event: str) -> None:
+    obs = current_app.extensions.get("observability")
+    if obs:
+        obs.record_background_job_event(job=job, event=event)
