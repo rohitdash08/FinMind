@@ -378,7 +378,38 @@ paths:
       tags: [Reminders]
       security: [{ bearerAuth: [] }]
       responses:
-        '200': { description: Processed count }
+        '200':
+          description: Processed count with retry outcome counters
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  processed: { type: integer }
+                  sent: { type: integer }
+                  failed: { type: integer }
+                  retried: { type: integer }
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /reminders/jobs/health:
+    get:
+      summary: Get reminder job backlog and exhausted retry counts
+      tags: [Reminders]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Reminder job health
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  due: { type: integer }
+                  exhausted: { type: integer }
         '401':
           description: Unauthorized
           content:
@@ -580,6 +611,9 @@ components:
         send_at: { type: string, format: date-time }
         sent: { type: boolean }
         channel: { type: string, enum: [email, whatsapp] }
+        retry_count: { type: integer }
+        max_attempts: { type: integer }
+        last_error: { type: string, nullable: true }
     NewReminder:
       type: object
       required: [message, send_at]
@@ -587,3 +621,4 @@ components:
         message: { type: string }
         send_at: { type: string, format: date-time }
         channel: { type: string, enum: [email, whatsapp], default: email }
+        max_attempts: { type: integer, default: 3, minimum: 1 }
