@@ -110,6 +110,27 @@ def _ensure_schema_compatibility(app: Flask) -> None:
             NOT NULL DEFAULT 'INR'
             """
         )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS accounts (
+              id SERIAL PRIMARY KEY,
+              user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              name VARCHAR(120) NOT NULL,
+              account_type VARCHAR(40) NOT NULL DEFAULT 'checking',
+              balance NUMERIC(12,2) NOT NULL DEFAULT 0,
+              currency VARCHAR(10) NOT NULL DEFAULT 'INR',
+              active BOOLEAN NOT NULL DEFAULT TRUE,
+              created_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+            """
+        )
+        cur.execute(
+            """
+            ALTER TABLE expenses
+            ADD COLUMN IF NOT EXISTS account_id INT REFERENCES accounts(id)
+            ON DELETE SET NULL
+            """
+        )
         conn.commit()
     except Exception:
         app.logger.exception(

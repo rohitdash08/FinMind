@@ -176,6 +176,13 @@ finmind/
 - Logs are emitted as JSON with `request_id` and shipped to Loki via Promtail.
 - Pre-provisioned Grafana dashboard: `FinMind Operations and KPI`.
 
+## Multi-Account Dashboard
+- `POST /accounts` creates checking, savings, credit, cash, or wallet accounts
+  with balances and currencies.
+- `GET /accounts` lists all accounts for the authenticated user.
+- `GET /dashboard/summary` includes active account balances, account count, and
+  an account list so the dashboard can show a consolidated financial overview.
+
 ## Contribution Policy
 - See `CONTRIBUTING.md` for fork-first contribution flow and PR requirements.
 

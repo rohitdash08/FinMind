@@ -4,7 +4,7 @@ from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from ..extensions import db
-from ..models import Bill, Expense, Category
+from ..models import Account, Bill, Expense, Category
 from ..services.cache import cache_get, cache_set, dashboard_summary_key
 
 bp = Blueprint("dashboard", __name__)
@@ -30,7 +30,10 @@ def dashboard_summary():
             "monthly_expenses": 0.0,
             "upcoming_bills_total": 0.0,
             "upcoming_bills_count": 0,
+            "total_account_balance": 0.0,
+            "account_count": 0,
         },
+        "accounts": [],
         "recent_transactions": [],
         "upcoming_bills": [],
         "category_breakdown": [],
@@ -39,6 +42,30 @@ def dashboard_summary():
 
     year, month = map(int, ym.split("-"))
     today = date.today()
+
+    try:
+        accounts = (
+            db.session.query(Account)
+            .filter(Account.user_id == uid, Account.active.is_(True))
+            .order_by(Account.name.asc())
+            .all()
+        )
+        payload["accounts"] = [
+            {
+                "id": account.id,
+                "name": account.name,
+                "account_type": account.account_type,
+                "balance": float(account.balance),
+                "currency": account.currency,
+            }
+            for account in accounts
+        ]
+        payload["summary"]["total_account_balance"] = round(
+            sum(float(account.balance) for account in accounts), 2
+        )
+        payload["summary"]["account_count"] = len(accounts)
+    except Exception:
+        payload["errors"].append("accounts_unavailable")
 
     try:
         income = (

@@ -5,7 +5,7 @@ from decimal import Decimal, InvalidOperation
 from flask import Blueprint, current_app, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..extensions import db
-from ..models import Expense, RecurringCadence, RecurringExpense, User
+from ..models import Account, Expense, RecurringCadence, RecurringExpense, User
 from ..services.cache import cache_delete_patterns, monthly_summary_key
 from ..services import expense_import
 import logging
@@ -65,8 +65,13 @@ def create_expense():
     description = (data.get("description") or data.get("notes") or "").strip()
     if not description:
         return jsonify(error="description required"), 400
+    try:
+        account_id = _validated_account_id(uid, data.get("account_id"))
+    except (TypeError, ValueError):
+        return jsonify(error="invalid account_id"), 400
     e = Expense(
         user_id=uid,
+        account_id=account_id,
         amount=amount,
         currency=(data.get("currency") or (user.preferred_currency if user else "INR")),
         expense_type=str(data.get("expense_type") or "EXPENSE").upper(),
@@ -221,6 +226,11 @@ def update_expense(expense_id: int):
         e.expense_type = str(data.get("expense_type") or "EXPENSE").upper()
     if "category_id" in data:
         e.category_id = data.get("category_id")
+    if "account_id" in data:
+        try:
+            e.account_id = _validated_account_id(uid, data.get("account_id"))
+        except (TypeError, ValueError):
+            return jsonify(error="invalid account_id"), 400
     if "description" in data or "notes" in data:
         description = (data.get("description") or data.get("notes") or "").strip()
         if not description:
@@ -316,6 +326,7 @@ def _expense_to_dict(e: Expense) -> dict:
         "id": e.id,
         "amount": float(e.amount),
         "currency": e.currency,
+        "account_id": e.account_id,
         "category_id": e.category_id,
         "expense_type": e.expense_type,
         "description": e.notes or "",
@@ -343,6 +354,16 @@ def _parse_amount(raw) -> Decimal | None:
         return Decimal(str(raw)).quantize(Decimal("0.01"))
     except (InvalidOperation, ValueError, TypeError):
         return None
+
+
+def _validated_account_id(uid: int, raw) -> int | None:
+    if raw in (None, ""):
+        return None
+    account_id = int(raw)
+    account = db.session.get(Account, account_id)
+    if not account or account.user_id != uid:
+        raise ValueError("invalid account_id")
+    return account_id
 
 
 def _parse_recurring_cadence(raw: str | None) -> str | None:
