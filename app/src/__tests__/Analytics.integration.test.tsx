@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { Analytics } from '@/pages/Analytics';
+import { Analytics, getCurrentMonday } from '@/pages/Analytics';
 
 jest.mock('@/components/ui/button', () => ({
   Button: ({ children, ...props }: React.PropsWithChildren & React.ButtonHTMLAttributes<HTMLButtonElement>) => (
@@ -24,7 +24,8 @@ jest.mock('@/components/ui/financial-card', () => ({
   FinancialCardDescription: ({ children }: React.PropsWithChildren) => <div>{children}</div>,
 }));
 
-const toastMock = jest.fn();
+const toastDismissMock = jest.fn();
+const toastMock = jest.fn(() => ({ dismiss: toastDismissMock }));
 jest.mock('@/hooks/use-toast', () => ({
   useToast: () => ({ toast: toastMock }),
 }));
@@ -133,6 +134,21 @@ describe('Analytics integration', () => {
     });
   });
 
+  it('formats the default weekly start as the local Monday during US evening hours', () => {
+    const previousTimezone = process.env.TZ;
+    process.env.TZ = 'America/New_York';
+
+    try {
+      expect(getCurrentMonday(new Date('2026-05-12T21:00:00-04:00'))).toBe('2026-05-11');
+    } finally {
+      if (previousTimezone === undefined) {
+        delete process.env.TZ;
+      } else {
+        process.env.TZ = previousTimezone;
+      }
+    }
+  });
+
   it('loads and renders insights data', async () => {
     render(<Analytics />);
     await waitFor(() => expect(getBudgetSuggestionMock).toHaveBeenCalled());
@@ -174,5 +190,21 @@ describe('Analytics integration', () => {
         }),
       ),
     );
+  });
+
+  it('dismisses the previous error toast after a successful refresh', async () => {
+    getWeeklySummaryMock.mockRejectedValueOnce(new Error('week_start must be a Monday'));
+
+    render(<Analytics />);
+    await screen.findByText('week_start must be a Monday');
+    expect(toastMock).toHaveBeenCalledWith({
+      title: 'Failed to load insights',
+      description: 'week_start must be a Monday',
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: /refresh insights/i }));
+
+    await waitFor(() => expect(screen.getByText(/weekly digest/i)).toBeInTheDocument());
+    expect(toastDismissMock).toHaveBeenCalled();
   });
 });

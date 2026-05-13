@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -26,8 +26,9 @@ const PERSONAS = [
 
 export function Analytics() {
   const { toast } = useToast();
+  const lastErrorToast = useRef<{ dismiss: () => void } | null>(null);
   const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7));
-  const [weekStart, setWeekStart] = useState(getCurrentMonday);
+  const [weekStart, setWeekStart] = useState(() => getCurrentMonday());
   const [weeklyCurrency, setWeeklyCurrency] = useState('');
   const [persona, setPersona] = useState(PERSONAS[0]);
   const [geminiKey, setGeminiKey] = useState('');
@@ -53,10 +54,12 @@ export function Analytics() {
       ]);
       setData(payload);
       setWeeklySummary(weeklyPayload);
+      lastErrorToast.current?.dismiss();
+      lastErrorToast.current = null;
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to load insights';
       setError(message);
-      toast({ title: 'Failed to load insights', description: message });
+      lastErrorToast.current = toast({ title: 'Failed to load insights', description: message });
     } finally {
       setLoading(false);
     }
@@ -358,12 +361,19 @@ export function Analytics() {
   );
 }
 
-function getCurrentMonday() {
-  const now = new Date();
+export function getCurrentMonday(currentDate = new Date()) {
+  const now = new Date(currentDate);
   const day = now.getDay();
   const diff = day === 0 ? -6 : 1 - day;
   now.setDate(now.getDate() + diff);
-  return now.toISOString().slice(0, 10);
+  return formatLocalDate(now);
+}
+
+function formatLocalDate(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 function formatPercent(value: number | null) {
