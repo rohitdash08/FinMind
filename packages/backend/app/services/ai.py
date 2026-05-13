@@ -1,11 +1,12 @@
 import json
+from datetime import date, timedelta
 from urllib import request
 
 from sqlalchemy import extract, func
 
 from ..config import Settings
 from ..extensions import db
-from ..models import Expense
+from ..models import Category, Expense
 
 _settings = Settings()
 DEFAULT_PERSONA = (
@@ -78,6 +79,208 @@ def _build_analytics(uid: int, ym: str) -> dict:
         "current_month_expenses": round(current_expenses, 2),
         "previous_month_expenses": round(prev_expenses, 2),
         "top_categories": [{"category_id": k, "amount": round(v, 2)} for k, v in top],
+    }
+
+
+def _money(value) -> float:
+    return round(float(value or 0), 2)
+
+
+def _week_start(raw: str | None = None) -> date:
+    if raw:
+        parsed = date.fromisoformat(raw)
+        return parsed - timedelta(days=parsed.weekday())
+    today = date.today()
+    return today - timedelta(days=today.weekday())
+
+
+def _week_totals(uid: int, start: date) -> tuple[float, float]:
+    end = start + timedelta(days=6)
+    income = (
+        db.session.query(func.coalesce(func.sum(Expense.amount), 0))
+        .filter(
+            Expense.user_id == uid,
+            Expense.spent_at >= start,
+            Expense.spent_at <= end,
+            Expense.expense_type == "INCOME",
+        )
+        .scalar()
+    )
+    expenses = (
+        db.session.query(func.coalesce(func.sum(Expense.amount), 0))
+        .filter(
+            Expense.user_id == uid,
+            Expense.spent_at >= start,
+            Expense.spent_at <= end,
+            Expense.expense_type != "INCOME",
+        )
+        .scalar()
+    )
+    return _money(income), _money(expenses)
+
+
+def _daily_week_totals(uid: int, start: date) -> list[dict]:
+    end = start + timedelta(days=6)
+    rows = (
+        db.session.query(
+            Expense.spent_at,
+            Expense.expense_type,
+            func.coalesce(func.sum(Expense.amount), 0),
+        )
+        .filter(
+            Expense.user_id == uid,
+            Expense.spent_at >= start,
+            Expense.spent_at <= end,
+        )
+        .group_by(Expense.spent_at, Expense.expense_type)
+        .all()
+    )
+    by_day = {
+        (start + timedelta(days=offset)): {"income": 0.0, "expenses": 0.0}
+        for offset in range(7)
+    }
+    for spent_at, expense_type, amount in rows:
+        bucket = by_day[spent_at]
+        if expense_type == "INCOME":
+            bucket["income"] += float(amount or 0)
+        else:
+            bucket["expenses"] += float(amount or 0)
+    return [
+        {
+            "date": day.isoformat(),
+            "income": _money(values["income"]),
+            "expenses": _money(values["expenses"]),
+            "net_flow": _money(values["income"] - values["expenses"]),
+        }
+        for day, values in by_day.items()
+    ]
+
+
+def _weekly_category_spend(uid: int, start: date) -> list[dict]:
+    end = start + timedelta(days=6)
+    rows = (
+        db.session.query(
+            Expense.category_id,
+            func.coalesce(Category.name, "Uncategorized"),
+            func.coalesce(func.sum(Expense.amount), 0),
+        )
+        .outerjoin(
+            Category,
+            (Category.id == Expense.category_id) & (Category.user_id == uid),
+        )
+        .filter(
+            Expense.user_id == uid,
+            Expense.spent_at >= start,
+            Expense.spent_at <= end,
+            Expense.expense_type != "INCOME",
+        )
+        .group_by(Expense.category_id, Category.name)
+        .order_by(func.sum(Expense.amount).desc())
+        .limit(5)
+        .all()
+    )
+    return [
+        {
+            "category_id": category_id,
+            "category_name": category_name,
+            "amount": _money(amount),
+        }
+        for category_id, category_name, amount in rows
+    ]
+
+
+def _percentage_change(current: float, previous: float) -> float:
+    if previous <= 0:
+        return 0.0
+    return round(((current - previous) / previous) * 100, 2)
+
+
+def _weekly_digest_insights(
+    income: float,
+    expenses: float,
+    previous_expenses: float,
+    top_categories: list[dict],
+) -> tuple[list[str], list[str]]:
+    insights: list[str] = []
+    actions: list[str] = []
+    if income == 0 and expenses == 0:
+        insights.append("No activity was recorded for this week yet.")
+        actions.append("Add this week's income and expenses to unlock a useful digest.")
+        return insights, actions
+
+    net_flow = income - expenses
+    if net_flow >= 0:
+        insights.append("This week is cash-flow positive based on recorded activity.")
+        actions.append("Move part of the positive weekly balance into savings.")
+    else:
+        insights.append("This week is cash-flow negative based on recorded activity.")
+        actions.append(
+            "Review flexible spending before adding new non-essential expenses."
+        )
+
+    change = _percentage_change(expenses, previous_expenses)
+    if change > 10:
+        insights.append(f"Weekly spending is up {change}% from the previous week.")
+        actions.append(
+            "Audit the highest category and set a short-term cap for next week."
+        )
+    elif change < -10:
+        insights.append(
+            f"Weekly spending is down {abs(change)}% from the previous week."
+        )
+        actions.append("Keep the same controls that reduced spending this week.")
+    elif previous_expenses:
+        insights.append("Weekly spending is broadly in line with the previous week.")
+
+    if top_categories and expenses > 0:
+        top = top_categories[0]
+        share = round((top["amount"] / expenses) * 100, 2)
+        insights.append(
+            f"{top['category_name']} is the largest spend area at {share}% of expenses."
+        )
+        actions.append(
+            f"Check whether {top['category_name']} has avoidable repeat costs."
+        )
+
+    return insights[:4], actions[:4]
+
+
+def weekly_financial_digest(uid: int, week_start: str | None = None) -> dict:
+    start = _week_start(week_start)
+    end = start + timedelta(days=6)
+    previous_start = start - timedelta(days=7)
+    income, expenses = _week_totals(uid, start)
+    previous_income, previous_expenses = _week_totals(uid, previous_start)
+    top_categories = _weekly_category_spend(uid, start)
+    insights, actions = _weekly_digest_insights(
+        income, expenses, previous_expenses, top_categories
+    )
+    return {
+        "week_start": start.isoformat(),
+        "week_end": end.isoformat(),
+        "total_income": income,
+        "total_expenses": expenses,
+        "net_flow": _money(income - expenses),
+        "average_daily_expense": _money(expenses / 7),
+        "previous_week": {
+            "week_start": previous_start.isoformat(),
+            "week_end": (previous_start + timedelta(days=6)).isoformat(),
+            "total_income": previous_income,
+            "total_expenses": previous_expenses,
+            "net_flow": _money(previous_income - previous_expenses),
+        },
+        "trend": {
+            "income_change_pct": _percentage_change(income, previous_income),
+            "expense_change_pct": _percentage_change(expenses, previous_expenses),
+            "net_flow_change": _money(
+                (income - expenses) - (previous_income - previous_expenses)
+            ),
+        },
+        "daily_totals": _daily_week_totals(uid, start),
+        "top_categories": top_categories,
+        "insights": insights,
+        "recommended_actions": actions,
+        "method": "heuristic",
     }
 
 

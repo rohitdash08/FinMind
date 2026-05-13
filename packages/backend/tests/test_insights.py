@@ -90,3 +90,50 @@ def test_budget_suggestion_falls_back_when_gemini_fails(
     assert payload["method"] == "heuristic"
     assert "warnings" in payload
     assert "gemini_unavailable" in payload["warnings"]
+
+
+def test_weekly_digest_returns_financial_summary(client, auth_header):
+    week_start = date.today() - timedelta(days=date.today().weekday())
+    previous_week = week_start - timedelta(days=7)
+
+    for amount, description, spent_at, expense_type in [
+        (1200, "Paycheck", week_start, "INCOME"),
+        (180, "Groceries", week_start + timedelta(days=1), "EXPENSE"),
+        (70, "Transport", week_start + timedelta(days=2), "EXPENSE"),
+        (200, "Previous week groceries", previous_week, "EXPENSE"),
+    ]:
+        r = client.post(
+            "/expenses",
+            json={
+                "amount": amount,
+                "description": description,
+                "date": spent_at.isoformat(),
+                "expense_type": expense_type,
+            },
+            headers=auth_header,
+        )
+        assert r.status_code == 201
+
+    r = client.get(
+        f"/insights/weekly-digest?week_start={week_start.isoformat()}",
+        headers=auth_header,
+    )
+    assert r.status_code == 200
+    payload = r.get_json()
+    assert payload["week_start"] == week_start.isoformat()
+    assert payload["week_end"] == (week_start + timedelta(days=6)).isoformat()
+    assert payload["total_income"] == 1200
+    assert payload["total_expenses"] == 250
+    assert payload["net_flow"] == 950
+    assert len(payload["daily_totals"]) == 7
+    assert payload["previous_week"]["total_expenses"] == 200
+    assert payload["trend"]["expense_change_pct"] == 25
+    assert payload["top_categories"][0]["category_name"] == "Uncategorized"
+    assert payload["insights"]
+    assert payload["recommended_actions"]
+
+
+def test_weekly_digest_rejects_invalid_week_start(client, auth_header):
+    r = client.get("/insights/weekly-digest?week_start=not-a-date", headers=auth_header)
+    assert r.status_code == 400
+    assert r.get_json()["error"] == "invalid week_start"
