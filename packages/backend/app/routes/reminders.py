@@ -4,7 +4,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..extensions import db
 from ..models import Bill, Reminder
 from ..observability import track_reminder_event
-from ..services.reminders import send_reminder
+from ..services.reminder_jobs import process_due_reminders
 import logging
 
 bp = Blueprint("reminders", __name__)
@@ -30,6 +30,16 @@ def list_reminders():
                 "send_at": r.send_at.isoformat(),
                 "sent": r.sent,
                 "channel": r.channel,
+                "retry_count": r.retry_count,
+                "max_retries": r.max_retries,
+                "next_retry_at": (
+                    r.next_retry_at.isoformat() if r.next_retry_at else None
+                ),
+                "last_attempt_at": (
+                    r.last_attempt_at.isoformat() if r.last_attempt_at else None
+                ),
+                "last_error": r.last_error,
+                "failed": r.failed,
             }
             for r in items
         ]
@@ -166,17 +176,79 @@ def run_due():
         .filter(
             Reminder.user_id == uid,
             Reminder.sent.is_(False),
+            Reminder.failed.is_(False),
             Reminder.send_at <= now,
         )
+        .filter((Reminder.next_retry_at.is_(None)) | (Reminder.next_retry_at <= now))
         .all()
     )
-    for r in items:
-        send_reminder(r)
-        r.sent = True
-        track_reminder_event(event="sent", channel=r.channel)
+    result = process_due_reminders(items, now=now)
+    for reminder in items:
+        if reminder.sent:
+            track_reminder_event(event="sent", channel=reminder.channel)
+        elif reminder.failed:
+            track_reminder_event(event="failed", channel=reminder.channel)
+        else:
+            track_reminder_event(event="retry_scheduled", channel=reminder.channel)
     db.session.commit()
-    logger.info("Processed due reminders user=%s count=%s", uid, len(items))
-    return jsonify(processed=len(items))
+    logger.info(
+        "Processed due reminders user=%s processed=%s sent=%s "
+        "retry_scheduled=%s failed=%s",
+        uid,
+        result.processed,
+        result.sent,
+        result.retry_scheduled,
+        result.failed,
+    )
+    return jsonify(
+        processed=result.processed,
+        sent=result.sent,
+        retry_scheduled=result.retry_scheduled,
+        failed=result.failed,
+    )
+
+
+@bp.get("/jobs")
+@jwt_required()
+def reminder_job_status():
+    uid = int(get_jwt_identity())
+    now = datetime.utcnow()
+    base = db.session.query(Reminder).filter(Reminder.user_id == uid)
+    pending = base.filter(Reminder.sent.is_(False), Reminder.failed.is_(False)).count()
+    due = (
+        base.filter(
+            Reminder.sent.is_(False),
+            Reminder.failed.is_(False),
+            Reminder.send_at <= now,
+        )
+        .filter((Reminder.next_retry_at.is_(None)) | (Reminder.next_retry_at <= now))
+        .count()
+    )
+    failed = base.filter(Reminder.failed.is_(True)).count()
+    retrying = base.filter(
+        Reminder.sent.is_(False),
+        Reminder.failed.is_(False),
+        Reminder.next_retry_at.isnot(None),
+        Reminder.next_retry_at > now,
+    ).count()
+    return jsonify(pending=pending, due=due, retrying=retrying, failed=failed)
+
+
+@bp.post("/<int:reminder_id>/retry")
+@jwt_required()
+def retry_failed_reminder(reminder_id: int):
+    uid = int(get_jwt_identity())
+    reminder = db.session.get(Reminder, reminder_id)
+    if not reminder or reminder.user_id != uid:
+        return jsonify(error="not found"), 404
+    if reminder.sent:
+        return jsonify(error="reminder already sent"), 400
+    reminder.failed = False
+    reminder.retry_count = 0
+    reminder.next_retry_at = datetime.utcnow()
+    reminder.last_error = None
+    db.session.commit()
+    return jsonify(id=reminder.id, retry_scheduled=True)
 
 
 def _bill_channels(bill: Bill) -> list[str]:
