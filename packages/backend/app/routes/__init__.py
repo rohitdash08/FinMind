@@ -5,6 +5,7 @@ from .bills import bp as bills_bp
 from .reminders import bp as reminders_bp
 from .insights import bp as insights_bp
 from .categories import bp as categories_bp
+from .accounts import bp as accounts_bp
 from .docs import bp as docs_bp
 from .dashboard import bp as dashboard_bp
 
@@ -16,5 +17,6 @@ def register_routes(app: Flask):
     app.register_blueprint(reminders_bp, url_prefix="/reminders")
     app.register_blueprint(insights_bp, url_prefix="/insights")
     app.register_blueprint(categories_bp, url_prefix="/categories")
+    app.register_blueprint(accounts_bp, url_prefix="/accounts")
     app.register_blueprint(docs_bp, url_prefix="/docs")
     app.register_blueprint(dashboard_bp, url_prefix="/dashboard")

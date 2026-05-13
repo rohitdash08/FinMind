@@ -100,6 +100,7 @@ export function Dashboard() {
   const transactions = data?.recent_transactions ?? [];
   const upcomingBills = data?.upcoming_bills ?? [];
   const categoryBreakdown = data?.category_breakdown ?? [];
+  const accountOverview = data?.account_overview ?? [];
 
   return (
     <div className="page-wrap">
@@ -165,6 +166,55 @@ export function Dashboard() {
           </FinancialCard>
         ))}
       </div>
+
+      <FinancialCard variant="financial" className="mb-8 fade-in-up">
+        <FinancialCardHeader>
+          <div className="flex items-center justify-between">
+            <FinancialCardTitle className="section-title">Account Overview</FinancialCardTitle>
+            <Button variant="ghost" size="sm" onClick={() => navigate('/account')}>Manage</Button>
+          </div>
+          <FinancialCardDescription>Monthly movement across all active accounts</FinancialCardDescription>
+        </FinancialCardHeader>
+        <FinancialCardContent>
+          {accountOverview.length === 0 ? (
+            <div className="text-sm text-muted-foreground">Create accounts to compare balances in one view.</div>
+          ) : (
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {accountOverview.map((account) => {
+                const positive = account.net_flow >= 0;
+                return (
+                  <div key={account.account_id ?? 'unassigned'} className="interactive-row">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="font-medium text-foreground">{account.name}</div>
+                        <div className="text-xs text-muted-foreground">{account.account_type}</div>
+                      </div>
+                      <div className={`text-sm font-semibold ${positive ? 'text-success' : 'text-destructive'}`}>
+                        {positive ? '+' : ''}
+                        {currency(account.net_flow, account.currency || undefined)}
+                      </div>
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+                      <div>
+                        <div>Income</div>
+                        <div className="font-medium text-success">{currency(account.monthly_income, account.currency || undefined)}</div>
+                      </div>
+                      <div>
+                        <div>Expenses</div>
+                        <div className="font-medium text-foreground">{currency(account.monthly_expenses, account.currency || undefined)}</div>
+                      </div>
+                      <div className="col-span-2">
+                        <div>Projected balance</div>
+                        <div className="font-medium text-foreground">{currency(account.projected_balance, account.currency || undefined)}</div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </FinancialCardContent>
+      </FinancialCard>
 
       <div className="grid lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2">

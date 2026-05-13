@@ -7,6 +7,7 @@ servers:
   - url: http://localhost:8000
 tags:
   - name: Auth
+  - name: Accounts
   - name: Categories
   - name: Expenses
   - name: Bills
@@ -93,6 +94,36 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
               example: { error: "Missing Authorization Header" }
+
+  /accounts:
+    get:
+      summary: List financial accounts
+      tags: [Accounts]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Active accounts
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/FinancialAccount' }
+    post:
+      summary: Create financial account
+      tags: [Accounts]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NewFinancialAccount' }
+      responses:
+        '201': { description: Created }
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
 
   /categories:
     get:
@@ -503,12 +534,30 @@ components:
       properties:
         id: { type: integer }
         name: { type: string }
+    FinancialAccount:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        account_type: { type: string }
+        currency: { type: string }
+        opening_balance: { type: number, format: float }
+        active: { type: boolean }
+    NewFinancialAccount:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        account_type: { type: string, default: CHECKING }
+        currency: { type: string, default: INR }
+        opening_balance: { type: number, format: float, default: 0 }
     Expense:
       type: object
       properties:
         id: { type: integer }
         amount: { type: number, format: float }
         currency: { type: string }
+        account_id: { type: integer, nullable: true }
         category_id: { type: integer }
         expense_type: { type: string }
         description: { type: string, nullable: true }
@@ -519,6 +568,7 @@ components:
       properties:
         amount: { type: number, format: float }
         currency: { type: string, default: USD }
+        account_id: { type: integer, nullable: true }
         category_id: { type: integer, nullable: true }
         expense_type: { type: string, default: EXPENSE }
         description: { type: string, nullable: true }

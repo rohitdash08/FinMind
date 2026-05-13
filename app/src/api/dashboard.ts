@@ -15,6 +15,7 @@ export type DashboardSummary = {
     amount: number;
     date: string;
     type: 'INCOME' | 'EXPENSE' | string;
+    account_id: number | null;
     category_id: number | null;
     currency: string;
   }>;
@@ -33,6 +34,17 @@ export type DashboardSummary = {
     category_name: string;
     amount: number;
     share_pct: number;
+  }>;
+  account_overview: Array<{
+    account_id: number | null;
+    name: string;
+    account_type: string;
+    currency: string | null;
+    opening_balance: number;
+    monthly_income: number;
+    monthly_expenses: number;
+    net_flow: number;
+    projected_balance: number;
   }>;
   errors?: string[];
 };

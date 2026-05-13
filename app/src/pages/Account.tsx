@@ -3,7 +3,9 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { me, updateMe } from '@/api/auth';
+import { createAccount, listAccounts, type FinancialAccount } from '@/api/accounts';
 import { setCurrency } from '@/lib/auth';
+import { formatMoney } from '@/lib/currency';
 
 const SUPPORTED_CURRENCIES = [
   { code: 'INR', label: 'Indian Rupee (INR)' },
@@ -23,14 +25,20 @@ export default function Account() {
   const [currency, setCurrencyState] = useState('INR');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [accounts, setAccounts] = useState<FinancialAccount[]>([]);
+  const [accountName, setAccountName] = useState('');
+  const [accountType, setAccountType] = useState('CHECKING');
+  const [openingBalance, setOpeningBalance] = useState('0');
 
   useEffect(() => {
     const load = async () => {
       setLoading(true);
       try {
         const data = await me();
+        const accountData = await listAccounts();
         setEmail(data.email);
         setCurrencyState(data.preferred_currency || 'INR');
+        setAccounts(accountData);
       } catch (error: unknown) {
         const message =
           error instanceof Error ? error.message : 'Failed to load account';
@@ -55,6 +63,33 @@ export default function Account() {
       const message =
         error instanceof Error ? error.message : 'Failed to update account';
       toast({ title: 'Failed to update account', description: message });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const onCreateAccount = async () => {
+    const name = accountName.trim();
+    if (!name) {
+      toast({ title: 'Account name required' });
+      return;
+    }
+    setSaving(true);
+    try {
+      const account = await createAccount({
+        name,
+        account_type: accountType,
+        currency,
+        opening_balance: Number(openingBalance || 0),
+      });
+      setAccounts((items) => [...items, account].sort((a, b) => a.name.localeCompare(b.name)));
+      setAccountName('');
+      setOpeningBalance('0');
+      toast({ title: 'Financial account added' });
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? error.message : 'Failed to create account';
+      toast({ title: 'Failed to create account', description: message });
     } finally {
       setSaving(false);
     }
@@ -105,6 +140,71 @@ export default function Account() {
                 {saving ? 'Saving...' : 'Save Preferences'}
               </Button>
             </div>
+          </>
+        )}
+      </div>
+
+      <div className="card card-interactive space-y-5 fade-in-up">
+        <div>
+          <h2 className="section-title">Financial Accounts</h2>
+          <p className="text-sm text-muted-foreground">
+            Add accounts to compare income, spending, and projected balances on the dashboard.
+          </p>
+        </div>
+        {loading ? (
+          <div className="text-sm text-muted-foreground">Loading accounts...</div>
+        ) : (
+          <>
+            <div className="grid gap-3 md:grid-cols-4">
+              <input
+                aria-label="Account name"
+                className="input"
+                placeholder="Account name"
+                value={accountName}
+                onChange={(e) => setAccountName(e.target.value)}
+              />
+              <select
+                aria-label="Account type"
+                className="input"
+                value={accountType}
+                onChange={(e) => setAccountType(e.target.value)}
+              >
+                <option value="CHECKING">Checking</option>
+                <option value="SAVINGS">Savings</option>
+                <option value="CREDIT">Credit</option>
+                <option value="CASH">Cash</option>
+                <option value="INVESTMENT">Investment</option>
+                <option value="OTHER">Other</option>
+              </select>
+              <input
+                aria-label="Opening balance"
+                className="input"
+                inputMode="decimal"
+                placeholder="Opening balance"
+                value={openingBalance}
+                onChange={(e) => setOpeningBalance(e.target.value)}
+              />
+              <Button variant="financial" onClick={onCreateAccount} disabled={saving}>
+                Add Account
+              </Button>
+            </div>
+            {accounts.length === 0 ? (
+              <div className="text-sm text-muted-foreground">No financial accounts yet.</div>
+            ) : (
+              <div className="grid gap-3 md:grid-cols-2">
+                {accounts.map((account) => (
+                  <div key={account.id} className="interactive-row flex items-center justify-between">
+                    <div>
+                      <div className="font-medium text-foreground">{account.name}</div>
+                      <div className="text-xs text-muted-foreground">{account.account_type}</div>
+                    </div>
+                    <div className="text-sm font-semibold text-foreground">
+                      {formatMoney(account.opening_balance, account.currency)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </>
         )}
       </div>
