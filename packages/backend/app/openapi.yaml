@@ -222,6 +222,35 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
 
+  /expenses/recurring/detect:
+    get:
+      summary: Detect recurring expense candidates
+      tags: [Expenses]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: min_occurrences
+          required: false
+          schema: { type: integer, minimum: 2, maximum: 12, default: 3 }
+        - in: query
+          name: lookback_days
+          required: false
+          schema: { type: integer, minimum: 30, maximum: 1095, default: 730 }
+      responses:
+        '200':
+          description: Likely subscriptions inferred from repeated charges
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RecurringExpenseCandidate'
+        '400':
+          description: Invalid detection parameters
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
   /expenses/recurring/{recurringId}/generate:
     post:
       summary: Generate concrete expenses from recurring definition
@@ -548,6 +577,23 @@ components:
         cadence: { type: string, enum: [DAILY, WEEKLY, MONTHLY, YEARLY] }
         start_date: { type: string, format: date }
         end_date: { type: string, format: date, nullable: true }
+    RecurringExpenseCandidate:
+      type: object
+      properties:
+        amount: { type: number, format: float }
+        currency: { type: string }
+        expense_type: { type: string }
+        category_id: { type: integer, nullable: true }
+        description: { type: string }
+        cadence: { type: string, enum: [DAILY, WEEKLY, MONTHLY, YEARLY] }
+        start_date: { type: string, format: date }
+        last_seen_date: { type: string, format: date }
+        next_expected_date: { type: string, format: date }
+        occurrences: { type: integer }
+        confidence: { type: string, enum: [HIGH, MEDIUM] }
+        matching_expense_ids:
+          type: array
+          items: { type: integer }
     Bill:
       type: object
       properties:

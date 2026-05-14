@@ -8,6 +8,10 @@ from ..extensions import db
 from ..models import Expense, RecurringCadence, RecurringExpense, User
 from ..services.cache import cache_delete_patterns, monthly_summary_key
 from ..services import expense_import
+from ..services.recurring_detection import (
+    detect_recurring_expenses,
+    recurring_candidate_to_dict,
+)
 import logging
 
 bp = Blueprint("expenses", __name__)
@@ -98,6 +102,35 @@ def list_recurring_expenses():
         .all()
     )
     return jsonify([_recurring_to_dict(r) for r in items])
+
+
+@bp.get("/recurring/detect")
+@jwt_required()
+def detect_recurring_expense_candidates():
+    uid = int(get_jwt_identity())
+    try:
+        min_occurrences = min(12, max(2, int(request.args.get("min_occurrences", "3"))))
+        lookback_days = min(
+            1095, max(30, int(request.args.get("lookback_days", "730")))
+        )
+    except ValueError:
+        return jsonify(error="invalid detection parameters"), 400
+
+    since = date.today() - timedelta(days=lookback_days)
+    expenses = (
+        db.session.query(Expense)
+        .filter(
+            Expense.user_id == uid,
+            Expense.spent_at >= since,
+        )
+        .order_by(Expense.spent_at.asc(), Expense.id.asc())
+        .all()
+    )
+    candidates = detect_recurring_expenses(
+        expenses,
+        min_occurrences=min_occurrences,
+    )
+    return jsonify([recurring_candidate_to_dict(candidate) for candidate in candidates])
 
 
 @bp.post("/recurring")
