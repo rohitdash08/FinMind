@@ -15,6 +15,7 @@ import {
   type Reminder,
 } from '@/api/reminders';
 import { listBills, type Bill } from '@/api/bills';
+import { formatDate } from '@/lib/currency';
 
 export function Reminders() {
   const { toast } = useToast();
@@ -268,7 +269,7 @@ export function Reminders() {
                 <div key={r.id} className="interactive-row flex items-center justify-between border-b py-2">
                   <div>
                     <div className="font-medium">{r.message}</div>
-                    <div className="text-xs text-muted-foreground">{new Date(r.send_at).toLocaleString()} • {r.channel} • {r.sent ? 'sent' : 'pending'}</div>
+                    <div className="text-xs text-muted-foreground">{formatDate(r.send_at, { dateStyle: 'short', timeStyle: 'short' })} • {r.channel} • {r.sent ? 'sent' : 'pending'}</div>
                   </div>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
