@@ -46,6 +46,7 @@ flowchart LR
 ## PostgreSQL Schema (DDL)
 See `backend/app/db/schema.sql`. Key tables:
 - users, categories, expenses, bills, reminders
+- webhook_endpoints, webhook_deliveries
 - ad_impressions, subscription_plans, user_subscriptions
 - refresh_tokens (optional if rotating), audit_logs
 
@@ -66,6 +67,15 @@ OpenAPI: `backend/app/openapi.yaml`
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
 - Insights: `/insights/monthly`, `/insights/budget-suggestion`
+- Webhooks: manage `/webhooks`, inspect `/webhooks/deliveries`, run `/webhooks/deliveries/run`
+
+## Webhook Events
+- Configure signed webhook endpoints with `POST /webhooks`.
+- If no secret is supplied, FinMind generates one and returns it once in the create response.
+- Deliveries are queued when matching events happen, signed with `X-FinMind-Signature: sha256=<hmac>` over `{timestamp}.{json_body}`, and retried with exponential backoff.
+- Run pending deliveries with `flask process-webhooks` from a worker/cron process, or with `POST /webhooks/deliveries/run` for the authenticated user's due deliveries.
+- Supported events: `expense.created`, `expense.updated`, `expense.deleted`, `bill.created`, `bill.paid`, `reminder.created`, `reminder.scheduled`, `reminder.sent`.
+- Delivery headers: `X-FinMind-Event`, `X-FinMind-Delivery`, `X-FinMind-Timestamp`, and `X-FinMind-Signature`.
 
 ## MVP UI/UX Plan
 - Auth screens: register/login.
@@ -104,11 +114,13 @@ finmind/
         bills.py
         reminders.py
         insights.py
+        webhooks.py
       services/
         __init__.py
         ai.py
         cache.py
         reminders.py
+        webhooks.py
       db/
         schema.sql
       openapi.yaml

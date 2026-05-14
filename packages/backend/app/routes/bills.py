@@ -4,6 +4,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..extensions import db
 from ..models import Bill, BillCadence, User
 from ..services.cache import cache_delete_patterns
+from ..services.webhooks import publish_webhook_event
 import logging
 
 bp = Blueprint("bills", __name__)
@@ -62,6 +63,7 @@ def create_bill():
     cache_delete_patterns(
         [f"user:{uid}:upcoming_bills*", f"user:{uid}:dashboard_summary:*"]
     )
+    publish_webhook_event(uid, "bill.created", _bill_to_dict(b))
     return jsonify(id=b.id), 201
 
 
@@ -88,4 +90,20 @@ def mark_paid(bill_id: int):
     logger.info(
         "Marked bill paid id=%s user=%s next_due_date=%s", b.id, uid, b.next_due_date
     )
+    publish_webhook_event(uid, "bill.paid", _bill_to_dict(b))
     return jsonify(message="updated")
+
+
+def _bill_to_dict(b: Bill) -> dict:
+    return {
+        "id": b.id,
+        "name": b.name,
+        "amount": float(b.amount),
+        "currency": b.currency,
+        "next_due_date": b.next_due_date.isoformat(),
+        "cadence": b.cadence.value,
+        "autopay_enabled": b.autopay_enabled,
+        "channel_whatsapp": b.channel_whatsapp,
+        "channel_email": b.channel_email,
+        "active": b.active,
+    }

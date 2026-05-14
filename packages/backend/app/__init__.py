@@ -8,6 +8,7 @@ from .observability import (
     finalize_request,
     init_request_context,
 )
+from .services.webhooks import process_due_deliveries
 from flask_cors import CORS
 import click
 import os
@@ -93,6 +94,16 @@ def create_app(settings: Settings | None = None) -> Flask:
             finally:
                 conn.close()
 
+    @app.cli.command("process-webhooks")
+    def process_webhooks():
+        """Deliver due webhook events and schedule failed attempts for retry."""
+        with app.app_context():
+            result = process_due_deliveries()
+            click.echo(
+                "processed={processed} delivered={delivered} "
+                "retrying={retrying} failed={failed}".format(**result)
+            )
+
     return app
 
 
@@ -110,10 +121,60 @@ def _ensure_schema_compatibility(app: Flask) -> None:
             NOT NULL DEFAULT 'INR'
             """
         )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS webhook_endpoints (
+              id SERIAL PRIMARY KEY,
+              user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              url VARCHAR(500) NOT NULL,
+              secret VARCHAR(255) NOT NULL,
+              event_types TEXT NOT NULL DEFAULT '["*"]',
+              active BOOLEAN NOT NULL DEFAULT TRUE,
+              created_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+            """
+        )
+        cur.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_webhook_endpoints_user_active
+              ON webhook_endpoints(user_id, active)
+            """
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS webhook_deliveries (
+              id SERIAL PRIMARY KEY,
+              endpoint_id INT NOT NULL
+                REFERENCES webhook_endpoints(id) ON DELETE CASCADE,
+              user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              event_type VARCHAR(100) NOT NULL,
+              payload_json TEXT NOT NULL,
+              status VARCHAR(20) NOT NULL DEFAULT 'pending',
+              attempts INT NOT NULL DEFAULT 0,
+              next_attempt_at TIMESTAMP NOT NULL DEFAULT NOW(),
+              last_error VARCHAR(500),
+              delivered_at TIMESTAMP,
+              created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+              updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+            """
+        )
+        cur.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_due
+              ON webhook_deliveries(status, next_attempt_at)
+            """
+        )
+        cur.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_user_status
+              ON webhook_deliveries(user_id, status, created_at DESC)
+            """
+        )
         conn.commit()
     except Exception:
         app.logger.exception(
-            "Schema compatibility patch failed for users.preferred_currency"
+            "Schema compatibility patch failed for core compatibility tables"
         )
         conn.rollback()
     finally:

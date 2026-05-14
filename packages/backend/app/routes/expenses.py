@@ -7,6 +7,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..extensions import db
 from ..models import Expense, RecurringCadence, RecurringExpense, User
 from ..services.cache import cache_delete_patterns, monthly_summary_key
+from ..services.webhooks import publish_webhook_event
 from ..services import expense_import
 import logging
 
@@ -84,6 +85,7 @@ def create_expense():
             f"insights:{uid}:*",
         ]
     )
+    publish_webhook_event(uid, "expense.created", _expense_to_dict(e))
     return jsonify(_expense_to_dict(e)), 201
 
 
@@ -231,6 +233,7 @@ def update_expense(expense_id: int):
         e.spent_at = date.fromisoformat(raw_date)
     db.session.commit()
     _invalidate_expense_cache(uid, e.spent_at.isoformat())
+    publish_webhook_event(uid, "expense.updated", _expense_to_dict(e))
     return jsonify(_expense_to_dict(e))
 
 
@@ -242,9 +245,11 @@ def delete_expense(expense_id: int):
     if not e or e.user_id != uid:
         return jsonify(error="not found"), 404
     spent_at = e.spent_at.isoformat()
+    payload = _expense_to_dict(e)
     db.session.delete(e)
     db.session.commit()
     _invalidate_expense_cache(uid, spent_at)
+    publish_webhook_event(uid, "expense.deleted", payload)
     return jsonify(message="deleted")
 
 
@@ -289,6 +294,7 @@ def import_commit():
     inserted = 0
     duplicates = 0
     touched_months: set[str] = set()
+    created_expenses: list[Expense] = []
     for t in transactions:
         if _is_duplicate(uid, t):
             duplicates += 1
@@ -303,11 +309,14 @@ def import_commit():
             spent_at=date.fromisoformat(t["date"]),
         )
         db.session.add(expense)
+        created_expenses.append(expense)
         inserted += 1
         touched_months.add(t["date"][:7])
     db.session.commit()
     for ym in touched_months:
         _invalidate_expense_cache(uid, ym + "-01")
+    for expense in created_expenses:
+        publish_webhook_event(uid, "expense.created", _expense_to_dict(expense))
     return jsonify(inserted=inserted, duplicates=duplicates), 201
 
 
