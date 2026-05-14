@@ -65,6 +65,7 @@ OpenAPI: `backend/app/openapi.yaml`
 - Expenses: CRUD `/expenses`
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
+- Savings goals: CRUD `/savings-goals`, progress tracking, milestones, completion status
 - Insights: `/insights/monthly`, `/insights/budget-suggestion`
 
 ## MVP UI/UX Plan
@@ -75,6 +76,7 @@ OpenAPI: `backend/app/openapi.yaml`
   - AI budget suggestion card.
 - Expenses page: add expense (amount, category, notes, date), list & filter.
 - Bills page: create bill (name, amount, cadence, due date, channel), toggle WhatsApp/email.
+- Savings goals page: create target balances, update saved progress, and view reached milestones.
 - Settings: profile, categories, reminders default channel, export (premium).
 
 ## Monetization Plan

@@ -11,6 +11,7 @@ const navigation = [
   { name: 'Budgets', href: '/budgets' },
   { name: 'Bills', href: '/bills' },
   { name: 'Reminders', href: '/reminders' },
+  { name: 'Savings', href: '/savings-goals' },
   { name: 'Expenses', href: '/expenses' },
   { name: 'Analytics', href: '/analytics' },
 ];

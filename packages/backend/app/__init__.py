@@ -110,6 +110,35 @@ def _ensure_schema_compatibility(app: Flask) -> None:
             NOT NULL DEFAULT 'INR'
             """
         )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS savings_goals (
+              id SERIAL PRIMARY KEY,
+              user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              name VARCHAR(160) NOT NULL,
+              target_amount NUMERIC(12,2) NOT NULL,
+              current_amount NUMERIC(12,2) NOT NULL DEFAULT 0,
+              currency VARCHAR(10) NOT NULL DEFAULT 'INR',
+              target_date DATE,
+              status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
+              created_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+            """
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS savings_milestones (
+              id SERIAL PRIMARY KEY,
+              goal_id INT NOT NULL REFERENCES savings_goals(id) ON DELETE CASCADE,
+              user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              name VARCHAR(160) NOT NULL,
+              amount NUMERIC(12,2) NOT NULL,
+              reached BOOLEAN NOT NULL DEFAULT FALSE,
+              reached_at TIMESTAMP,
+              created_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+            """
+        )
         conn.commit()
     except Exception:
         app.logger.exception(
