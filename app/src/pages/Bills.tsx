@@ -8,7 +8,7 @@ import { listBills, createBill, markBillPaid, deleteBill, type Bill } from '@/ap
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dailog';
 import { Link } from 'react-router-dom';
-import { formatMoney } from '@/lib/currency';
+import { formatDate, formatMoney } from '@/lib/currency';
 
 const upcomingBills = [
   {
@@ -245,7 +245,7 @@ export function Bills() {
                     <div>
                       <div className="font-medium">{b.name}</div>
                       <div className="text-xs text-muted-foreground">
-                        Due {b.next_due_date || '—'} • {formatMoney(Number(b.amount || 0), b.currency)}
+                        Due {b.next_due_date ? formatDate(b.next_due_date) : '—'} • {formatMoney(Number(b.amount || 0), b.currency)}
                       </div>
                     </div>
                     <div className="flex gap-2">
@@ -321,7 +321,7 @@ export function Bills() {
             </FinancialCardHeader>
             <FinancialCardContent>
               <div className="metric-value text-foreground mb-1">
-                ${totalUpcoming.toLocaleString()}
+                {formatMoney(totalUpcoming)}
               </div>
               <div className="text-sm text-muted-foreground">
                 {upcomingBills.length} bills this month
@@ -378,7 +378,7 @@ export function Bills() {
             </FinancialCardHeader>
             <FinancialCardContent>
               <div className="metric-value text-foreground mb-1">
-                ${(totalUpcoming * 0.92).toLocaleString()}
+                {formatMoney(totalUpcoming * 0.92)}
               </div>
               <div className="text-sm text-muted-foreground">
                 Last 6 months
@@ -433,7 +433,7 @@ export function Bills() {
                             {bill.name}
                           </div>
                           <div className="text-sm text-muted-foreground">
-                            {bill.provider} • Due {new Date(bill.dueDate).toLocaleDateString()}
+                            {bill.provider} • Due {formatDate(bill.dueDate)}
                           </div>
                           <div className="flex items-center space-x-2 mt-1">
                             <Badge variant="outline" className="text-xs">
@@ -454,7 +454,7 @@ export function Bills() {
                       </div>
                       <div className="text-right">
                         <div className="text-lg font-semibold text-foreground">
-                          ${bill.amount.toFixed(2)}
+                          {formatMoney(bill.amount)}
                         </div>
                         <Button variant="ghost" size="sm" className="mt-1">
                           Pay Now
@@ -493,7 +493,7 @@ export function Bills() {
                         </div>
                       </div>
                       <div className="text-sm font-semibold text-foreground">
-                        ${category.amount.toFixed(2)}
+                        {formatMoney(category.amount)}
                       </div>
                     </div>
                   ))}
@@ -522,12 +522,12 @@ export function Bills() {
                             {payment.name}
                           </div>
                           <div className="text-xs text-muted-foreground">
-                            {new Date(payment.paidDate).toLocaleDateString()} • {payment.method}
+                            {formatDate(payment.paidDate)} • {payment.method}
                           </div>
                         </div>
                       </div>
                       <div className="text-sm font-semibold text-foreground">
-                        ${payment.amount.toFixed(2)}
+                        {formatMoney(payment.amount)}
                       </div>
                     </div>
                   ))}

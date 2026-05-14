@@ -59,6 +59,12 @@ See `backend/app/db/schema.sql`. Key tables:
   - On expense/bill create/update/delete -> delete affected monthly_summary, upcoming_bills, insights
 - Rate limiting (optional): `rl:{userId}:{endpoint}:{minute}` with short TTL
 
+## Locale-Aware Formatting
+- Frontend money, number, percent, and date display should go through `app/src/lib/currency.ts`.
+- The shared helpers use the browser locale from `navigator.language` and the user's preferred currency from local storage.
+- Use `formatMoney` for currency amounts, `formatNumber` for plain numbers, `formatPercent` for percentages, and `formatDate` for dates/date-times.
+- Avoid direct `toLocaleString`, `toLocaleDateString`, and hard-coded `$` formatting in pages and reusable UI.
+
 ## API Endpoints
 OpenAPI: `backend/app/openapi.yaml`
 - Auth: `/auth/register`, `/auth/login`, `/auth/refresh`

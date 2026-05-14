@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import { getDashboardSummary, type DashboardSummary } from '@/api/dashboard';
 import { useNavigate } from 'react-router-dom';
-import { formatMoney } from '@/lib/currency';
+import { formatDate, formatMoney, formatPercent } from '@/lib/currency';
 
 function currency(n: number, code?: string) {
   return formatMoney(Number(n || 0), code);
@@ -193,7 +193,7 @@ export function Dashboard() {
                           </div>
                           <div>
                             <div className="font-medium text-foreground">{transaction.description}</div>
-                            <div className="text-sm text-muted-foreground">{new Date(transaction.date).toLocaleDateString()}</div>
+                            <div className="text-sm text-muted-foreground">{formatDate(transaction.date)}</div>
                           </div>
                         </div>
                         <div className={`font-semibold ${isIncome ? 'text-success' : 'text-foreground'}`}>
@@ -231,7 +231,7 @@ export function Dashboard() {
                         </div>
                         <div>
                           <div className="font-medium text-foreground text-sm">{bill.name}</div>
-                          <div className="text-xs text-muted-foreground">Due {new Date(bill.next_due_date).toLocaleDateString()}</div>
+                          <div className="text-xs text-muted-foreground">Due {formatDate(bill.next_due_date)}</div>
                         </div>
                       </div>
                       <div className="text-sm font-semibold text-foreground">
@@ -264,7 +264,7 @@ export function Dashboard() {
                     <div key={`${row.category_id ?? 'uncat'}-${row.category_name}`} className="space-y-1">
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-foreground">{row.category_name}</span>
-                        <span className="text-muted-foreground">{currency(row.amount)} ({row.share_pct.toFixed(0)}%)</span>
+                        <span className="text-muted-foreground">{currency(row.amount)} ({formatPercent(row.share_pct)})</span>
                       </div>
                       <div className="chart-track h-2">
                         <div className="chart-fill-primary h-2" style={{ width: `${Math.max(2, Math.min(100, row.share_pct))}%` }} />

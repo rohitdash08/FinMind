@@ -3,6 +3,7 @@ import { FinancialCard, FinancialCardContent, FinancialCardDescription, Financia
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Calendar, DollarSign, Plus, PieChart, TrendingDown, TrendingUp, Target, AlertCircle, Settings } from 'lucide-react';
+import { formatMoney, formatPercent } from '@/lib/currency';
 
 const budgetCategories = [
   {
@@ -140,7 +141,7 @@ export function Budgets() {
             </FinancialCardHeader>
             <FinancialCardContent>
               <div className="metric-value text-foreground mb-1">
-                ${totalAllocated.toLocaleString()}
+                {formatMoney(totalAllocated)}
               </div>
               <div className="text-sm text-muted-foreground">
                 This month's budget
@@ -159,10 +160,10 @@ export function Budgets() {
             </FinancialCardHeader>
             <FinancialCardContent>
               <div className="metric-value text-foreground mb-1">
-                ${totalSpent.toLocaleString()}
+                {formatMoney(totalSpent)}
               </div>
               <div className="text-sm text-muted-foreground">
-                {((totalSpent / totalAllocated) * 100).toFixed(1)}% of budget used
+                {formatPercent((totalSpent / totalAllocated) * 100, 1)} of budget used
               </div>
             </FinancialCardContent>
           </FinancialCard>
@@ -182,7 +183,7 @@ export function Budgets() {
             </FinancialCardHeader>
             <FinancialCardContent>
               <div className="metric-value mb-1">
-                ${Math.abs(totalRemaining).toLocaleString()}
+                {formatMoney(Math.abs(totalRemaining))}
               </div>
               <div className="text-sm opacity-80">
                 {totalRemaining < 0 ? 'Overspent this month' : 'Available to spend'}
@@ -220,7 +221,7 @@ export function Budgets() {
                             <div>
                               <div className="font-medium text-foreground">{category.name}</div>
                               <div className="text-sm text-muted-foreground">
-                                ${category.spent} of ${category.allocated}
+                                {formatMoney(category.spent)} of {formatMoney(category.allocated)}
                               </div>
                             </div>
                           </div>
@@ -228,7 +229,7 @@ export function Budgets() {
                             <div className={`font-semibold ${
                               isOverBudget ? 'text-destructive' : 'text-foreground'
                             }`}>
-                              {isOverBudget ? '-' : ''}${Math.abs(category.remaining)}
+                              {isOverBudget ? '-' : ''}{formatMoney(Math.abs(category.remaining))}
                             </div>
                             <div className="flex items-center text-sm">
                               {category.trend === 'up' ? (
@@ -302,10 +303,10 @@ export function Budgets() {
                         <div className="space-y-2">
                           <div className="flex justify-between text-sm">
                             <span className="text-muted-foreground">
-                              ${goal.current.toLocaleString()} / ${goal.target.toLocaleString()}
+                              {formatMoney(goal.current)} / {formatMoney(goal.target)}
                             </span>
                             <span className="text-foreground font-medium">
-                              {percentage.toFixed(0)}%
+                              {formatPercent(percentage)}
                             </span>
                           </div>
                           <div className="chart-track">
@@ -313,7 +314,7 @@ export function Budgets() {
                           </div>
                           <div className="flex justify-between text-xs text-muted-foreground">
                             <span>Target: {goal.deadline}</span>
-                            <span>${goal.monthlyTarget}/mo</span>
+                            <span>{formatMoney(goal.monthlyTarget)}/mo</span>
                           </div>
                         </div>
                       </div>
