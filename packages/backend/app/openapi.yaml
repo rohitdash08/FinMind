@@ -374,13 +374,75 @@ paths:
 
   /reminders/run:
     post:
-      summary: Process due reminders
+      summary: Process due reminders with retry tracking
       tags: [Reminders]
       security: [{ bearerAuth: [] }]
       responses:
-        '200': { description: Processed count }
+        '200':
+          description: Processed count by outcome
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  processed: { type: integer }
+                  sent: { type: integer }
+                  retrying: { type: integer }
+                  failed: { type: integer }
         '401':
           description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /reminders/jobs:
+    get:
+      summary: Monitor reminder job retry state
+      tags: [Reminders]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Reminder job summary and dead-letter reminders
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  summary:
+                    type: object
+                    properties:
+                      total: { type: integer }
+                      sent: { type: integer }
+                      failed: { type: integer }
+                      retrying: { type: integer }
+                      pending: { type: integer }
+                  dead_letter:
+                    type: array
+                    items: { $ref: '#/components/schemas/Reminder' }
+
+  /reminders/{reminderId}/retry:
+    post:
+      summary: Reset a failed reminder for retry
+      tags: [Reminders]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: reminderId
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Reminder retry state reset
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Reminder' }
+        '400':
+          description: Reminder cannot be retried
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404':
+          description: Reminder not found
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
@@ -580,6 +642,12 @@ components:
         send_at: { type: string, format: date-time }
         sent: { type: boolean }
         channel: { type: string, enum: [email, whatsapp] }
+        retry_count: { type: integer }
+        max_retries: { type: integer }
+        next_retry_at: { type: string, format: date-time, nullable: true }
+        last_attempt_at: { type: string, format: date-time, nullable: true }
+        last_error: { type: string, nullable: true }
+        failed: { type: boolean }
     NewReminder:
       type: object
       required: [message, send_at]

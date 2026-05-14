@@ -181,6 +181,12 @@ finmind/
 
 ## Notes on Free-Tier Reminders
 - Primary: schedule via APScheduler in-process with persistence in Postgres (job table) and a simple daily trigger. Alternatively, use Railway/Render cron to hit `/reminders/run`.
+- Reminder dispatch is resilient to transient provider failures. `/reminders/run`
+  records each attempt, keeps successful reminders moving, schedules bounded
+  exponential retries at 5/15/45 minutes, and moves exhausted reminders into a
+  dead-letter state.
+- Operators can monitor reminder jobs at `/reminders/jobs` and reset a failed
+  reminder with `POST /reminders/{id}/retry`.
 - Twilio WhatsApp free trial supports sandbox; email via SMTP (e.g., SendGrid free tier).
 
 ## Security & Scalability
