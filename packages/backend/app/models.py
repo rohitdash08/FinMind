@@ -100,6 +100,31 @@ class Reminder(db.Model):
     channel = db.Column(db.String(20), default="email", nullable=False)
 
 
+class SavingsGoal(db.Model):
+    __tablename__ = "savings_goals"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    name = db.Column(db.String(160), nullable=False)
+    target_amount = db.Column(db.Numeric(12, 2), nullable=False)
+    current_amount = db.Column(db.Numeric(12, 2), default=0, nullable=False)
+    currency = db.Column(db.String(10), default="INR", nullable=False)
+    target_date = db.Column(db.Date, nullable=True)
+    status = db.Column(db.String(20), default="ACTIVE", nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class SavingsMilestone(db.Model):
+    __tablename__ = "savings_milestones"
+    id = db.Column(db.Integer, primary_key=True)
+    goal_id = db.Column(db.Integer, db.ForeignKey("savings_goals.id"), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    name = db.Column(db.String(160), nullable=False)
+    amount = db.Column(db.Numeric(12, 2), nullable=False)
+    reached = db.Column(db.Boolean, default=False, nullable=False)
+    reached_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
 class AdImpression(db.Model):
     __tablename__ = "ad_impressions"
     id = db.Column(db.Integer, primary_key=True)
