@@ -5,6 +5,7 @@ from ..extensions import db
 from ..models import Bill, Reminder
 from ..observability import track_reminder_event
 from ..services.reminders import send_reminder
+from ..services.webhooks import publish_webhook_event
 import logging
 
 bp = Blueprint("reminders", __name__)
@@ -51,6 +52,7 @@ def create_reminder():
     db.session.commit()
     logger.info("Created reminder id=%s user=%s", r.id, uid)
     track_reminder_event(event="created", channel=r.channel)
+    publish_webhook_event(uid, "reminder.created", _reminder_to_dict(r))
     return jsonify(id=r.id), 201
 
 
@@ -115,6 +117,11 @@ def schedule_bill_reminders(bill_id: int):
                 track_reminder_event(event="scheduled", channel=channel)
 
     db.session.commit()
+    publish_webhook_event(
+        uid,
+        "reminder.scheduled",
+        {"bill_id": bill.id, "created": created, "offsets_days": offsets},
+    )
     return jsonify(created=created), 200
 
 
@@ -174,9 +181,21 @@ def run_due():
         send_reminder(r)
         r.sent = True
         track_reminder_event(event="sent", channel=r.channel)
+        publish_webhook_event(uid, "reminder.sent", _reminder_to_dict(r))
     db.session.commit()
     logger.info("Processed due reminders user=%s count=%s", uid, len(items))
     return jsonify(processed=len(items))
+
+
+def _reminder_to_dict(r: Reminder) -> dict:
+    return {
+        "id": r.id,
+        "bill_id": r.bill_id,
+        "message": r.message,
+        "send_at": r.send_at.isoformat(),
+        "sent": r.sent,
+        "channel": r.channel,
+    }
 
 
 def _bill_channels(bill: Bill) -> list[str]:

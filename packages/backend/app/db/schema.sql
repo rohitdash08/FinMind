@@ -95,6 +95,37 @@ CREATE TABLE IF NOT EXISTS reminders (
 );
 CREATE INDEX IF NOT EXISTS idx_reminders_due ON reminders(user_id, sent, send_at);
 
+CREATE TABLE IF NOT EXISTS webhook_endpoints (
+  id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  url VARCHAR(500) NOT NULL,
+  secret VARCHAR(255) NOT NULL,
+  event_types TEXT NOT NULL DEFAULT '["*"]',
+  active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_webhook_endpoints_user_active
+  ON webhook_endpoints(user_id, active);
+
+CREATE TABLE IF NOT EXISTS webhook_deliveries (
+  id SERIAL PRIMARY KEY,
+  endpoint_id INT NOT NULL REFERENCES webhook_endpoints(id) ON DELETE CASCADE,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  event_type VARCHAR(100) NOT NULL,
+  payload_json TEXT NOT NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'pending',
+  attempts INT NOT NULL DEFAULT 0,
+  next_attempt_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  last_error VARCHAR(500),
+  delivered_at TIMESTAMP,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_due
+  ON webhook_deliveries(status, next_attempt_at);
+CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_user_status
+  ON webhook_deliveries(user_id, status, created_at DESC);
+
 CREATE TABLE IF NOT EXISTS ad_impressions (
   id SERIAL PRIMARY KEY,
   user_id INT REFERENCES users(id) ON DELETE SET NULL,
