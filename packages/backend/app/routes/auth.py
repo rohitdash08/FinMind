@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 from flask import Blueprint, request, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_jwt_extended import (
@@ -9,7 +10,7 @@ from flask_jwt_extended import (
     get_jwt_identity,
 )
 from ..extensions import db, redis_client
-from ..models import User
+from ..models import AuditLog, LoginEvent, User
 import logging
 import time
 
@@ -58,12 +59,30 @@ def login():
     user = db.session.query(User).filter_by(email=email).first()
     if not user or not check_password_hash(user.password_hash, password):
         logger.warning("Login failed for email=%s", email)
+        _record_login_event(user, email, success=False)
+        db.session.commit()
         return jsonify(error="invalid credentials"), 401
+    alert = _detect_login_anomaly(user, email)
     access = create_access_token(identity=str(user.id))
     refresh = create_refresh_token(identity=str(user.id))
     _store_refresh_session(refresh, str(user.id))
+    _record_login_event(
+        user,
+        email,
+        success=True,
+        is_anomalous=alert is not None,
+        reason=alert.get("reason") if alert else None,
+    )
+    if alert:
+        db.session.add(
+            AuditLog(user_id=user.id, action=f"login_anomaly:{alert['reason']}")
+        )
+    db.session.commit()
     logger.info("Login success user_id=%s", user.id)
-    return jsonify(access_token=access, refresh_token=refresh)
+    body = {"access_token": access, "refresh_token": refresh}
+    if alert:
+        body["security_alert"] = alert
+    return jsonify(body)
 
 
 @bp.get("/me")
@@ -98,6 +117,33 @@ def update_me():
         id=user.id,
         email=user.email,
         preferred_currency=user.preferred_currency or "INR",
+    )
+
+
+@bp.get("/security-events")
+@jwt_required()
+def security_events():
+    uid = int(get_jwt_identity())
+    events = (
+        db.session.query(LoginEvent)
+        .filter_by(user_id=uid)
+        .order_by(LoginEvent.created_at.desc())
+        .limit(20)
+        .all()
+    )
+    return jsonify(
+        events=[
+            {
+                "id": event.id,
+                "success": event.success,
+                "is_anomalous": event.is_anomalous,
+                "reason": event.reason,
+                "ip_address": event.ip_address,
+                "user_agent": event.user_agent,
+                "created_at": event.created_at.isoformat(),
+            }
+            for event in events
+        ]
     )
 
 
@@ -137,3 +183,73 @@ def _store_refresh_session(refresh_token: str, uid: str):
         return
     ttl = max(int(exp - time.time()), 1)
     redis_client.setex(_refresh_key(jti), ttl, uid)
+
+
+def _request_ip() -> str | None:
+    forwarded_for = request.headers.get("X-Forwarded-For", "")
+    if forwarded_for:
+        return forwarded_for.split(",", 1)[0].strip()[:64]
+    return (request.remote_addr or "")[:64] or None
+
+
+def _request_user_agent() -> str | None:
+    return (request.headers.get("User-Agent") or "")[:255] or None
+
+
+def _record_login_event(
+    user: User | None,
+    email: str | None,
+    *,
+    success: bool,
+    is_anomalous: bool = False,
+    reason: str | None = None,
+) -> LoginEvent:
+    event = LoginEvent(
+        user_id=user.id if user else None,
+        email=email,
+        ip_address=_request_ip(),
+        user_agent=_request_user_agent(),
+        success=success,
+        is_anomalous=is_anomalous,
+        reason=reason,
+    )
+    db.session.add(event)
+    return event
+
+
+def _detect_login_anomaly(user: User, email: str | None) -> dict | None:
+    ip_address = _request_ip()
+    user_agent = _request_user_agent()
+    recent_cutoff = datetime.utcnow() - timedelta(minutes=15)
+    recent_failures = (
+        db.session.query(LoginEvent)
+        .filter(LoginEvent.email == email)
+        .filter(LoginEvent.success.is_(False))
+        .filter(LoginEvent.created_at >= recent_cutoff)
+        .count()
+    )
+    if recent_failures >= 5:
+        return {
+            "reason": "multiple_failed_attempts",
+            "message": "Multiple failed sign-in attempts were detected before this login.",
+        }
+
+    previous_success = (
+        db.session.query(LoginEvent)
+        .filter_by(user_id=user.id, success=True)
+        .order_by(LoginEvent.created_at.desc())
+        .first()
+    )
+    if not previous_success:
+        return None
+    if previous_success.ip_address and ip_address != previous_success.ip_address:
+        return {
+            "reason": "new_ip_address",
+            "message": "This sign-in came from a new IP address.",
+        }
+    if previous_success.user_agent and user_agent != previous_success.user_agent:
+        return {
+            "reason": "new_device",
+            "message": "This sign-in came from a new browser or device.",
+        }
+    return None

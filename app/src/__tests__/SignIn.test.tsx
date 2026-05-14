@@ -90,6 +90,38 @@ describe('SignIn page', () => {
     expect(navigateMock).toHaveBeenCalled();
   });
 
+  it('shows security alert toast when login response includes an anomaly', async () => {
+    (login as jest.Mock).mockResolvedValue({
+      access_token: 'a',
+      refresh_token: 'r',
+      security_alert: {
+        reason: 'new_ip_address',
+        message: 'This sign-in came from a new IP address.',
+      },
+    });
+
+    render(
+      <MemoryRouter>
+        <SignIn />
+      </MemoryRouter>
+    );
+
+    await userEvent.type(screen.getByLabelText(/email/i), 'demo@finmind.local');
+    await userEvent.type(screen.getByLabelText(/password/i), 'DemoPass123!');
+    await userEvent.click(
+      screen.getByRole('button', { name: /sign in to your account/i })
+    );
+
+    await waitFor(() =>
+      expect(toastMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'Security alert',
+          description: 'This sign-in came from a new IP address.',
+        })
+      )
+    );
+  });
+
   it('shows error toast on failed login', async () => {
     (login as jest.Mock).mockRejectedValue(new Error('invalid credentials'));
 

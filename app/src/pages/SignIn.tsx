@@ -128,6 +128,12 @@ export function SignIn() {
                     } catch {
                       // Keep existing local currency if profile fetch fails.
                     }
+                    if (res.security_alert) {
+                      toast({
+                        title: 'Security alert',
+                        description: res.security_alert.message,
+                      });
+                    }
                     toast({
                       title: 'Welcome back 👋',
                       description: 'You have successfully signed in.',

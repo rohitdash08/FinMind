@@ -61,7 +61,8 @@ See `backend/app/db/schema.sql`. Key tables:
 
 ## API Endpoints
 OpenAPI: `backend/app/openapi.yaml`
-- Auth: `/auth/register`, `/auth/login`, `/auth/refresh`
+- Auth: `/auth/register`, `/auth/login`, `/auth/refresh`, `/auth/security-events`
+- Login security: successful logins are checked against recent known IP/device signals and recent failed attempts; suspicious logins return a `security_alert` for the UI and are stored in `login_events`.
 - Expenses: CRUD `/expenses`
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
