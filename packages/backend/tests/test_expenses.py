@@ -235,6 +235,83 @@ def test_recurring_expense_create_list_and_generate(client, auth_header):
     assert len(generated) == 3
 
 
+def test_recurring_expense_detection_finds_subscription_candidates(client, auth_header):
+    cat_id = _create_category(client, auth_header, name="Subscriptions")
+    for spent_at in ["2026-01-05", "2026-02-05", "2026-03-06"]:
+        r = client.post(
+            "/expenses",
+            json={
+                "amount": 15.99,
+                "currency": "USD",
+                "category_id": cat_id,
+                "description": "Netflix Streaming 483920",
+                "date": spent_at,
+            },
+            headers=auth_header,
+        )
+        assert r.status_code == 201
+    for spent_at in ["2026-01-02", "2026-01-07", "2026-01-19"]:
+        r = client.post(
+            "/expenses",
+            json={
+                "amount": 15.99,
+                "currency": "USD",
+                "category_id": cat_id,
+                "description": "Groceries",
+                "date": spent_at,
+            },
+            headers=auth_header,
+        )
+        assert r.status_code == 201
+
+    r = client.get("/expenses/recurring/detect", headers=auth_header)
+
+    assert r.status_code == 200
+    candidates = r.get_json()
+    assert len(candidates) == 1
+    candidate = candidates[0]
+    assert candidate["description"] == "Netflix Streaming 483920"
+    assert candidate["amount"] == 15.99
+    assert candidate["currency"] == "USD"
+    assert candidate["category_id"] == cat_id
+    assert candidate["cadence"] == "MONTHLY"
+    assert candidate["confidence"] == "HIGH"
+    assert candidate["occurrences"] == 3
+    assert candidate["start_date"] == "2026-01-05"
+    assert candidate["last_seen_date"] == "2026-03-06"
+    assert candidate["next_expected_date"] == "2026-04-06"
+    assert len(candidate["matching_expense_ids"]) == 3
+
+
+def test_recurring_expense_detection_ignores_generated_recurring_rows(
+    client, auth_header
+):
+    r = client.post(
+        "/expenses/recurring",
+        json={
+            "amount": 9.99,
+            "description": "Cloud Storage",
+            "cadence": "MONTHLY",
+            "start_date": "2026-01-10",
+        },
+        headers=auth_header,
+    )
+    assert r.status_code == 201
+    recurring_id = r.get_json()["id"]
+    r = client.post(
+        f"/expenses/recurring/{recurring_id}/generate",
+        json={"through_date": "2026-03-31"},
+        headers=auth_header,
+    )
+    assert r.status_code == 200
+    assert r.get_json()["inserted"] == 3
+
+    r = client.get("/expenses/recurring/detect", headers=auth_header)
+
+    assert r.status_code == 200
+    assert r.get_json() == []
+
+
 def test_recurring_expense_generate_respects_end_date(client, auth_header):
     create_payload = {
         "amount": 100.0,
