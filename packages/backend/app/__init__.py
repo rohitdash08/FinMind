@@ -110,6 +110,33 @@ def _ensure_schema_compatibility(app: Flask) -> None:
             NOT NULL DEFAULT 'INR'
             """
         )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS login_events (
+              id SERIAL PRIMARY KEY,
+              user_id INT REFERENCES users(id) ON DELETE SET NULL,
+              email VARCHAR(255),
+              ip_address VARCHAR(64),
+              user_agent VARCHAR(255),
+              success BOOLEAN NOT NULL DEFAULT FALSE,
+              is_anomalous BOOLEAN NOT NULL DEFAULT FALSE,
+              reason VARCHAR(255),
+              created_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+            """
+        )
+        cur.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_login_events_user_created
+            ON login_events(user_id, created_at DESC)
+            """
+        )
+        cur.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_login_events_email_created
+            ON login_events(email, created_at DESC)
+            """
+        )
         conn.commit()
     except Exception:
         app.logger.exception(

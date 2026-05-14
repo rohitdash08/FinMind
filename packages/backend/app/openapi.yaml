@@ -65,6 +65,9 @@ paths:
               example:
                 access_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
                 refresh_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                security_alert:
+                  reason: new_ip_address
+                  message: This sign-in came from a new IP address.
         '401':
           description: Invalid credentials
           content:
@@ -93,6 +96,28 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
               example: { error: "Missing Authorization Header" }
+  /auth/security-events:
+    get:
+      summary: List recent login security events
+      tags: [Auth]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Recent login attempts and anomaly flags
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  events:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/LoginEvent'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
 
   /categories:
     get:
@@ -498,6 +523,23 @@ components:
       properties:
         access_token: { type: string }
         refresh_token: { type: string }
+        security_alert:
+          $ref: '#/components/schemas/SecurityAlert'
+    SecurityAlert:
+      type: object
+      properties:
+        reason: { type: string }
+        message: { type: string }
+    LoginEvent:
+      type: object
+      properties:
+        id: { type: integer }
+        success: { type: boolean }
+        is_anomalous: { type: boolean }
+        reason: { type: string, nullable: true }
+        ip_address: { type: string, nullable: true }
+        user_agent: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
     Category:
       type: object
       properties:
