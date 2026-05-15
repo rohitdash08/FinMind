@@ -123,3 +123,33 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   action VARCHAR(100) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS webhook_endpoints (
+  id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  url VARCHAR(500) NOT NULL,
+  secret VARCHAR(255) NOT NULL,
+  event_types VARCHAR(500) NOT NULL DEFAULT '*',
+  active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_webhook_endpoints_user_active
+  ON webhook_endpoints(user_id, active);
+
+CREATE TABLE IF NOT EXISTS webhook_deliveries (
+  id SERIAL PRIMARY KEY,
+  endpoint_id INT NOT NULL REFERENCES webhook_endpoints(id) ON DELETE CASCADE,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  event_type VARCHAR(100) NOT NULL,
+  payload_json TEXT NOT NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'pending',
+  attempts INT NOT NULL DEFAULT 0,
+  last_error VARCHAR(500),
+  next_retry_at TIMESTAMP,
+  delivered_at TIMESTAMP,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_user_created
+  ON webhook_deliveries(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_retry
+  ON webhook_deliveries(status, next_retry_at);

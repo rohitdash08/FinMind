@@ -7,6 +7,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..extensions import db
 from ..models import Expense, RecurringCadence, RecurringExpense, User
 from ..services.cache import cache_delete_patterns, monthly_summary_key
+from ..services.webhooks import emit_webhook_event
 from ..services import expense_import
 import logging
 
@@ -84,6 +85,7 @@ def create_expense():
             f"insights:{uid}:*",
         ]
     )
+    _emit_webhook(uid, "expense.created", _expense_to_dict(e))
     return jsonify(_expense_to_dict(e)), 201
 
 
@@ -231,6 +233,7 @@ def update_expense(expense_id: int):
         e.spent_at = date.fromisoformat(raw_date)
     db.session.commit()
     _invalidate_expense_cache(uid, e.spent_at.isoformat())
+    _emit_webhook(uid, "expense.updated", _expense_to_dict(e))
     return jsonify(_expense_to_dict(e))
 
 
@@ -241,10 +244,12 @@ def delete_expense(expense_id: int):
     e = db.session.get(Expense, expense_id)
     if not e or e.user_id != uid:
         return jsonify(error="not found"), 404
+    payload = _expense_to_dict(e)
     spent_at = e.spent_at.isoformat()
     db.session.delete(e)
     db.session.commit()
     _invalidate_expense_cache(uid, spent_at)
+    _emit_webhook(uid, "expense.deleted", payload)
     return jsonify(message="deleted")
 
 
@@ -393,3 +398,10 @@ def _invalidate_expense_cache(uid: int, at: str):
             f"user:{uid}:dashboard_summary:*",
         ]
     )
+
+
+def _emit_webhook(uid: int, event_type: str, payload: dict):
+    try:
+        emit_webhook_event(uid, event_type, payload)
+    except Exception:  # pragma: no cover
+        logger.exception("Webhook emit failed event=%s user=%s", event_type, uid)

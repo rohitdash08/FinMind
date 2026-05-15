@@ -66,6 +66,34 @@ OpenAPI: `backend/app/openapi.yaml`
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
 - Insights: `/insights/monthly`, `/insights/budget-suggestion`
+- Webhooks: CRUD `/webhooks`, delivery log `/webhooks/deliveries`, retry `/webhooks/deliveries/retry`
+
+## Webhook Event System
+
+FinMind can notify user-owned integrations when important account events happen.
+Webhook endpoints are managed through authenticated `/webhooks` APIs and receive
+JSON payloads signed with HMAC-SHA256.
+
+Delivery headers:
+- `X-FinMind-Event`: event type, such as `expense.created`
+- `X-FinMind-Delivery`: delivery ID
+- `X-FinMind-Signature`: `sha256=<hex hmac>` over the raw request body
+
+Supported event types:
+- `expense.created`
+- `expense.updated`
+- `expense.deleted`
+- `bill.created`
+- `bill.paid`
+- `reminder.created`
+- `reminder.sent`
+
+Delivery behavior:
+- A `2xx` response marks the delivery as delivered.
+- Non-`2xx` responses and network errors remain pending until retried.
+- Retry uses exponential backoff for up to three attempts.
+- Users can inspect recent delivery attempts with `GET /webhooks/deliveries`
+  and trigger due retries with `POST /webhooks/deliveries/retry`.
 
 ## MVP UI/UX Plan
 - Auth screens: register/login.
