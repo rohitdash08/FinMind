@@ -123,3 +123,26 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   action VARCHAR(100) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS webhook_subscriptions (
+  id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  url VARCHAR(2048) NOT NULL,
+  event_type VARCHAR(100) NOT NULL,
+  active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_webhook_subscriptions_event ON webhook_subscriptions(event_type, active);
+
+CREATE TABLE IF NOT EXISTS webhook_delivery_logs (
+  id SERIAL PRIMARY KEY,
+  subscription_id INT NOT NULL REFERENCES webhook_subscriptions(id) ON DELETE CASCADE,
+  event_type VARCHAR(100) NOT NULL,
+  attempt INT NOT NULL,
+  status_code INT,
+  success BOOLEAN NOT NULL DEFAULT FALSE,
+  error_message VARCHAR(1000),
+  response_body VARCHAR(2000),
+  delivered_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_webhook_delivery_logs_subscription ON webhook_delivery_logs(subscription_id, delivered_at DESC);

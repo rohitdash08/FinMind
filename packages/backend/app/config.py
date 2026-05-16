@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     email_from: str | None = None
     smtp_url: str | None = None  # e.g. smtp+ssl://user:pass@mail:465
 
+    webhook_signing_secret: str = Field(default="finmind-webhook-dev-secret")
+
     # pydantic-settings v2 configuration
     model_config = SettingsConfigDict(
         env_file=".env",

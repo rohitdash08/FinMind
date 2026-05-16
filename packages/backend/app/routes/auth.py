@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, current_app, request, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_jwt_extended import (
     create_access_token,
@@ -10,6 +10,7 @@ from flask_jwt_extended import (
 )
 from ..extensions import db, redis_client
 from ..models import User
+from ..services.webhook import emit_event
 import logging
 import time
 
@@ -47,6 +48,10 @@ def register():
     db.session.add(user)
     db.session.commit()
     logger.info("Registered user id=%s email=%s", user.id, email)
+    emit_event("user.registered", {
+        "id": user.id,
+        "email": user.email,
+    }, current_app.config.get("WEBHOOK_SIGNING_SECRET", ""))
     return jsonify(message="registered"), 201
 
 
