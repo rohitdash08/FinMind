@@ -1,0 +1,115 @@
+global:
+  namespace: finmind
+  domain: finmind.example.com
+
+backend:
+  replicaCount: 3
+  image:
+    repository: ghcr.io/rohitdash08/finmind-backend
+    tag: latest
+    pullPolicy: Always
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 20
+    targetCPUUtilizationPercentage: 60
+    targetMemoryUtilizationPercentage: 70
+  env:
+    LOG_LEVEL: WARNING
+    GEMINI_MODEL: gemini-1.5-flash
+
+frontend:
+  enabled: true
+  replicaCount: 3
+  image:
+    repository: ghcr.io/rohitdash08/finmind-frontend
+    tag: latest
+    pullPolicy: Always
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 60
+
+postgres:
+  enabled: true
+  storage:
+    size: 50Gi
+    storageClass: gp3
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+
+redis:
+  enabled: true
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+nginx:
+  enabled: true
+  replicaCount: 2
+  resources:
+    requests:
+      cpu: 100m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+  tls:
+    enabled: true
+    secretName: finmind-tls
+  hosts:
+    api: api.finmind.example.com
+    frontend: finmind.example.com
+    grafana: grafana.finmind.example.com
+
+certManager:
+  enabled: true
+  issuer: letsencrypt-prod
+  email: admin@finmind.example.com
+
+monitoring:
+  enabled: true
+  prometheus:
+    retention: 30d
+    retentionSize: 10GB
+    storage:
+      size: 20Gi
+  loki:
+    retention: 336h
+    storage:
+      size: 20Gi
+  grafana:
+    storage:
+      size: 5Gi
+    adminUser: finmind_admin

@@ -1,0 +1,65 @@
+{{- if .Values.nginx.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "finmind.labels" . | nindent 4 }}
+    app: nginx
+spec:
+  replicas: {{ .Values.nginx.replicaCount }}
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+        - name: nginx
+          image: "{{ .Values.nginx.image.repository }}:{{ .Values.nginx.image.tag }}"
+          ports:
+            - containerPort: 80
+              name: http
+          resources:
+            {{- toYaml .Values.nginx.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/nginx/conf.d/default.conf
+              subPath: default.conf
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 80
+            initialDelaySeconds: 10
+            periodSeconds: 20
+      volumes:
+        - name: config
+          configMap:
+            name: nginx-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "finmind.labels" . | nindent 4 }}
+    app: nginx
+spec:
+  type: ClusterIP
+  selector:
+    app: nginx
+  ports:
+    - port: 80
+      targetPort: 80
+      name: http
+{{- end }}

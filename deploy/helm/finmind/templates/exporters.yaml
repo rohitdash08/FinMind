@@ -1,0 +1,224 @@
+{{- if .Values.monitoring.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres-exporter
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "finmind.labels" . | nindent 4 }}
+    app: postgres-exporter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres-exporter
+  template:
+    metadata:
+      labels:
+        app: postgres-exporter
+    spec:
+      containers:
+        - name: postgres-exporter
+          image: quay.io/prometheuscommunity/postgres-exporter:v0.16.0
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: finmind-secrets
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: finmind-secrets
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: finmind-secrets
+                  key: POSTGRES_DB
+            - name: DATA_SOURCE_NAME
+              value: postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:5432/$(POSTGRES_DB)?sslmode=disable
+          ports:
+            - containerPort: 9187
+              name: metrics
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 50m
+              memory: 64Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-exporter
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "finmind.labels" . | nindent 4 }}
+spec:
+  selector:
+    app: postgres-exporter
+  ports:
+    - port: 9187
+      targetPort: 9187
+      name: metrics
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis-exporter
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "finmind.labels" . | nindent 4 }}
+    app: redis-exporter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis-exporter
+  template:
+    metadata:
+      labels:
+        app: redis-exporter
+    spec:
+      containers:
+        - name: redis-exporter
+          image: oliver006/redis_exporter:v1.63.0
+          env:
+            - name: REDIS_ADDR
+              value: redis://redis:6379
+          ports:
+            - containerPort: 9121
+              name: metrics
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 50m
+              memory: 64Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-exporter
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "finmind.labels" . | nindent 4 }}
+spec:
+  selector:
+    app: redis-exporter
+  ports:
+    - port: 9121
+      targetPort: 9121
+      name: metrics
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-exporter
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "finmind.labels" . | nindent 4 }}
+    app: nginx-exporter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nginx-exporter
+  template:
+    metadata:
+      labels:
+        app: nginx-exporter
+    spec:
+      containers:
+        - name: nginx-exporter
+          image: nginx/nginx-prometheus-exporter:1.3.0
+          args:
+            - -nginx.scrape-uri=http://nginx/nginx_status
+          ports:
+            - containerPort: 9113
+              name: metrics
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 50m
+              memory: 32Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-exporter
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "finmind.labels" . | nindent 4 }}
+spec:
+  selector:
+    app: nginx-exporter
+  ports:
+    - port: 9113
+      targetPort: 9113
+      name: metrics
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: node-exporter
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "finmind.labels" . | nindent 4 }}
+    app: node-exporter
+spec:
+  selector:
+    matchLabels:
+      app: node-exporter
+  template:
+    metadata:
+      labels:
+        app: node-exporter
+    spec:
+      hostNetwork: true
+      hostPID: true
+      containers:
+        - name: node-exporter
+          image: quay.io/prometheus/node-exporter:v1.8.2
+          args:
+            - --path.rootfs=/host
+          ports:
+            - containerPort: 9100
+              hostPort: 9100
+              name: metrics
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+          volumeMounts:
+            - name: root
+              mountPath: /host
+              readOnly: true
+      volumes:
+        - name: root
+          hostPath:
+            path: /
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: node-exporter
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "finmind.labels" . | nindent 4 }}
+spec:
+  selector:
+    app: node-exporter
+  ports:
+    - port: 9100
+      targetPort: 9100
+      name: metrics
+{{- end }}
