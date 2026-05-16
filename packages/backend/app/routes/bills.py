@@ -1,9 +1,10 @@
 from datetime import date, timedelta
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, current_app, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..extensions import db
 from ..models import Bill, BillCadence, User
 from ..services.cache import cache_delete_patterns
+from ..services.webhook import emit_event
 import logging
 
 bp = Blueprint("bills", __name__)
@@ -62,6 +63,14 @@ def create_bill():
     cache_delete_patterns(
         [f"user:{uid}:upcoming_bills*", f"user:{uid}:dashboard_summary:*"]
     )
+    emit_event("bill.created", {
+        "id": b.id,
+        "name": b.name,
+        "amount": float(b.amount),
+        "currency": b.currency,
+        "next_due_date": b.next_due_date.isoformat(),
+        "cadence": b.cadence.value,
+    }, current_app.config.get("WEBHOOK_SIGNING_SECRET", ""))
     return jsonify(id=b.id), 201
 
 
@@ -88,4 +97,12 @@ def mark_paid(bill_id: int):
     logger.info(
         "Marked bill paid id=%s user=%s next_due_date=%s", b.id, uid, b.next_due_date
     )
+    emit_event("bill.paid", {
+        "id": b.id,
+        "name": b.name,
+        "amount": float(b.amount),
+        "currency": b.currency,
+        "next_due_date": b.next_due_date.isoformat(),
+        "active": b.active,
+    }, current_app.config.get("WEBHOOK_SIGNING_SECRET", ""))
     return jsonify(message="updated")

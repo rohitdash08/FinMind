@@ -133,3 +133,28 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class WebhookSubscription(db.Model):
+    __tablename__ = "webhook_subscriptions"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    url = db.Column(db.String(2048), nullable=False)
+    event_type = db.Column(db.String(100), nullable=False)
+    active = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class WebhookDeliveryLog(db.Model):
+    __tablename__ = "webhook_delivery_logs"
+    id = db.Column(db.Integer, primary_key=True)
+    subscription_id = db.Column(
+        db.Integer, db.ForeignKey("webhook_subscriptions.id"), nullable=False
+    )
+    event_type = db.Column(db.String(100), nullable=False)
+    attempt = db.Column(db.Integer, nullable=False)
+    status_code = db.Column(db.Integer, nullable=True)
+    success = db.Column(db.Boolean, default=False, nullable=False)
+    error_message = db.Column(db.String(1000), nullable=True)
+    response_body = db.Column(db.String(2000), nullable=True)
+    delivered_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)

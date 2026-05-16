@@ -8,6 +8,7 @@ from ..extensions import db
 from ..models import Expense, RecurringCadence, RecurringExpense, User
 from ..services.cache import cache_delete_patterns, monthly_summary_key
 from ..services import expense_import
+from ..services.webhook import emit_event
 import logging
 
 bp = Blueprint("expenses", __name__)
@@ -84,6 +85,7 @@ def create_expense():
             f"insights:{uid}:*",
         ]
     )
+    emit_event("expense.created", _expense_to_dict(e), current_app.config.get("WEBHOOK_SIGNING_SECRET", ""))
     return jsonify(_expense_to_dict(e)), 201
 
 
@@ -231,6 +233,7 @@ def update_expense(expense_id: int):
         e.spent_at = date.fromisoformat(raw_date)
     db.session.commit()
     _invalidate_expense_cache(uid, e.spent_at.isoformat())
+    emit_event("expense.updated", _expense_to_dict(e), current_app.config.get("WEBHOOK_SIGNING_SECRET", ""))
     return jsonify(_expense_to_dict(e))
 
 
@@ -242,9 +245,11 @@ def delete_expense(expense_id: int):
     if not e or e.user_id != uid:
         return jsonify(error="not found"), 404
     spent_at = e.spent_at.isoformat()
+    deleted_data = _expense_to_dict(e)
     db.session.delete(e)
     db.session.commit()
     _invalidate_expense_cache(uid, spent_at)
+    emit_event("expense.deleted", deleted_data, current_app.config.get("WEBHOOK_SIGNING_SECRET", ""))
     return jsonify(message="deleted")
 
 
