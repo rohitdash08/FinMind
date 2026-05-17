@@ -3,8 +3,42 @@ import pytest
 from app import create_app
 from app.config import Settings
 from app.extensions import db
-from app.extensions import redis_client
+from app import extensions
+from app.routes import auth as auth_routes
+from app.services import cache as cache_service
 from app import models  # noqa: F401 - ensure models are registered
+
+
+class FakeRedis:
+    def __init__(self):
+        self._store = {}
+
+    def setex(self, key, _ttl, value):
+        self._store[key] = value
+
+    def get(self, key):
+        return self._store.get(key)
+
+    def delete(self, *keys):
+        for key in keys:
+            self._store.pop(key, None)
+
+    def scan(self, cursor=0, match=None, count=100):
+        import fnmatch
+
+        keys = list(self._store.keys())
+        if match:
+            keys = [key for key in keys if fnmatch.fnmatch(key, match)]
+        return 0, keys[:count]
+
+    def flushdb(self):
+        self._store.clear()
+
+
+redis_client = FakeRedis()
+extensions.redis_client = redis_client
+auth_routes.redis_client = redis_client
+cache_service.redis_client = redis_client
 
 
 class TestSettings(Settings):

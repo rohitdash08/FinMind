@@ -481,6 +481,54 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
 
+  /insights/weekly-digest:
+    get:
+      summary: Get weekly financial digest
+      tags: [Insights]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: week_start
+          required: false
+          schema: { type: string, format: date }
+          description: Any date in the target week; the response normalizes it to Monday.
+      responses:
+        '200':
+          description: Weekly digest with totals, trend comparison, top categories, and insights
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+              example:
+                week_start: 2025-08-04
+                week_end: 2025-08-10
+                summary:
+                  income: 500
+                  spending: 150
+                  net_flow: 350
+                  transaction_count: 3
+                  top_categories:
+                    - { category_id: 1, category: Groceries, amount: 120, transaction_count: 1 }
+                comparison:
+                  previous_week_start: 2025-07-28
+                  previous_week_end: 2025-08-03
+                  previous_spending: 100
+                  spending_change_pct: 50
+                insights:
+                  - Spending increased 50.0% vs last week.
+                  - Groceries was the largest category at 80.0% of weekly spend.
+        '400':
+          description: Invalid week_start
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
 components:
   securitySchemes:
     bearerAuth:

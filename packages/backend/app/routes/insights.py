@@ -1,7 +1,7 @@
 from datetime import date
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from ..services.ai import monthly_budget_suggestion
+from ..services.ai import monthly_budget_suggestion, weekly_financial_digest
 import logging
 
 bp = Blueprint("insights", __name__)
@@ -23,3 +23,18 @@ def budget_suggestion():
     )
     logger.info("Budget suggestion served user=%s month=%s", uid, ym)
     return jsonify(suggestion)
+
+
+@bp.get("/weekly-digest")
+@jwt_required()
+def weekly_digest():
+    uid = int(get_jwt_identity())
+    week_start_raw = (request.args.get("week_start") or "").strip()
+    try:
+        week_start = date.fromisoformat(week_start_raw) if week_start_raw else None
+    except ValueError:
+        return jsonify(error="invalid week_start"), 400
+
+    digest = weekly_financial_digest(uid, week_start)
+    logger.info("Weekly digest served user=%s week_start=%s", uid, digest["week_start"])
+    return jsonify(digest)

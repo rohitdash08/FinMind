@@ -1,11 +1,12 @@
 import json
 from urllib import request
 
+from datetime import date, timedelta
 from sqlalchemy import extract, func
 
 from ..config import Settings
 from ..extensions import db
-from ..models import Expense
+from ..models import Category, Expense
 
 _settings = Settings()
 DEFAULT_PERSONA = (
@@ -185,3 +186,123 @@ def monthly_budget_suggestion(
                 uid, ym, persona_text, warnings=["gemini_unavailable"]
             )
     return _heuristic_budget(uid, ym, persona_text)
+
+
+def _week_start(value: date | None = None) -> date:
+    anchor = value or date.today()
+    return anchor - timedelta(days=anchor.weekday())
+
+
+def _weekly_rows(uid: int, start: date, end: date):
+    return (
+        db.session.query(
+            Expense.expense_type,
+            Expense.category_id,
+            Category.name,
+            func.coalesce(func.sum(Expense.amount), 0),
+            func.count(Expense.id),
+        )
+        .outerjoin(Category, Expense.category_id == Category.id)
+        .filter(
+            Expense.user_id == uid,
+            Expense.spent_at >= start,
+            Expense.spent_at <= end,
+        )
+        .group_by(Expense.expense_type, Expense.category_id, Category.name)
+        .all()
+    )
+
+
+def _weekly_totals(uid: int, start: date, end: date) -> dict:
+    income = 0.0
+    spending = 0.0
+    transaction_count = 0
+    categories: dict[str, dict] = {}
+
+    for expense_type, category_id, category_name, amount, count in _weekly_rows(
+        uid, start, end
+    ):
+        value = float(amount or 0)
+        transaction_count += int(count or 0)
+        if expense_type == "INCOME":
+            income += value
+            continue
+        spending += value
+        key = str(category_id or "uncategorized")
+        categories[key] = {
+            "category_id": category_id,
+            "category": category_name or "Uncategorized",
+            "amount": round(value, 2),
+            "transaction_count": int(count or 0),
+        }
+
+    top_categories = sorted(
+        categories.values(), key=lambda item: item["amount"], reverse=True
+    )[:5]
+    return {
+        "income": round(income, 2),
+        "spending": round(spending, 2),
+        "net_flow": round(income - spending, 2),
+        "transaction_count": transaction_count,
+        "top_categories": top_categories,
+    }
+
+
+def weekly_financial_digest(uid: int, week_start: date | None = None) -> dict:
+    """Build a deterministic weekly financial summary with trend insights."""
+    start = _week_start(week_start)
+    end = start + timedelta(days=6)
+    previous_start = start - timedelta(days=7)
+    previous_end = start - timedelta(days=1)
+
+    current = _weekly_totals(uid, start, end)
+    previous = _weekly_totals(uid, previous_start, previous_end)
+
+    previous_spending = previous["spending"]
+    if previous_spending:
+        spending_change_pct = round(
+            ((current["spending"] - previous_spending) / previous_spending) * 100, 2
+        )
+    else:
+        spending_change_pct = 0.0
+
+    insights: list[str] = []
+    if current["spending"] == 0 and current["income"] == 0:
+        insights.append("No transactions were recorded for this week yet.")
+    elif spending_change_pct > 0:
+        insights.append(f"Spending increased {spending_change_pct}% vs last week.")
+    elif spending_change_pct < 0:
+        insights.append(f"Spending decreased {abs(spending_change_pct)}% vs last week.")
+    else:
+        insights.append("Spending was unchanged compared with last week.")
+
+    if current["top_categories"]:
+        top = current["top_categories"][0]
+        share = (
+            round((top["amount"] / current["spending"]) * 100, 2)
+            if current["spending"]
+            else 0.0
+        )
+        insights.append(
+            f"{top['category']} was the largest category at {share}% of weekly spend."
+        )
+
+    if current["net_flow"] < 0:
+        insights.append("Net flow was negative; review discretionary spend first.")
+    elif current["net_flow"] > 0:
+        insights.append(
+            "Net flow was positive; consider moving part of the surplus to savings."
+        )
+
+    return {
+        "week_start": start.isoformat(),
+        "week_end": end.isoformat(),
+        "summary": current,
+        "comparison": {
+            "previous_week_start": previous_start.isoformat(),
+            "previous_week_end": previous_end.isoformat(),
+            "previous_spending": previous["spending"],
+            "spending_change_pct": spending_change_pct,
+        },
+        "insights": insights,
+    }
