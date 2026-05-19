@@ -118,3 +118,14 @@ def _ensure_schema_compatibility(app: Flask) -> None:
         conn.rollback()
     finally:
         conn.close()
+
+
+# ── Bank Sync Connectors ──────────────────────────────
+
+def register_connectors(app):
+    """Register bank sync connector routes and initialize mock."""
+    from .connectors.mock import MockBankConnector
+    from .connectors.manager import get_connector_manager
+    manager = get_connector_manager()
+    manager.register(MockBankConnector())
+    app.register_blueprint(connectors_bp)
