@@ -110,6 +110,45 @@ def _ensure_schema_compatibility(app: Flask) -> None:
             NOT NULL DEFAULT 'INR'
             """
         )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS webhook_endpoints (
+                id SERIAL PRIMARY KEY,
+                user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                url VARCHAR(500) NOT NULL,
+                secret VARCHAR(255) NOT NULL,
+                active BOOLEAN NOT NULL DEFAULT TRUE,
+                created_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+            """
+        )
+        cur.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_webhook_endpoints_user_active
+            ON webhook_endpoints(user_id, active)
+            """
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS webhook_deliveries (
+                id SERIAL PRIMARY KEY,
+                endpoint_id INT NOT NULL REFERENCES webhook_endpoints(id) ON DELETE CASCADE,
+                event_type VARCHAR(100) NOT NULL,
+                delivery_id VARCHAR(64) NOT NULL,
+                attempts INT NOT NULL DEFAULT 0,
+                success BOOLEAN NOT NULL DEFAULT FALSE,
+                status_code INT,
+                error VARCHAR(500),
+                created_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+            """
+        )
+        cur.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_endpoint_created
+            ON webhook_deliveries(endpoint_id, created_at DESC)
+            """
+        )
         conn.commit()
     except Exception:
         app.logger.exception(
