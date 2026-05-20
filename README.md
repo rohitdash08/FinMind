@@ -185,6 +185,8 @@ finmind/
 
 ## Security & Scalability
 - JWT access/refresh, secure cookies OR Authorization header.
+- Login anomaly alerts are recorded in `login_events` and returned from `/auth/login`
+  when a new IP, new user agent, or recent failed-attempt pattern is detected.
 - RBAC-ready via roles on `users.role`.
 - N+1 avoided via SQLAlchemy eager loading.
 - Redis caching for hot paths to cut DB load.

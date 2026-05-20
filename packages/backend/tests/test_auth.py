@@ -21,6 +21,61 @@ def test_auth_refresh_flow(client):
     assert isinstance(new_access, str) and len(new_access) > 10
 
 
+def test_login_returns_non_suspicious_alert_for_first_success(client):
+    email = "first-login@test.com"
+    password = "secret123"
+    r = client.post("/auth/register", json={"email": email, "password": password})
+    assert r.status_code in (201, 409)
+
+    r = client.post(
+        "/auth/login",
+        json={"email": email, "password": password},
+        headers={"User-Agent": "FinMindTest/1.0", "X-Forwarded-For": "203.0.113.10"},
+    )
+    assert r.status_code == 200
+    alert = r.get_json()["security_alert"]
+    assert alert == {"suspicious": False, "reason": None}
+
+
+def test_login_flags_new_ip_address_after_successful_login(client):
+    email = "new-ip@test.com"
+    password = "secret123"
+    r = client.post("/auth/register", json={"email": email, "password": password})
+    assert r.status_code in (201, 409)
+
+    r = client.post(
+        "/auth/login",
+        json={"email": email, "password": password},
+        headers={"User-Agent": "FinMindTest/1.0", "X-Forwarded-For": "203.0.113.10"},
+    )
+    assert r.status_code == 200
+
+    r = client.post(
+        "/auth/login",
+        json={"email": email, "password": password},
+        headers={"User-Agent": "FinMindTest/1.0", "X-Forwarded-For": "203.0.113.99"},
+    )
+    assert r.status_code == 200
+    alert = r.get_json()["security_alert"]
+    assert alert == {"suspicious": True, "reason": "new_ip_address"}
+
+
+def test_login_flags_recent_failed_attempts(client):
+    email = "failed-attempts@test.com"
+    password = "secret123"
+    r = client.post("/auth/register", json={"email": email, "password": password})
+    assert r.status_code in (201, 409)
+
+    for _ in range(5):
+        r = client.post("/auth/login", json={"email": email, "password": "wrong"})
+        assert r.status_code == 401
+
+    r = client.post("/auth/login", json={"email": email, "password": password})
+    assert r.status_code == 200
+    alert = r.get_json()["security_alert"]
+    assert alert == {"suspicious": True, "reason": "recent_failed_attempts"}
+
+
 def test_auth_logout_revokes_refresh_token(client):
     email = "logout@test.com"
     password = "secret123"

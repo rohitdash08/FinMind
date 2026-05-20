@@ -9,7 +9,8 @@ from flask_jwt_extended import (
     get_jwt_identity,
 )
 from ..extensions import db, redis_client
-from ..models import User
+from ..models import AuditLog, LoginEvent, User
+from datetime import datetime, timedelta
 import logging
 import time
 
@@ -57,13 +58,44 @@ def login():
     password = data.get("password")
     user = db.session.query(User).filter_by(email=email).first()
     if not user or not check_password_hash(user.password_hash, password):
+        _record_login_event(
+            email=email or "",
+            user=None,
+            successful=False,
+            anomaly_detected=False,
+            anomaly_reason=None,
+        )
+        db.session.commit()
         logger.warning("Login failed for email=%s", email)
         return jsonify(error="invalid credentials"), 401
+    anomaly = _detect_login_anomaly(user)
     access = create_access_token(identity=str(user.id))
     refresh = create_refresh_token(identity=str(user.id))
     _store_refresh_session(refresh, str(user.id))
+    _record_login_event(
+        email=user.email,
+        user=user,
+        successful=True,
+        anomaly_detected=anomaly["detected"],
+        anomaly_reason=anomaly["reason"],
+    )
+    if anomaly["detected"]:
+        db.session.add(
+            AuditLog(
+                user_id=user.id,
+                action=f"login_anomaly:{anomaly['reason']}",
+            )
+        )
+    db.session.commit()
     logger.info("Login success user_id=%s", user.id)
-    return jsonify(access_token=access, refresh_token=refresh)
+    return jsonify(
+        access_token=access,
+        refresh_token=refresh,
+        security_alert={
+            "suspicious": anomaly["detected"],
+            "reason": anomaly["reason"],
+        },
+    )
 
 
 @bp.get("/me")
@@ -137,3 +169,67 @@ def _store_refresh_session(refresh_token: str, uid: str):
         return
     ttl = max(int(exp - time.time()), 1)
     redis_client.setex(_refresh_key(jti), ttl, uid)
+
+
+def _client_ip() -> str | None:
+    forwarded_for = request.headers.get("X-Forwarded-For", "")
+    if forwarded_for:
+        return forwarded_for.split(",", 1)[0].strip() or None
+    return request.remote_addr
+
+
+def _client_user_agent() -> str | None:
+    user_agent = request.headers.get("User-Agent")
+    if not user_agent:
+        return None
+    return user_agent[:500]
+
+
+def _record_login_event(
+    email: str,
+    user: User | None,
+    successful: bool,
+    anomaly_detected: bool,
+    anomaly_reason: str | None,
+) -> None:
+    db.session.add(
+        LoginEvent(
+            user_id=user.id if user else None,
+            email=email,
+            ip_address=_client_ip(),
+            user_agent=_client_user_agent(),
+            successful=successful,
+            anomaly_detected=anomaly_detected,
+            anomaly_reason=anomaly_reason,
+        )
+    )
+
+
+def _detect_login_anomaly(user: User) -> dict[str, str | bool | None]:
+    ip_address = _client_ip()
+    user_agent = _client_user_agent()
+    previous_login = (
+        db.session.query(LoginEvent)
+        .filter_by(user_id=user.id, successful=True)
+        .order_by(LoginEvent.created_at.desc())
+        .first()
+    )
+    if previous_login:
+        if ip_address and previous_login.ip_address != ip_address:
+            return {"detected": True, "reason": "new_ip_address"}
+        if user_agent and previous_login.user_agent != user_agent:
+            return {"detected": True, "reason": "new_user_agent"}
+
+    window_start = datetime.utcnow() - timedelta(minutes=15)
+    failed_attempts = (
+        db.session.query(LoginEvent)
+        .filter(
+            LoginEvent.email == user.email,
+            LoginEvent.successful.is_(False),
+            LoginEvent.created_at >= window_start,
+        )
+        .count()
+    )
+    if failed_attempts >= 5:
+        return {"detected": True, "reason": "recent_failed_attempts"}
+    return {"detected": False, "reason": None}
