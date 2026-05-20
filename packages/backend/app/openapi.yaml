@@ -65,6 +65,9 @@ paths:
               example:
                 access_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
                 refresh_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                security_alert:
+                  suspicious: false
+                  reason: null
         '401':
           description: Invalid credentials
           content:
@@ -498,6 +501,14 @@ components:
       properties:
         access_token: { type: string }
         refresh_token: { type: string }
+        security_alert:
+          type: object
+          properties:
+            suspicious: { type: boolean }
+            reason:
+              type: string
+              nullable: true
+              enum: [new_ip_address, new_user_agent, recent_failed_attempts, null]
     Category:
       type: object
       properties:

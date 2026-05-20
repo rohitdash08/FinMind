@@ -111,10 +111,36 @@ def _ensure_schema_compatibility(app: Flask) -> None:
             """
         )
         conn.commit()
-    except Exception:
-        app.logger.exception(
-            "Schema compatibility patch failed for users.preferred_currency"
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS login_events (
+              id SERIAL PRIMARY KEY,
+              user_id INT REFERENCES users(id) ON DELETE SET NULL,
+              email VARCHAR(255) NOT NULL,
+              ip_address VARCHAR(45),
+              user_agent VARCHAR(500),
+              successful BOOLEAN NOT NULL DEFAULT FALSE,
+              anomaly_detected BOOLEAN NOT NULL DEFAULT FALSE,
+              anomaly_reason VARCHAR(255),
+              created_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+            """
         )
+        cur.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_login_events_user_created
+            ON login_events(user_id, created_at DESC)
+            """
+        )
+        cur.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_login_events_email_created
+            ON login_events(email, created_at DESC)
+            """
+        )
+        conn.commit()
+    except Exception:
+        app.logger.exception("Schema compatibility patch failed")
         conn.rollback()
     finally:
         conn.close()
