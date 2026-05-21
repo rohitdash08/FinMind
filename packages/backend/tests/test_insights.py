@@ -1,6 +1,105 @@
 from datetime import date, timedelta
 
 
+def test_weekly_summary_returns_trends_categories_and_bills(client, auth_header):
+    monday = date(2026, 5, 18)
+
+    r = client.post("/categories", json={"name": "Groceries"}, headers=auth_header)
+    assert r.status_code == 201
+    groceries_id = r.get_json()["id"]
+
+    r = client.post(
+        "/expenses",
+        json={
+            "amount": 240,
+            "description": "Weekly paycheck",
+            "date": monday.isoformat(),
+            "expense_type": "INCOME",
+            "currency": "USD",
+        },
+        headers=auth_header,
+    )
+    assert r.status_code == 201
+    r = client.post(
+        "/expenses",
+        json={
+            "amount": 60,
+            "description": "Market run",
+            "date": (monday + timedelta(days=1)).isoformat(),
+            "expense_type": "EXPENSE",
+            "currency": "USD",
+            "category_id": groceries_id,
+        },
+        headers=auth_header,
+    )
+    assert r.status_code == 201
+    r = client.post(
+        "/expenses",
+        json={
+            "amount": 40,
+            "description": "Previous market run",
+            "date": (monday - timedelta(days=6)).isoformat(),
+            "expense_type": "EXPENSE",
+            "currency": "USD",
+            "category_id": groceries_id,
+        },
+        headers=auth_header,
+    )
+    assert r.status_code == 201
+    r = client.post(
+        "/bills",
+        json={
+            "name": "Internet",
+            "amount": 70,
+            "currency": "USD",
+            "next_due_date": (monday + timedelta(days=3)).isoformat(),
+            "cadence": "MONTHLY",
+        },
+        headers=auth_header,
+    )
+    assert r.status_code == 201
+
+    r = client.get(
+        f"/insights/weekly-summary?week_start={monday.isoformat()}&currency=USD",
+        headers=auth_header,
+    )
+
+    assert r.status_code == 200
+    payload = r.get_json()
+    assert payload["period"]["week_start"] == "2026-05-18"
+    assert payload["period"]["week_end"] == "2026-05-24"
+    assert payload["currency"] == "USD"
+    assert payload["summary"]["income"] == 240.0
+    assert payload["summary"]["expenses"] == 60.0
+    assert payload["summary"]["net_flow"] == 180.0
+    assert payload["comparison"]["previous_expenses"] == 40.0
+    assert payload["comparison"]["trend"] == "up"
+    assert payload["category_breakdown"][0]["category_name"] == "Groceries"
+    assert payload["category_breakdown"][0]["share_pct"] == 100.0
+    assert len(payload["daily_breakdown"]) == 7
+    assert payload["upcoming_bills"][0]["name"] == "Internet"
+    assert payload["largest_expenses"][0]["description"] == "Market run"
+    assert payload["highlights"]
+    assert payload["insights"]
+    assert payload["recommendations"]
+
+
+def test_weekly_summary_normalizes_dates_and_rejects_bad_dates(client, auth_header):
+    r = client.get(
+        "/insights/weekly-summary?week_start=2026-05-21",
+        headers=auth_header,
+    )
+    assert r.status_code == 200
+    assert r.get_json()["period"]["week_start"] == "2026-05-18"
+
+    r = client.get(
+        "/insights/weekly-summary?week_start=not-a-date",
+        headers=auth_header,
+    )
+    assert r.status_code == 400
+    assert r.get_json()["error"] == "invalid week_start"
+
+
 def test_budget_suggestion_returns_analytics_fields(client, auth_header):
     current = date.today().replace(day=10)
     previous = (current.replace(day=1) - timedelta(days=1)).replace(day=10)

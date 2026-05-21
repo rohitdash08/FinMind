@@ -1,10 +1,53 @@
 import os
+import fnmatch
 import pytest
 from app import create_app
 from app.config import Settings
+from app import extensions
 from app.extensions import db
-from app.extensions import redis_client
+from app.routes import auth as auth_routes
+from app.services import cache as cache_service
 from app import models  # noqa: F401 - ensure models are registered
+
+
+class _MemoryRedis:
+    def __init__(self):
+        self._values = {}
+
+    def flushdb(self):
+        self._values.clear()
+        return True
+
+    def set(self, key, value):
+        self._values[key] = value
+        return True
+
+    def setex(self, key, _ttl, value):
+        self._values[key] = value
+        return True
+
+    def get(self, key):
+        return self._values.get(key)
+
+    def delete(self, *keys):
+        deleted = 0
+        for key in keys:
+            if key in self._values:
+                del self._values[key]
+                deleted += 1
+        return deleted
+
+    def scan(self, cursor=0, match=None, count=100):
+        del cursor, count
+        pattern = match or "*"
+        keys = [key for key in self._values if fnmatch.fnmatch(key, pattern)]
+        return 0, keys
+
+
+redis_client = _MemoryRedis()
+extensions.redis_client = redis_client
+auth_routes.redis_client = redis_client
+cache_service.redis_client = redis_client
 
 
 class TestSettings(Settings):
