@@ -11,6 +11,9 @@ class Role(str, Enum):
 
 class User(db.Model):
     __tablename__ = "users"
+    __table_args__ = (
+        db.Index("ix_users_email", "email", unique=True),
+    )
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(255), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
@@ -21,6 +24,10 @@ class User(db.Model):
 
 class Category(db.Model):
     __tablename__ = "categories"
+    __table_args__ = (
+        db.Index("ix_categories_user_id", "user_id"),
+        db.Index("ix_categories_user_name", "user_id", "name"),
+    )
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     name = db.Column(db.String(100), nullable=False)
@@ -29,6 +36,18 @@ class Category(db.Model):
 
 class Expense(db.Model):
     __tablename__ = "expenses"
+    __table_args__ = (
+        # Primary query pattern: list expenses by user, filtered by date range
+        db.Index("ix_expenses_user_spent", "user_id", "spent_at"),
+        # Dashboard summary: aggregate by user + expense_type (monthly income/expenses)
+        db.Index("ix_expenses_user_type_spent", "user_id", "expense_type", "spent_at"),
+        # Category breakdown: filter by user + category
+        db.Index("ix_expenses_user_category", "user_id", "category_id"),
+        # Duplicate detection: lookup by user + date + amount + notes
+        db.Index("ix_expenses_user_date_amount", "user_id", "spent_at", "amount"),
+        # Recurring expense generation: check existing by user + source_recurring + date
+        db.Index("ix_expenses_user_recurring_date", "user_id", "source_recurring_id", "spent_at"),
+    )
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     category_id = db.Column(db.Integer, db.ForeignKey("categories.id"), nullable=True)
@@ -52,6 +71,10 @@ class RecurringCadence(str, Enum):
 
 class RecurringExpense(db.Model):
     __tablename__ = "recurring_expenses"
+    __table_args__ = (
+        # List active recurring expenses by user
+        db.Index("ix_recurring_user_active", "user_id", "active"),
+    )
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     category_id = db.Column(db.Integer, db.ForeignKey("categories.id"), nullable=True)
@@ -75,6 +98,10 @@ class BillCadence(str, Enum):
 
 class Bill(db.Model):
     __tablename__ = "bills"
+    __table_args__ = (
+        # Dashboard: upcoming bills by user, active, sorted by next_due_date
+        db.Index("ix_bills_user_active_due", "user_id", "active", "next_due_date"),
+    )
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     name = db.Column(db.String(200), nullable=False)
@@ -91,6 +118,12 @@ class Bill(db.Model):
 
 class Reminder(db.Model):
     __tablename__ = "reminders"
+    __table_args__ = (
+        # List reminders by user
+        db.Index("ix_reminders_user_id", "user_id"),
+        # Pending reminders: filter by sent status and send_at
+        db.Index("ix_reminders_sent_send_at", "sent", "send_at"),
+    )
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     bill_id = db.Column(db.Integer, db.ForeignKey("bills.id"), nullable=True)
@@ -102,6 +135,9 @@ class Reminder(db.Model):
 
 class AdImpression(db.Model):
     __tablename__ = "ad_impressions"
+    __table_args__ = (
+        db.Index("ix_ad_impressions_created", "created_at"),
+    )
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     placement = db.Column(db.String(100), nullable=False)
@@ -118,6 +154,10 @@ class SubscriptionPlan(db.Model):
 
 class UserSubscription(db.Model):
     __tablename__ = "user_subscriptions"
+    __table_args__ = (
+        # Active subscriptions lookup
+        db.Index("ix_user_subscriptions_user_active", "user_id", "active"),
+    )
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     plan_id = db.Column(
@@ -129,6 +169,12 @@ class UserSubscription(db.Model):
 
 class AuditLog(db.Model):
     __tablename__ = "audit_logs"
+    __table_args__ = (
+        # Query audit logs by user
+        db.Index("ix_audit_logs_user_id", "user_id"),
+        # Query audit logs by time range
+        db.Index("ix_audit_logs_created_at", "created_at"),
+    )
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
