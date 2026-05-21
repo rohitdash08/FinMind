@@ -33,13 +33,14 @@ export function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  const [selectedAccountIds, setSelectedAccountIds] = useState<number[]>([]);
 
   useEffect(() => {
     (async () => {
       setLoading(true);
       setError(null);
       try {
-        const res = await getDashboardSummary(month);
+        const res = await getDashboardSummary(month, selectedAccountIds);
         setData(res);
       } catch (error: unknown) {
         setError(error instanceof Error ? error.message : 'Failed to load dashboard');
@@ -47,7 +48,7 @@ export function Dashboard() {
         setLoading(false);
       }
     })();
-  }, [month]);
+  }, [month, selectedAccountIds]);
 
   const summary = useMemo(() => {
     if (!data) {
@@ -57,12 +58,23 @@ export function Dashboard() {
         monthly_expenses: 0,
         upcoming_bills_total: 0,
         upcoming_bills_count: 0,
+        total_balance: 0,
+        account_count: 0,
+        selected_account_count: 0,
       };
     }
     return data.summary;
   }, [data]);
 
   const summaryCards = [
+    {
+      title: 'Total Balance',
+      amount: currency(summary.total_balance || 0),
+      change: `${summary.selected_account_count || summary.account_count || 0} account(s)`,
+      trend: 'up',
+      icon: Wallet,
+      description: selectedAccountIds.length > 0 ? 'Selected accounts' : 'All accounts',
+    },
     {
       title: 'Net Flow',
       amount: currency(summary.net_flow),
@@ -97,9 +109,19 @@ export function Dashboard() {
     },
   ] as const;
 
+  const accounts = data?.accounts ?? [];
+  const accountBreakdown = data?.account_breakdown ?? [];
   const transactions = data?.recent_transactions ?? [];
   const upcomingBills = data?.upcoming_bills ?? [];
   const categoryBreakdown = data?.category_breakdown ?? [];
+
+  function toggleAccount(accountId: number) {
+    setSelectedAccountIds((current) => (
+      current.includes(accountId)
+        ? current.filter((id) => id !== accountId)
+        : [...current, accountId].sort((a, b) => a - b)
+    ));
+  }
 
   return (
     <div className="page-wrap">
@@ -141,7 +163,51 @@ export function Dashboard() {
         </div>
       )}
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-8">
+      <FinancialCard variant="financial" className="mb-6 fade-in-up">
+        <FinancialCardHeader>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <FinancialCardTitle className="section-title">Account Overview</FinancialCardTitle>
+              <FinancialCardDescription>Filter the dashboard by one or more financial accounts.</FinancialCardDescription>
+            </div>
+            {selectedAccountIds.length > 0 && (
+              <Button variant="outline" size="sm" onClick={() => setSelectedAccountIds([])}>
+                Show All
+              </Button>
+            )}
+          </div>
+        </FinancialCardHeader>
+        <FinancialCardContent>
+          {accounts.length === 0 ? (
+            <div className="text-sm text-muted-foreground">No accounts yet. Add accounts from the Accounts page to see balances here.</div>
+          ) : (
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              {accounts.map((account) => {
+                const selected = selectedAccountIds.includes(account.id);
+                return (
+                  <button
+                    key={account.id}
+                    type="button"
+                    onClick={() => toggleAccount(account.id)}
+                    className={`rounded-xl border p-3 text-left transition hover:border-primary ${selected ? 'border-primary bg-primary/5' : 'border-border bg-background'}`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-medium text-foreground">{account.name}</span>
+                      <span className="text-xs text-muted-foreground">{account.account_type.replace('_', ' ')}</span>
+                    </div>
+                    <div className="mt-2 text-lg font-semibold">{currency(account.balance, account.currency)}</div>
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      Net this month {currency(account.monthly_net_flow, account.currency)}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </FinancialCardContent>
+      </FinancialCard>
+
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5 mb-8">
         {summaryCards.map((card, index) => (
           <FinancialCard key={index} variant="financial" className="group card-interactive fade-in-up">
             <FinancialCardHeader className="pb-3">
@@ -193,7 +259,10 @@ export function Dashboard() {
                           </div>
                           <div>
                             <div className="font-medium text-foreground">{transaction.description}</div>
-                            <div className="text-sm text-muted-foreground">{new Date(transaction.date).toLocaleDateString()}</div>
+                            <div className="text-sm text-muted-foreground">
+                              {new Date(transaction.date).toLocaleDateString()}
+                              {transaction.account_name ? ` · ${transaction.account_name}` : ''}
+                            </div>
                           </div>
                         </div>
                         <div className={`font-semibold ${isIncome ? 'text-success' : 'text-foreground'}`}>
@@ -248,6 +317,32 @@ export function Dashboard() {
                 Add New Bill
               </Button>
             </FinancialCardFooter>
+          </FinancialCard>
+
+          <FinancialCard variant="financial" className="fade-in-up">
+            <FinancialCardHeader>
+              <FinancialCardTitle className="section-title">Account Breakdown</FinancialCardTitle>
+              <FinancialCardDescription>Balance and monthly movement by account</FinancialCardDescription>
+            </FinancialCardHeader>
+            <FinancialCardContent>
+              {accountBreakdown.length === 0 ? (
+                <div className="text-sm text-muted-foreground">No account data yet.</div>
+              ) : (
+                <div className="space-y-3">
+                  {accountBreakdown.slice(0, 6).map((account) => (
+                    <div key={account.id} className="interactive-row space-y-1">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="font-medium text-foreground">{account.name}</span>
+                        <span className="text-foreground">{currency(account.balance, account.currency)}</span>
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        Income {currency(account.monthly_income, account.currency)} · Expenses {currency(account.monthly_expenses, account.currency)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </FinancialCardContent>
           </FinancialCard>
 
           <FinancialCard variant="financial" className="fade-in-up">

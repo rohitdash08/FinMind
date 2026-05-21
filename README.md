@@ -45,7 +45,8 @@ flowchart LR
 
 ## PostgreSQL Schema (DDL)
 See `backend/app/db/schema.sql`. Key tables:
-- users, categories, expenses, bills, reminders
+- users, categories, financial_accounts, expenses, bills, reminders
+- financial_accounts store manual cash, bank, card, wallet, savings, loan, and investment accounts
 - ad_impressions, subscription_plans, user_subscriptions
 - refresh_tokens (optional if rotating), audit_logs
 
@@ -54,6 +55,7 @@ See `backend/app/db/schema.sql`. Key tables:
   - `user:{id}:monthly_summary:{yyyy-mm}` — 30 min TTL
   - `user:{id}:categories` — 24h TTL
   - `user:{id}:upcoming_bills` — 15 min TTL
+  - `user:{id}:dashboard_summary:{yyyy-mm}:{account-filter}` — 5 min TTL
   - `insights:{id}` — 24h TTL (invalidate on new expense/bill)
 - Invalidation
   - On expense/bill create/update/delete -> delete affected monthly_summary, upcoming_bills, insights
@@ -62,7 +64,9 @@ See `backend/app/db/schema.sql`. Key tables:
 ## API Endpoints
 OpenAPI: `backend/app/openapi.yaml`
 - Auth: `/auth/register`, `/auth/login`, `/auth/refresh`
-- Expenses: CRUD `/expenses`
+- Expenses: CRUD `/expenses`, optional `account_id` assignment/filtering
+- Accounts: CRUD/archive `/accounts` for manual financial accounts
+- Dashboard: `/dashboard/summary`, optional `account_ids=1,2` multi-account filter
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
 - Insights: `/insights/monthly`, `/insights/budget-suggestion`
@@ -70,10 +74,11 @@ OpenAPI: `backend/app/openapi.yaml`
 ## MVP UI/UX Plan
 - Auth screens: register/login.
 - Dashboard:
+  - Multi-account balance overview and account filters.
   - Monthly spend chart, category breakdown donut.
   - Upcoming bills list with due dates and pay status.
   - AI budget suggestion card.
-- Expenses page: add expense (amount, category, notes, date), list & filter.
+- Expenses page: add expense (amount, category, account, notes, date), list & filter.
 - Bills page: create bill (name, amount, cadence, due date, channel), toggle WhatsApp/email.
 - Settings: profile, categories, reminders default channel, export (premium).
 
@@ -165,7 +170,7 @@ finmind/
   - single file: `sh ./scripts/test-backend.sh tests/test_dashboard.py`
 
 ## Testing & CI
-- Backend: pytest, flake8, black. Frontend: vitest, eslint.
+- Backend: pytest, flake8, black. Frontend: Jest, eslint.
 - GitHub Actions `ci.yml` runs lint, tests, and builds both apps; optional docker build.
 
 ## Monitoring (Grafana OSS)

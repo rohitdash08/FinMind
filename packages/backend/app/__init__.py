@@ -110,6 +110,61 @@ def _ensure_schema_compatibility(app: Flask) -> None:
             NOT NULL DEFAULT 'INR'
             """
         )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS financial_accounts (
+              id SERIAL PRIMARY KEY,
+              user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              name VARCHAR(120) NOT NULL,
+              account_type VARCHAR(40) NOT NULL DEFAULT 'CHECKING',
+              institution VARCHAR(120),
+              last_four VARCHAR(4),
+              currency VARCHAR(10) NOT NULL DEFAULT 'INR',
+              opening_balance NUMERIC(12,2) NOT NULL DEFAULT 0,
+              active BOOLEAN NOT NULL DEFAULT TRUE,
+              created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+              updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+            """
+        )
+        cur.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_financial_accounts_user_active
+            ON financial_accounts(user_id, active)
+            """
+        )
+        cur.execute(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_financial_accounts_user_name
+            ON financial_accounts(user_id, name)
+            """
+        )
+        cur.execute(
+            """
+            ALTER TABLE expenses
+            ADD COLUMN IF NOT EXISTS account_id INT
+            REFERENCES financial_accounts(id) ON DELETE SET NULL
+            """
+        )
+        cur.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_expenses_user_account
+            ON expenses(user_id, account_id)
+            """
+        )
+        cur.execute(
+            """
+            ALTER TABLE recurring_expenses
+            ADD COLUMN IF NOT EXISTS account_id INT
+            REFERENCES financial_accounts(id) ON DELETE SET NULL
+            """
+        )
+        cur.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_recurring_expenses_user_account
+            ON recurring_expenses(user_id, account_id)
+            """
+        )
         conn.commit()
     except Exception:
         app.logger.exception(

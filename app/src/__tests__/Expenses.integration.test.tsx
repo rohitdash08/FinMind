@@ -76,11 +76,33 @@ jest.mock('@/api/categories', () => ({
   listCategories: (...args: unknown[]) => listCategoriesMock(...args),
 }));
 
+const listAccountsMock = jest.fn();
+jest.mock('@/api/accounts', () => ({
+  listAccounts: (...args: unknown[]) => listAccountsMock(...args),
+}));
+
 describe('Expenses page integration', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     listExpensesMock.mockResolvedValue([]);
     listCategoriesMock.mockResolvedValue([{ id: 1, name: 'Food' }]);
+    listAccountsMock.mockResolvedValue([
+      {
+        id: 1,
+        name: 'Checking',
+        account_type: 'CHECKING',
+        institution: null,
+        last_four: null,
+        currency: 'USD',
+        opening_balance: 0,
+        balance: 0,
+        income_total: 0,
+        expense_total: 0,
+        active: true,
+        created_at: '2026-02-01T00:00:00',
+        updated_at: '2026-02-01T00:00:00',
+      },
+    ]);
     createExpenseMock.mockResolvedValue({
       id: 10,
       amount: 20,
@@ -145,6 +167,7 @@ describe('Expenses page integration', () => {
       expect.arrayContaining([
         expect.objectContaining({ description: 'Taxi', amount: 14.2 }),
       ]),
+      null,
     ));
   });
 

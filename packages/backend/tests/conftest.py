@@ -3,8 +3,36 @@ import pytest
 from app import create_app
 from app.config import Settings
 from app.extensions import db
-from app.extensions import redis_client
 from app import models  # noqa: F401 - ensure models are registered
+
+
+class FakeRedis:
+    def __init__(self):
+        self.store = {}
+
+    def set(self, key, value):
+        self.store[str(key)] = value
+
+    def setex(self, key, _ttl, value):
+        self.store[str(key)] = value
+
+    def get(self, key):
+        return self.store.get(str(key))
+
+    def delete(self, *keys):
+        for key in keys:
+            self.store.pop(str(key), None)
+
+    def scan(self, cursor=0, match=None, count=100):
+        import fnmatch
+
+        keys = list(self.store)
+        if match:
+            keys = [key for key in keys if fnmatch.fnmatch(key, match)]
+        return 0, keys[:count]
+
+    def flushdb(self):
+        self.store.clear()
 
 
 class TestSettings(Settings):
@@ -19,6 +47,16 @@ def _setup_db(app):
         db.create_all()
 
 
+def _patch_redis(fake_redis):
+    import app.extensions as extensions
+    import app.routes.auth as auth_route
+    import app.services.cache as cache_service
+
+    extensions.redis_client = fake_redis
+    auth_route.redis_client = fake_redis
+    cache_service.redis_client = fake_redis
+
+
 @pytest.fixture()
 def app_fixture():
     # Ensure a clean env for tests
@@ -28,21 +66,17 @@ def app_fixture():
         redis_url="redis://localhost:6379/15",
         jwt_secret="test-secret-with-32-plus-chars-1234567890",
     )
+    fake_redis = FakeRedis()
+    _patch_redis(fake_redis)
     app = create_app(settings)
     app.config.update(TESTING=True)
     _setup_db(app)
-    try:
-        redis_client.flushdb()
-    except Exception:
-        pass
+    fake_redis.flushdb()
     yield app
     with app.app_context():
         db.session.remove()
         db.drop_all()
-    try:
-        redis_client.flushdb()
-    except Exception:
-        pass
+    fake_redis.flushdb()
 
 
 @pytest.fixture()

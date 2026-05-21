@@ -10,6 +10,7 @@ import { Bills } from "./pages/Bills";
 import { Analytics } from "./pages/Analytics";
 import Reminders from "./pages/Reminders";
 import Expenses from "./pages/Expenses";
+import Accounts from "./pages/Accounts";
 import { SignIn } from "./pages/SignIn";
 import { Register } from "./pages/Register";
 import NotFound from "./pages/NotFound";
@@ -64,6 +65,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Expenses />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="accounts"
+              element={
+                <ProtectedRoute>
+                  <Accounts />
                 </ProtectedRoute>
               }
             />

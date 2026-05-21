@@ -18,10 +18,27 @@ CREATE TABLE IF NOT EXISTS categories (
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS financial_accounts (
+  id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name VARCHAR(120) NOT NULL,
+  account_type VARCHAR(40) NOT NULL DEFAULT 'CHECKING',
+  institution VARCHAR(120),
+  last_four VARCHAR(4),
+  currency VARCHAR(10) NOT NULL DEFAULT 'INR',
+  opening_balance NUMERIC(12,2) NOT NULL DEFAULT 0,
+  active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_financial_accounts_user_active ON financial_accounts(user_id, active);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_financial_accounts_user_name ON financial_accounts(user_id, name);
+
 CREATE TABLE IF NOT EXISTS expenses (
   id SERIAL PRIMARY KEY,
   user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   category_id INT REFERENCES categories(id) ON DELETE SET NULL,
+  account_id INT REFERENCES financial_accounts(id) ON DELETE SET NULL,
   amount NUMERIC(12,2) NOT NULL,
   currency VARCHAR(10) NOT NULL DEFAULT 'INR',
   expense_type VARCHAR(20) NOT NULL DEFAULT 'EXPENSE',
@@ -30,9 +47,13 @@ CREATE TABLE IF NOT EXISTS expenses (
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_expenses_user_spent_at ON expenses(user_id, spent_at DESC);
+CREATE INDEX IF NOT EXISTS idx_expenses_user_account ON expenses(user_id, account_id);
 
 ALTER TABLE expenses
   ADD COLUMN IF NOT EXISTS expense_type VARCHAR(20) NOT NULL DEFAULT 'EXPENSE';
+
+ALTER TABLE expenses
+  ADD COLUMN IF NOT EXISTS account_id INT REFERENCES financial_accounts(id) ON DELETE SET NULL;
 
 DO $$ BEGIN
   CREATE TYPE recurring_cadence AS ENUM ('DAILY','WEEKLY','MONTHLY','YEARLY');
@@ -44,6 +65,7 @@ CREATE TABLE IF NOT EXISTS recurring_expenses (
   id SERIAL PRIMARY KEY,
   user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   category_id INT REFERENCES categories(id) ON DELETE SET NULL,
+  account_id INT REFERENCES financial_accounts(id) ON DELETE SET NULL,
   amount NUMERIC(12,2) NOT NULL,
   currency VARCHAR(10) NOT NULL DEFAULT 'INR',
   expense_type VARCHAR(20) NOT NULL DEFAULT 'EXPENSE',
@@ -55,6 +77,10 @@ CREATE TABLE IF NOT EXISTS recurring_expenses (
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_recurring_expenses_user_start ON recurring_expenses(user_id, start_date);
+CREATE INDEX IF NOT EXISTS idx_recurring_expenses_user_account ON recurring_expenses(user_id, account_id);
+
+ALTER TABLE recurring_expenses
+  ADD COLUMN IF NOT EXISTS account_id INT REFERENCES financial_accounts(id) ON DELETE SET NULL;
 
 ALTER TABLE expenses
   ADD COLUMN IF NOT EXISTS source_recurring_id INT REFERENCES recurring_expenses(id) ON DELETE SET NULL;

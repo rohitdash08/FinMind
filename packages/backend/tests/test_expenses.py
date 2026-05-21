@@ -59,6 +59,62 @@ def test_expenses_crud_filters_and_canonical_fields(client, auth_header):
     assert r.get_json() == []
 
 
+def test_expenses_support_account_assignment_and_filter(client, auth_header):
+    r = client.post(
+        "/accounts", json={"name": "Cash", "opening_balance": 50}, headers=auth_header
+    )
+    assert r.status_code == 201
+    cash_id = r.get_json()["id"]
+    r = client.post("/accounts", json={"name": "Savings"}, headers=auth_header)
+    assert r.status_code == 201
+    savings_id = r.get_json()["id"]
+
+    r = client.post(
+        "/expenses",
+        json={
+            "amount": 12.5,
+            "description": "Cash lunch",
+            "date": "2026-02-12",
+            "account_id": cash_id,
+        },
+        headers=auth_header,
+    )
+    assert r.status_code == 201
+    created = r.get_json()
+    assert created["account_id"] == cash_id
+    assert created["account_name"] == "Cash"
+
+    r = client.post(
+        "/expenses",
+        json={
+            "amount": 20,
+            "description": "Savings transfer fee",
+            "date": "2026-02-13",
+            "account_id": savings_id,
+        },
+        headers=auth_header,
+    )
+    assert r.status_code == 201
+
+    r = client.get(f"/expenses?account_id={cash_id}", headers=auth_header)
+    assert r.status_code == 200
+    items = r.get_json()
+    assert len(items) == 1
+    assert items[0]["description"] == "Cash lunch"
+
+    r = client.patch(
+        f"/expenses/{items[0]['id']}",
+        json={"account_id": savings_id},
+        headers=auth_header,
+    )
+    assert r.status_code == 200
+    assert r.get_json()["account_id"] == savings_id
+
+    r = client.get(f"/expenses?account_id={cash_id}", headers=auth_header)
+    assert r.status_code == 200
+    assert r.get_json() == []
+
+
 def test_expense_create_defaults_to_user_preferred_currency(client, auth_header):
     r = client.patch(
         "/auth/me", json={"preferred_currency": "INR"}, headers=auth_header

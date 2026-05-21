@@ -6,6 +6,8 @@ export type Expense = {
   currency?: string;
   description: string;
   category_id: number | null;
+  account_id?: number | null;
+  account_name?: string | null;
   date: string; // ISO date
 };
 
@@ -13,6 +15,7 @@ export type ExpenseCreate = {
   amount: number;
   description: string;
   category_id?: number | null;
+  account_id?: number | null;
   date: string; // ISO date
 };
 
@@ -23,6 +26,7 @@ export type ImportTransaction = {
   amount: number;
   description: string;
   category_id?: number | null;
+  account_id?: number | null;
   currency?: string;
 };
 
@@ -49,6 +53,7 @@ export type RecurringExpenseCreate = {
   amount: number;
   description: string;
   category_id?: number | null;
+  account_id?: number | null;
   cadence: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY';
   start_date: string;
   end_date?: string | null;
@@ -60,6 +65,7 @@ export async function listExpenses(params?: {
   from?: string;
   to?: string;
   category_id?: number;
+  account_id?: number;
   search?: string;
   page?: number;
   page_size?: number;
@@ -111,10 +117,11 @@ export async function previewExpenseImport(file: File): Promise<ImportPreviewRes
 
 export async function commitExpenseImport(
   transactions: ImportTransaction[],
+  accountId?: number | null,
 ): Promise<{ inserted: number; duplicates: number }> {
   return api<{ inserted: number; duplicates: number }>('/expenses/import/commit', {
     method: 'POST',
-    body: { transactions },
+    body: { transactions, account_id: accountId ?? null },
   });
 }
 
