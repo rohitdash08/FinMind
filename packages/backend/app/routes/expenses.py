@@ -5,7 +5,7 @@ from decimal import Decimal, InvalidOperation
 from flask import Blueprint, current_app, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..extensions import db
-from ..models import Expense, RecurringCadence, RecurringExpense, User
+from ..models import Expense, FinancialAccount, RecurringCadence, RecurringExpense, User
 from ..services.cache import cache_delete_patterns, monthly_summary_key
 from ..services import expense_import
 import logging
@@ -23,6 +23,7 @@ def list_expenses():
     to_date = request.args.get("to")
     search = (request.args.get("search") or "").strip()
     category_id = request.args.get("category_id")
+    account_id = request.args.get("account_id")
     try:
         page = max(1, int(request.args.get("page", "1")))
         page_size = min(200, max(1, int(request.args.get("page_size", "200"))))
@@ -36,6 +37,11 @@ def list_expenses():
             q = q.filter(Expense.spent_at <= date.fromisoformat(to_date))
         if category_id:
             q = q.filter(Expense.category_id == int(category_id))
+        if account_id:
+            account_id_int = int(account_id)
+            if not _account_belongs_to_user(account_id_int, uid):
+                return jsonify(error="account not found"), 404
+            q = q.filter(Expense.account_id == account_id_int)
     except ValueError:
         return jsonify(error="invalid filter values"), 400
     if search:
@@ -65,12 +71,18 @@ def create_expense():
     description = (data.get("description") or data.get("notes") or "").strip()
     if not description:
         return jsonify(error="description required"), 400
+    account_id = _resolve_account_id(data.get("account_id"), uid)
+    if account_id == "missing":
+        return jsonify(error="account not found"), 404
+    if account_id == "invalid":
+        return jsonify(error="invalid account_id"), 400
     e = Expense(
         user_id=uid,
         amount=amount,
         currency=(data.get("currency") or (user.preferred_currency if user else "INR")),
         expense_type=str(data.get("expense_type") or "EXPENSE").upper(),
         category_id=data.get("category_id"),
+        account_id=account_id,
         notes=description,
         spent_at=date.fromisoformat(raw_date) if raw_date else date.today(),
     )
@@ -130,9 +142,15 @@ def create_recurring_expense():
             return jsonify(error="invalid end_date"), 400
         if end_date < start_date:
             return jsonify(error="end_date must be on or after start_date"), 400
+    account_id = _resolve_account_id(data.get("account_id"), uid)
+    if account_id == "missing":
+        return jsonify(error="account not found"), 404
+    if account_id == "invalid":
+        return jsonify(error="invalid account_id"), 400
     recurring = RecurringExpense(
         user_id=uid,
         category_id=data.get("category_id"),
+        account_id=account_id,
         amount=amount,
         currency=(data.get("currency") or (user.preferred_currency if user else "INR")),
         expense_type=str(data.get("expense_type") or "EXPENSE").upper(),
@@ -185,6 +203,7 @@ def generate_recurring_expenses(recurring_id: int):
                 Expense(
                     user_id=uid,
                     category_id=recurring.category_id,
+                    account_id=recurring.account_id,
                     amount=recurring.amount,
                     currency=recurring.currency,
                     expense_type=recurring.expense_type,
@@ -221,6 +240,13 @@ def update_expense(expense_id: int):
         e.expense_type = str(data.get("expense_type") or "EXPENSE").upper()
     if "category_id" in data:
         e.category_id = data.get("category_id")
+    if "account_id" in data:
+        account_id = _resolve_account_id(data.get("account_id"), uid)
+        if account_id == "missing":
+            return jsonify(error="account not found"), 404
+        if account_id == "invalid":
+            return jsonify(error="invalid account_id"), 400
+        e.account_id = account_id
     if "description" in data or "notes" in data:
         description = (data.get("description") or data.get("notes") or "").strip()
         if not description:
@@ -286,10 +312,20 @@ def import_commit():
     if not isinstance(rows, list) or not rows:
         return jsonify(error="transactions required"), 400
     transactions = expense_import.normalize_import_rows(rows)
+    default_account_id = _resolve_account_id(data.get("account_id"), uid)
+    if default_account_id == "missing":
+        return jsonify(error="account not found"), 404
+    if default_account_id == "invalid":
+        return jsonify(error="invalid account_id"), 400
     inserted = 0
     duplicates = 0
     touched_months: set[str] = set()
     for t in transactions:
+        account_id = _resolve_account_id(t.get("account_id", default_account_id), uid)
+        if account_id == "missing":
+            return jsonify(error="account not found"), 404
+        if account_id == "invalid":
+            return jsonify(error="invalid account_id"), 400
         if _is_duplicate(uid, t):
             duplicates += 1
             continue
@@ -299,6 +335,7 @@ def import_commit():
             currency=t.get("currency") or (user.preferred_currency if user else "INR"),
             expense_type=str(t.get("expense_type") or "EXPENSE").upper(),
             category_id=t.get("category_id"),
+            account_id=account_id,
             notes=t["description"],
             spent_at=date.fromisoformat(t["date"]),
         )
@@ -312,11 +349,14 @@ def import_commit():
 
 
 def _expense_to_dict(e: Expense) -> dict:
+    account = db.session.get(FinancialAccount, e.account_id) if e.account_id else None
     return {
         "id": e.id,
         "amount": float(e.amount),
         "currency": e.currency,
         "category_id": e.category_id,
+        "account_id": e.account_id,
+        "account_name": account.name if account else None,
         "expense_type": e.expense_type,
         "description": e.notes or "",
         "date": e.spent_at.isoformat(),
@@ -330,6 +370,7 @@ def _recurring_to_dict(r: RecurringExpense) -> dict:
         "currency": r.currency,
         "expense_type": r.expense_type,
         "category_id": r.category_id,
+        "account_id": r.account_id,
         "description": r.notes,
         "cadence": r.cadence.value,
         "start_date": r.start_date.isoformat(),
@@ -343,6 +384,27 @@ def _parse_amount(raw) -> Decimal | None:
         return Decimal(str(raw)).quantize(Decimal("0.01"))
     except (InvalidOperation, ValueError, TypeError):
         return None
+
+
+def _resolve_account_id(raw, uid: int):
+    if raw in (None, ""):
+        return None
+    try:
+        account_id = int(raw)
+    except (TypeError, ValueError):
+        return "invalid"
+    if not _account_belongs_to_user(account_id, uid):
+        return "missing"
+    return account_id
+
+
+def _account_belongs_to_user(account_id: int, uid: int) -> bool:
+    return (
+        db.session.query(FinancialAccount.id)
+        .filter_by(id=account_id, user_id=uid)
+        .first()
+        is not None
+    )
 
 
 def _parse_recurring_cadence(raw: str | None) -> str | None:

@@ -27,11 +27,31 @@ class Category(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
 
+class FinancialAccount(db.Model):
+    __tablename__ = "financial_accounts"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    name = db.Column(db.String(120), nullable=False)
+    account_type = db.Column(db.String(40), default="CHECKING", nullable=False)
+    institution = db.Column(db.String(120), nullable=True)
+    last_four = db.Column(db.String(4), nullable=True)
+    currency = db.Column(db.String(10), default="INR", nullable=False)
+    opening_balance = db.Column(db.Numeric(12, 2), default=0, nullable=False)
+    active = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(
+        db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+    )
+
+
 class Expense(db.Model):
     __tablename__ = "expenses"
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     category_id = db.Column(db.Integer, db.ForeignKey("categories.id"), nullable=True)
+    account_id = db.Column(
+        db.Integer, db.ForeignKey("financial_accounts.id"), nullable=True
+    )
     amount = db.Column(db.Numeric(12, 2), nullable=False)
     currency = db.Column(db.String(10), default="INR", nullable=False)
     expense_type = db.Column(db.String(20), default="EXPENSE", nullable=False)
@@ -55,6 +75,9 @@ class RecurringExpense(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     category_id = db.Column(db.Integer, db.ForeignKey("categories.id"), nullable=True)
+    account_id = db.Column(
+        db.Integer, db.ForeignKey("financial_accounts.id"), nullable=True
+    )
     amount = db.Column(db.Numeric(12, 2), nullable=False)
     currency = db.Column(db.String(10), default="INR", nullable=False)
     expense_type = db.Column(db.String(20), default="EXPENSE", nullable=False)

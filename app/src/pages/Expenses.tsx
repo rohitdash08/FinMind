@@ -46,6 +46,7 @@ import {
   type RecurringExpense,
 } from '@/api/expenses';
 import { listCategories, type Category } from '@/api/categories';
+import { listAccounts, type FinancialAccount } from '@/api/accounts';
 import { formatMoney } from '@/lib/currency';
 
 export default function Expenses() {
@@ -58,6 +59,7 @@ export default function Expenses() {
   const [error, setError] = useState<string | null>(null);
 
   const [categories, setCategories] = useState<Category[]>([]);
+  const [accounts, setAccounts] = useState<FinancialAccount[]>([]);
 
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Expense | null>(null);
@@ -66,6 +68,7 @@ export default function Expenses() {
   const [description, setDescription] = useState('');
   const [date, setDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
   const [categoryId, setCategoryId] = useState<string>('');
+  const [accountId, setAccountId] = useState<string>('');
   const [saving, setSaving] = useState(false);
 
   const [importFile, setImportFile] = useState<File | null>(null);
@@ -73,6 +76,7 @@ export default function Expenses() {
   const [previewDuplicates, setPreviewDuplicates] = useState<number>(0);
   const [importLoading, setImportLoading] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [importAccountId, setImportAccountId] = useState<string>('');
   const [recurringItems, setRecurringItems] = useState<RecurringExpense[]>([]);
   const [recurringAmount, setRecurringAmount] = useState('');
   const [recurringDescription, setRecurringDescription] = useState('');
@@ -87,6 +91,7 @@ export default function Expenses() {
   const [from, setFrom] = useState<string>('');
   const [to, setTo] = useState<string>('');
   const [filterCategoryId, setFilterCategoryId] = useState<string>('');
+  const [filterAccountId, setFilterAccountId] = useState<string>('');
   const [search, setSearch] = useState<string>('');
   const [page, setPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(10);
@@ -99,6 +104,7 @@ export default function Expenses() {
         from: from || undefined,
         to: to || undefined,
         category_id: filterCategoryId ? Number(filterCategoryId) : undefined,
+        account_id: filterAccountId ? Number(filterAccountId) : undefined,
         search: search || undefined,
         page,
         page_size: pageSize,
@@ -113,7 +119,7 @@ export default function Expenses() {
     } finally {
       setLoading(false);
     }
-  }, [filterCategoryId, from, page, pageSize, search, to, toast]);
+  }, [filterAccountId, filterCategoryId, from, page, pageSize, search, to, toast]);
 
   const loadCategories = useCallback(async () => {
     try {
@@ -121,6 +127,14 @@ export default function Expenses() {
       setCategories(cats);
     } catch {
       toast({ title: 'Failed to load categories', description: 'Please try again.' });
+    }
+  }, [toast]);
+
+  const loadAccounts = useCallback(async () => {
+    try {
+      setAccounts(await listAccounts());
+    } catch {
+      toast({ title: 'Failed to load accounts', description: 'Please try again.' });
     }
   }, [toast]);
 
@@ -139,14 +153,16 @@ export default function Expenses() {
   useEffect(() => {
     void refresh();
     void loadCategories();
+    void loadAccounts();
     void loadRecurring();
-  }, [refresh, loadCategories, loadRecurring]);
+  }, [refresh, loadAccounts, loadCategories, loadRecurring]);
 
   function resetForm() {
     setAmount('');
     setDescription('');
     setDate(new Date().toISOString().slice(0, 10));
     setCategoryId('');
+    setAccountId('');
     setEditing(null);
   }
 
@@ -161,6 +177,7 @@ export default function Expenses() {
     setDescription(exp.description || '');
     setDate(exp.date.slice(0, 10));
     setCategoryId(exp.category_id ? String(exp.category_id) : '');
+    setAccountId(exp.account_id ? String(exp.account_id) : '');
     setOpen(true);
   }
 
@@ -192,6 +209,7 @@ export default function Expenses() {
           description,
           date,
           category_id: categoryId ? Number(categoryId) : null,
+          account_id: accountId ? Number(accountId) : null,
         });
         setAllItems((prev) => prev.map((x) => (x.id === editing.id ? updated : x)));
         setItems((prev) => prev.map((x) => (x.id === editing.id ? updated : x)));
@@ -202,6 +220,7 @@ export default function Expenses() {
           description,
           date,
           category_id: categoryId ? Number(categoryId) : null,
+          account_id: accountId ? Number(accountId) : null,
         });
         setAllItems((prev) => [created, ...prev]);
         setItems((prev) => (page === 1 ? [created, ...prev].slice(0, pageSize) : prev));
@@ -269,7 +288,7 @@ export default function Expenses() {
     setImporting(true);
     setError(null);
     try {
-      const res = await commitExpenseImport(preview);
+      const res = await commitExpenseImport(preview, importAccountId ? Number(importAccountId) : null);
       toast({
         title: 'Import complete',
         description: `${res.inserted} added, ${res.duplicates} duplicates skipped.`,
@@ -298,6 +317,7 @@ export default function Expenses() {
         amount: Number(recurringAmount),
         description: recurringDescription.trim(),
         category_id: categoryId ? Number(categoryId) : null,
+        account_id: accountId ? Number(accountId) : null,
         cadence: recurringCadence,
         start_date: recurringStartDate,
         end_date: recurringEndDate || null,
@@ -338,6 +358,7 @@ export default function Expenses() {
   }
 
   const categoryMap = useMemo(() => new Map(categories.map((c) => [c.id, c.name])), [categories]);
+  const accountMap = useMemo(() => new Map(accounts.map((a) => [a.id, a.name])), [accounts]);
   const totals = useMemo(() => {
     const sum = allItems.reduce((acc, e) => acc + Number(e.amount || 0), 0);
     return { sum };
@@ -394,6 +415,15 @@ export default function Expenses() {
                   ))}
                 </select>
               </div>
+              <div>
+                <Label htmlFor="account">Account</Label>
+                <select id="account" className="input" value={accountId} onChange={(e) => setAccountId(e.target.value)}>
+                  <option value="">Unassigned</option>
+                  {accounts.map((account) => (
+                    <option key={account.id} value={account.id}>{account.name}</option>
+                  ))}
+                </select>
+              </div>
             </div>
             {error && <div className="error">{error}</div>}
             <DialogFooter>
@@ -431,6 +461,15 @@ export default function Expenses() {
               ))}
             </select>
           </div>
+          <div>
+            <Label htmlFor="q-account">Account</Label>
+            <select id="q-account" className="input" value={accountId} onChange={(e) => setAccountId(e.target.value)}>
+              <option value="">Unassigned</option>
+              {accounts.map((account) => (
+                <option key={account.id} value={account.id}>{account.name}</option>
+              ))}
+            </select>
+          </div>
           <Button onClick={onSubmit} disabled={saving}>Save Expense</Button>
         </div>
 
@@ -443,6 +482,15 @@ export default function Expenses() {
             accept=".pdf,.csv,application/pdf,text/csv"
             onChange={(e) => setImportFile(e.target.files?.[0] || null)}
           />
+          <div>
+            <Label htmlFor="import-account">Import into account</Label>
+            <select id="import-account" className="input" value={importAccountId} onChange={(e) => setImportAccountId(e.target.value)}>
+              <option value="">Unassigned</option>
+              {accounts.map((account) => (
+                <option key={account.id} value={account.id}>{account.name}</option>
+              ))}
+            </select>
+          </div>
           <div className="flex gap-2">
             <Button variant="outline" onClick={onPreviewImport} disabled={importLoading || !importFile}>Preview Import</Button>
             <Button onClick={onCommitImport} disabled={importing || preview.length === 0}>Confirm Import</Button>
@@ -468,7 +516,7 @@ export default function Expenses() {
 
       <div className="card card-interactive p-4 space-y-4 fade-in-up">
         <h3 className="text-base font-semibold">Recurring Expenses</h3>
-        <div className="grid gap-3 md:grid-cols-6">
+        <div className="grid gap-3 md:grid-cols-7">
           <Input
             aria-label="recurring amount"
             type="number"
@@ -507,6 +555,17 @@ export default function Expenses() {
             value={recurringEndDate}
             onChange={(e) => setRecurringEndDate(e.target.value)}
           />
+          <select
+            aria-label="recurring account"
+            className="input"
+            value={accountId}
+            onChange={(e) => setAccountId(e.target.value)}
+          >
+            <option value="">Unassigned</option>
+            {accounts.map((account) => (
+              <option key={account.id} value={account.id}>{account.name}</option>
+            ))}
+          </select>
           <Button onClick={onCreateRecurring} disabled={recurringSaving}>
             Add Recurring
           </Button>
@@ -529,7 +588,7 @@ export default function Expenses() {
         </div>
       </div>
 
-      <div className="card p-4 grid md:grid-cols-5 gap-3 fade-in-up">
+      <div className="card p-4 grid md:grid-cols-6 gap-3 fade-in-up">
         <div>
           <Label htmlFor="from">From</Label>
           <Input id="from" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
@@ -548,11 +607,20 @@ export default function Expenses() {
           </select>
         </div>
         <div>
+          <Label htmlFor="faccount">Account</Label>
+          <select id="faccount" className="input" value={filterAccountId} onChange={(e) => setFilterAccountId(e.target.value)}>
+            <option value="">All</option>
+            {accounts.map((account) => (
+              <option key={account.id} value={account.id}>{account.name}</option>
+            ))}
+          </select>
+        </div>
+        <div>
           <Label htmlFor="search">Search</Label>
           <Input id="search" placeholder="description contains..." value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
         <div className="flex items-end gap-2">
-          <Button variant="outline" onClick={() => { setFrom(''); setTo(''); setFilterCategoryId(''); setSearch(''); setPage(1); }}>Reset</Button>
+          <Button variant="outline" onClick={() => { setFrom(''); setTo(''); setFilterCategoryId(''); setFilterAccountId(''); setSearch(''); setPage(1); }}>Reset</Button>
           <Button onClick={() => { setPage(1); refresh(); }}>Apply</Button>
         </div>
       </div>
@@ -571,6 +639,7 @@ export default function Expenses() {
                     <th className="py-2">Date</th>
                     <th className="py-2">Description</th>
                     <th className="py-2">Category</th>
+                    <th className="py-2">Account</th>
                     <th className="py-2">Amount</th>
                     <th className="py-2"></th>
                   </tr>
@@ -581,6 +650,7 @@ export default function Expenses() {
                       <td className="py-2">{e.date.slice(0, 10)}</td>
                       <td className="py-2">{e.description}</td>
                       <td className="py-2">{e.category_id ? categoryMap.get(e.category_id) : '—'}</td>
+                      <td className="py-2">{e.account_id ? (e.account_name || accountMap.get(e.account_id)) : '—'}</td>
                       <td className="py-2 font-medium">{formatMoney(e.amount, e.currency)}</td>
                       <td className="py-2">
                         <div className="flex gap-2 justify-end">
@@ -607,7 +677,7 @@ export default function Expenses() {
                     </tr>
                   ))}
                   <tr className="border-t bg-muted/30">
-                    <td className="py-2" colSpan={3}>Total</td>
+                    <td className="py-2" colSpan={4}>Total</td>
                     <td className="py-2 font-semibold">{formatMoney(totals.sum)}</td>
                     <td></td>
                   </tr>

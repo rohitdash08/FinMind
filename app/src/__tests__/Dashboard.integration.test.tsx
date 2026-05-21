@@ -29,7 +29,40 @@ describe('Dashboard integration', () => {
         monthly_expenses: 500,
         upcoming_bills_total: 49.99,
         upcoming_bills_count: 1,
+        total_balance: 3500,
+        account_count: 1,
+        selected_account_count: 1,
       },
+      accounts: [
+        {
+          id: 1,
+          name: 'Checking',
+          account_type: 'CHECKING',
+          institution: null,
+          last_four: null,
+          currency: 'USD',
+          opening_balance: 1000,
+          balance: 3500,
+          monthly_income: 3000,
+          monthly_expenses: 500,
+          monthly_net_flow: 2500,
+        },
+      ],
+      account_breakdown: [
+        {
+          id: 1,
+          name: 'Checking',
+          account_type: 'CHECKING',
+          institution: null,
+          last_four: null,
+          currency: 'USD',
+          opening_balance: 1000,
+          balance: 3500,
+          monthly_income: 3000,
+          monthly_expenses: 500,
+          monthly_net_flow: 2500,
+        },
+      ],
       recent_transactions: [
         {
           id: 1,
@@ -75,6 +108,7 @@ describe('Dashboard integration', () => {
 
     expect(screen.getByText(/financial dashboard/i)).toBeInTheDocument();
     expect(screen.getByText(/salary/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/checking/i).length).toBeGreaterThan(0);
     expect(screen.getByText(/internet/i)).toBeInTheDocument();
     expect(screen.getByText(/category breakdown/i)).toBeInTheDocument();
   });
@@ -89,7 +123,12 @@ describe('Dashboard integration', () => {
         monthly_expenses: 0,
         upcoming_bills_total: 0,
         upcoming_bills_count: 0,
+        total_balance: 0,
+        account_count: 0,
+        selected_account_count: 0,
       },
+      accounts: [],
+      account_breakdown: [],
       recent_transactions: [],
       upcoming_bills: [],
       category_breakdown: [],
@@ -120,7 +159,12 @@ describe('Dashboard integration', () => {
         monthly_expenses: 0,
         upcoming_bills_total: 0,
         upcoming_bills_count: 0,
+        total_balance: 0,
+        account_count: 0,
+        selected_account_count: 0,
       },
+      accounts: [],
+      account_breakdown: [],
       recent_transactions: [],
       upcoming_bills: [],
       category_breakdown: [],
@@ -137,6 +181,6 @@ describe('Dashboard integration', () => {
 
     await waitFor(() => expect(getDashboardSummaryMock).toHaveBeenCalledTimes(1));
     fireEvent.change(screen.getByLabelText(/dashboard month/i), { target: { value: '2026-01' } });
-    await waitFor(() => expect(getDashboardSummaryMock).toHaveBeenLastCalledWith('2026-01'));
+    await waitFor(() => expect(getDashboardSummaryMock).toHaveBeenLastCalledWith('2026-01', []));
   });
 });

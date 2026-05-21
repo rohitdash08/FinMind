@@ -65,6 +65,70 @@ def test_dashboard_summary_returns_live_data(client, auth_header):
     assert any(c["category_name"] == "Food" for c in payload["category_breakdown"])
 
 
+def test_dashboard_summary_supports_multi_account_overview_and_filter(
+    client, auth_header
+):
+    month = date.today().replace(day=1)
+    r = client.post(
+        "/accounts",
+        json={"name": "Checking", "opening_balance": 1000, "currency": "USD"},
+        headers=auth_header,
+    )
+    assert r.status_code == 201
+    checking_id = r.get_json()["id"]
+    r = client.post(
+        "/accounts",
+        json={"name": "Savings", "opening_balance": 500, "currency": "USD"},
+        headers=auth_header,
+    )
+    assert r.status_code == 201
+    savings_id = r.get_json()["id"]
+
+    entries = [
+        (3000, "Salary", "INCOME", checking_id),
+        (200, "Groceries", "EXPENSE", checking_id),
+        (100, "Interest", "INCOME", savings_id),
+        (50, "Maintenance", "EXPENSE", savings_id),
+    ]
+    for amount, description, expense_type, account_id in entries:
+        r = client.post(
+            "/expenses",
+            json={
+                "amount": amount,
+                "description": description,
+                "date": month.isoformat(),
+                "expense_type": expense_type,
+                "account_id": account_id,
+            },
+            headers=auth_header,
+        )
+        assert r.status_code == 201
+
+    r = client.get(
+        f"/dashboard/summary?month={month.strftime('%Y-%m')}", headers=auth_header
+    )
+    assert r.status_code == 200
+    payload = r.get_json()
+    assert payload["summary"]["monthly_income"] == 3100.0
+    assert payload["summary"]["monthly_expenses"] == 250.0
+    assert payload["summary"]["total_balance"] == 4350.0
+    assert payload["summary"]["account_count"] == 2
+    assert {a["name"] for a in payload["account_breakdown"]} == {"Checking", "Savings"}
+    assert any(t["account_name"] == "Checking" for t in payload["recent_transactions"])
+
+    r = client.get(
+        f"/dashboard/summary?month={month.strftime('%Y-%m')}&account_ids={savings_id}",
+        headers=auth_header,
+    )
+    assert r.status_code == 200
+    filtered = r.get_json()
+    assert filtered["selected_account_ids"] == [savings_id]
+    assert filtered["summary"]["monthly_income"] == 100.0
+    assert filtered["summary"]["monthly_expenses"] == 50.0
+    assert filtered["summary"]["total_balance"] == 550.0
+    assert [a["name"] for a in filtered["account_breakdown"]] == ["Savings"]
+
+
 def test_dashboard_summary_supports_month_filter(client, auth_header):
     month_a = date.today().replace(day=1)
     month_b = (month_a - timedelta(days=1)).replace(day=1)
