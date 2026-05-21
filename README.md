@@ -176,7 +176,17 @@ finmind/
 - Logs are emitted as JSON with `request_id` and shipped to Loki via Promtail.
 - Pre-provisioned Grafana dashboard: `FinMind Operations and KPI`.
 
-## Contribution Policy
+## 📚 Documentation
+Please see our `/docs` for full OpenAPI schemas.
+
+## 🪝 Webhooks
+FinMind emits signed webhooks (HMAC SHA-256) for key events. 
+You can register an endpoint via `POST /webhooks` and listen to the following events:
+- `expense.created`: Emitted when a new expense is logged.
+
+Each webhook contains an `X-FinMind-Signature` header for verification. Webhooks will automatically retry up to 5 times using exponential backoff in case of delivery failure.
+
+## 🤝 Contribution Policy
 - See `CONTRIBUTING.md` for fork-first contribution flow and PR requirements.
 
 ## Notes on Free-Tier Reminders

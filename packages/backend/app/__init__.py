@@ -13,6 +13,7 @@ import click
 import os
 import logging
 from datetime import timedelta
+from apscheduler.schedulers.background import BackgroundScheduler
 
 
 def create_app(settings: Settings | None = None) -> Flask:
@@ -55,6 +56,16 @@ def create_app(settings: Settings | None = None) -> Flask:
     # Backward-compatible schema patch for existing databases.
     with app.app_context():
         _ensure_schema_compatibility(app)
+
+    # Initialize APScheduler for webhooks
+    scheduler = BackgroundScheduler()
+    def job_process_webhooks():
+        with app.app_context():
+            from .services.webhook_service import process_pending_webhooks
+            process_pending_webhooks()
+            
+    scheduler.add_job(func=job_process_webhooks, trigger="interval", seconds=60)
+    scheduler.start()
 
     @app.before_request
     def _before_request():
