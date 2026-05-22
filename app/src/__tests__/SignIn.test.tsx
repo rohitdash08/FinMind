@@ -90,6 +90,38 @@ describe('SignIn page', () => {
     expect(navigateMock).toHaveBeenCalled();
   });
 
+  it('shows security warning toast when login response is suspicious', async () => {
+    (login as jest.Mock).mockResolvedValue({
+      access_token: 'a',
+      refresh_token: 'r',
+      security_alert: {
+        suspicious: true,
+        reasons: ['new_ip'],
+        message: 'New login from an unrecognized network.',
+      },
+    });
+
+    render(
+      <MemoryRouter>
+        <SignIn />
+      </MemoryRouter>
+    );
+
+    await userEvent.type(screen.getByLabelText(/email/i), 'demo@finmind.local');
+    await userEvent.type(screen.getByLabelText(/password/i), 'DemoPass123!');
+    await userEvent.click(screen.getByRole('button', { name: /sign in to your account/i }));
+
+    await waitFor(() =>
+      expect(toastMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          variant: 'destructive',
+          title: 'Suspicious login detected',
+        })
+      )
+    );
+    expect(navigateMock).toHaveBeenCalled();
+  });
+
   it('shows error toast on failed login', async () => {
     (login as jest.Mock).mockRejectedValue(new Error('invalid credentials'));
 

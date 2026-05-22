@@ -128,10 +128,20 @@ export function SignIn() {
                     } catch {
                       // Keep existing local currency if profile fetch fails.
                     }
-                    toast({
-                      title: 'Welcome back 👋',
-                      description: 'You have successfully signed in.',
-                    });
+                    if (res.security_alert?.suspicious) {
+                      toast({
+                        variant: 'destructive',
+                        title: 'Suspicious login detected',
+                        description:
+                          res.security_alert.message ||
+                          'We noticed a login from a new device or network.',
+                      });
+                    } else {
+                      toast({
+                        title: 'Welcome back 👋',
+                        description: 'You have successfully signed in.',
+                      });
+                    }
                     nav(from, { replace: true });
                   } catch (err: unknown) {
                     const message = err instanceof Error ? err.message : 'Invalid email or password';

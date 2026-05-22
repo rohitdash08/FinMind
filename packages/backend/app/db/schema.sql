@@ -11,6 +11,34 @@ CREATE TABLE IF NOT EXISTS users (
 ALTER TABLE users
   ADD COLUMN IF NOT EXISTS preferred_currency VARCHAR(10) NOT NULL DEFAULT 'INR';
 
+CREATE TABLE IF NOT EXISTS login_events (
+  id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  ip_hash VARCHAR(64) NOT NULL,
+  user_agent_hash VARCHAR(64) NOT NULL,
+  user_agent VARCHAR(255) NOT NULL,
+  suspicious BOOLEAN NOT NULL DEFAULT FALSE,
+  reason VARCHAR(255),
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_login_events_user_created ON login_events(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_login_events_user_ip ON login_events(user_id, ip_hash);
+CREATE INDEX IF NOT EXISTS idx_login_events_user_agent ON login_events(user_id, user_agent_hash);
+
+CREATE TABLE IF NOT EXISTS security_alerts (
+  id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  alert_type VARCHAR(50) NOT NULL,
+  severity VARCHAR(20) NOT NULL DEFAULT 'medium',
+  message VARCHAR(500) NOT NULL,
+  details JSONB NOT NULL DEFAULT '{}'::jsonb,
+  read BOOLEAN NOT NULL DEFAULT FALSE,
+  read_at TIMESTAMP,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_security_alerts_user_created ON security_alerts(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_security_alerts_user_unread ON security_alerts(user_id, read);
+
 CREATE TABLE IF NOT EXISTS categories (
   id SERIAL PRIMARY KEY,
   user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,

@@ -3,8 +3,38 @@ import pytest
 from app import create_app
 from app.config import Settings
 from app.extensions import db
-from app.extensions import redis_client
 from app import models  # noqa: F401 - ensure models are registered
+from app import extensions
+from app.routes import auth as auth_routes
+from app.services import cache as cache_service
+
+
+class InMemoryRedis:
+    def __init__(self):
+        self._data: dict[str, str] = {}
+
+    def setex(self, key: str, _ttl: int, value: str):
+        self._data[key] = value
+
+    def set(self, key: str, value: str):
+        self._data[key] = value
+
+    def get(self, key: str):
+        return self._data.get(key)
+
+    def delete(self, *keys: str):
+        for key in keys:
+            self._data.pop(key, None)
+
+    def scan(self, cursor: int = 0, match: str | None = None, count: int = 100):
+        del count
+        if match is None:
+            return 0, list(self._data.keys())
+        prefix = match.rstrip("*")
+        return 0, [key for key in self._data if key.startswith(prefix)]
+
+    def flushdb(self):
+        self._data.clear()
 
 
 class TestSettings(Settings):
@@ -23,6 +53,10 @@ def _setup_db(app):
 def app_fixture():
     # Ensure a clean env for tests
     os.environ.setdefault("FLASK_ENV", "testing")
+    redis_client = InMemoryRedis()
+    extensions.redis_client = redis_client
+    auth_routes.redis_client = redis_client
+    cache_service.redis_client = redis_client
     settings = TestSettings(
         database_url="sqlite+pysqlite:///:memory:",
         redis_url="redis://localhost:6379/15",

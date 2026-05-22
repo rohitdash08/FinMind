@@ -65,6 +65,9 @@ paths:
               example:
                 access_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
                 refresh_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                security_alert:
+                  suspicious: false
+                  reasons: []
         '401':
           description: Invalid credentials
           content:
@@ -93,6 +96,54 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
               example: { error: "Missing Authorization Header" }
+
+  /auth/security-alerts:
+    get:
+      summary: List login security alerts
+      tags: [Auth]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: unread_only
+          required: false
+          schema: { type: boolean }
+      responses:
+        '200':
+          description: Recent login anomaly alerts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SecurityAlert'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /auth/security-alerts/{alertId}/read:
+    patch:
+      summary: Mark a security alert as read
+      tags: [Auth]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: alertId
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Updated alert
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SecurityAlert'
+        '404':
+          description: Alert not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
 
   /categories:
     get:
@@ -498,6 +549,31 @@ components:
       properties:
         access_token: { type: string }
         refresh_token: { type: string }
+        security_alert:
+          $ref: '#/components/schemas/LoginSecurityAlert'
+    LoginSecurityAlert:
+      type: object
+      properties:
+        suspicious: { type: boolean }
+        reasons:
+          type: array
+          items: { type: string, enum: [new_ip, new_device] }
+        alert_id: { type: integer, nullable: true }
+        message: { type: string, nullable: true }
+        severity: { type: string, nullable: true }
+    SecurityAlert:
+      type: object
+      properties:
+        id: { type: integer }
+        type: { type: string }
+        severity: { type: string }
+        message: { type: string }
+        details:
+          type: object
+          additionalProperties: true
+        read: { type: boolean }
+        read_at: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time, nullable: true }
     Category:
       type: object
       properties:

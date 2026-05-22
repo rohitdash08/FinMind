@@ -1,6 +1,18 @@
 import { api } from './client';
 
-export type LoginResponse = { access_token: string; refresh_token?: string };
+export type LoginSecurityAlert = {
+  suspicious: boolean;
+  reasons: string[];
+  alert_id?: number;
+  message?: string;
+  severity?: string;
+};
+
+export type LoginResponse = {
+  access_token: string;
+  refresh_token?: string;
+  security_alert?: LoginSecurityAlert;
+};
 
 export async function login(email: string, password: string): Promise<LoginResponse> {
   return api<LoginResponse>('/auth/login', { method: 'POST', body: { email, password } });
@@ -34,4 +46,24 @@ export async function updateMe(payload: {
   preferred_currency: string;
 }): Promise<MeResponse> {
   return api<MeResponse>('/auth/me', { method: 'PATCH', body: payload });
+}
+
+export type SecurityAlert = {
+  id: number;
+  type: string;
+  severity: string;
+  message: string;
+  details: Record<string, unknown>;
+  read: boolean;
+  read_at: string | null;
+  created_at: string | null;
+};
+
+export async function listSecurityAlerts(unreadOnly = false): Promise<SecurityAlert[]> {
+  const query = unreadOnly ? '?unread_only=true' : '';
+  return api<SecurityAlert[]>('/auth/security-alerts' + query);
+}
+
+export async function markSecurityAlertRead(alertId: number): Promise<SecurityAlert> {
+  return api<SecurityAlert>('/auth/security-alerts/' + alertId + '/read', { method: 'PATCH' });
 }
