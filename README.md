@@ -47,12 +47,18 @@ flowchart LR
 See `backend/app/db/schema.sql`. Key tables:
 - users, categories, expenses, bills, reminders
 - ad_impressions, subscription_plans, user_subscriptions
+
+## PostgreSQL Schema (DDL)
+See `backend/app/db/schema.sql`. Key tables:
+- users, categories, expenses, bills, reminders
+- ad_impressions, subscription_plans, user_subscriptions
 - refresh_tokens (optional if rotating), audit_logs
 
-## Redis Caching Policy
-- Keys
-  - `user:{id}:monthly_summary:{yyyy-mm}` — 30 min TTL
-  - `user:{id}:categories` — 24h TTL
+## Bank Sync Connector Architecture
+ 
+To support pluggable bank integrations, we'll create a flexible architecture:
+
+
   - `user:{id}:upcoming_bills` — 15 min TTL
   - `insights:{id}` — 24h TTL (invalidate on new expense/bill)
 - Invalidation
