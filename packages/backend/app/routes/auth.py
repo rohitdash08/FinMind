@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 from flask import Blueprint, request, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_jwt_extended import (
@@ -9,7 +10,7 @@ from flask_jwt_extended import (
     get_jwt_identity,
 )
 from ..extensions import db, redis_client
-from ..models import User
+from ..models import LoginAlert, LoginEvent, User
 import logging
 import time
 
@@ -57,13 +58,68 @@ def login():
     password = data.get("password")
     user = db.session.query(User).filter_by(email=email).first()
     if not user or not check_password_hash(user.password_hash, password):
+        _record_login_event(user, email or "", success=False)
         logger.warning("Login failed for email=%s", email)
         return jsonify(error="invalid credentials"), 401
+    _record_login_event(user, email or user.email, success=True)
     access = create_access_token(identity=str(user.id))
     refresh = create_refresh_token(identity=str(user.id))
     _store_refresh_session(refresh, str(user.id))
     logger.info("Login success user_id=%s", user.id)
     return jsonify(access_token=access, refresh_token=refresh)
+
+
+@bp.get("/login-history")
+@jwt_required()
+def login_history():
+    uid = int(get_jwt_identity())
+    events = (
+        db.session.query(LoginEvent)
+        .filter_by(user_id=uid)
+        .order_by(LoginEvent.created_at.desc())
+        .limit(25)
+        .all()
+    )
+    return jsonify(
+        events=[
+            {
+                "id": event.id,
+                "ip_address": event.ip_address,
+                "user_agent": event.user_agent,
+                "success": event.success,
+                "is_suspicious": event.is_suspicious,
+                "suspicion_reasons": _split_reasons(event.suspicion_reasons),
+                "created_at": event.created_at.isoformat(),
+            }
+            for event in events
+        ]
+    )
+
+
+@bp.get("/alerts")
+@jwt_required()
+def alerts():
+    uid = int(get_jwt_identity())
+    rows = (
+        db.session.query(LoginAlert)
+        .filter_by(user_id=uid)
+        .order_by(LoginAlert.created_at.desc())
+        .limit(25)
+        .all()
+    )
+    return jsonify(alerts=[_alert_payload(row) for row in rows])
+
+
+@bp.post("/alerts/<int:alert_id>/acknowledge")
+@jwt_required()
+def acknowledge_alert(alert_id: int):
+    uid = int(get_jwt_identity())
+    alert = db.session.get(LoginAlert, alert_id)
+    if not alert or alert.user_id != uid:
+        return jsonify(error="not found"), 404
+    alert.acknowledged = True
+    db.session.commit()
+    return jsonify(_alert_payload(alert))
 
 
 @bp.get("/me")
@@ -137,3 +193,114 @@ def _store_refresh_session(refresh_token: str, uid: str):
         return
     ttl = max(int(exp - time.time()), 1)
     redis_client.setex(_refresh_key(jti), ttl, uid)
+
+
+def _record_login_event(user: User | None, email: str, success: bool) -> LoginEvent:
+    ip_address = _request_ip()
+    user_agent = (request.headers.get("User-Agent") or "unknown")[:500]
+    reasons = _detect_login_anomalies(user, ip_address, user_agent, success)
+    event = LoginEvent(
+        user_id=user.id if user else None,
+        email=email[:255],
+        ip_address=ip_address,
+        user_agent=user_agent,
+        success=success,
+        is_suspicious=bool(reasons),
+        suspicion_reasons=",".join(reasons) if reasons else None,
+    )
+    db.session.add(event)
+    db.session.flush()
+    if user and reasons:
+        db.session.add(
+            LoginAlert(
+                user_id=user.id,
+                login_event_id=event.id,
+                alert_type="suspicious_login",
+                message=_alert_message(reasons),
+            )
+        )
+    db.session.commit()
+    return event
+
+
+def _detect_login_anomalies(
+    user: User | None, ip_address: str, user_agent: str, success: bool
+) -> list[str]:
+    if not user:
+        return []
+
+    reasons: list[str] = []
+    if success:
+        prior_success = (
+            db.session.query(LoginEvent)
+            .filter_by(user_id=user.id, success=True)
+            .first()
+        )
+        if prior_success:
+            seen_ip = (
+                db.session.query(LoginEvent.id)
+                .filter_by(user_id=user.id, success=True, ip_address=ip_address)
+                .first()
+            )
+            if not seen_ip:
+                reasons.append("new_ip")
+            seen_device = (
+                db.session.query(LoginEvent.id)
+                .filter_by(user_id=user.id, success=True, user_agent=user_agent)
+                .first()
+            )
+            if not seen_device:
+                reasons.append("new_device")
+        current_hour = datetime.utcnow().hour
+        if current_hour in {1, 2, 3, 4, 5}:
+            reasons.append("unusual_hour")
+        return reasons
+
+    window_start = datetime.utcnow() - timedelta(minutes=15)
+    failed_count = (
+        db.session.query(LoginEvent)
+        .filter(
+            LoginEvent.user_id == user.id,
+            LoginEvent.success.is_(False),
+            LoginEvent.created_at >= window_start,
+        )
+        .count()
+    )
+    if failed_count >= 4:
+        reasons.append("failed_login_burst")
+    return reasons
+
+
+def _request_ip() -> str:
+    forwarded_for = request.headers.get("X-Forwarded-For", "")
+    if forwarded_for:
+        return forwarded_for.split(",")[0].strip()[:64]
+    return (request.remote_addr or "unknown")[:64]
+
+
+def _split_reasons(value: str | None) -> list[str]:
+    if not value:
+        return []
+    return [item for item in value.split(",") if item]
+
+
+def _alert_message(reasons: list[str]) -> str:
+    labels = {
+        "new_ip": "a new IP address",
+        "new_device": "a new device or browser",
+        "unusual_hour": "an unusual login time",
+        "failed_login_burst": "multiple failed login attempts",
+    }
+    readable = [labels.get(reason, reason) for reason in reasons]
+    return "Suspicious login activity detected: " + ", ".join(readable)
+
+
+def _alert_payload(alert: LoginAlert) -> dict:
+    return {
+        "id": alert.id,
+        "login_event_id": alert.login_event_id,
+        "alert_type": alert.alert_type,
+        "message": alert.message,
+        "acknowledged": alert.acknowledged,
+        "created_at": alert.created_at.isoformat(),
+    }

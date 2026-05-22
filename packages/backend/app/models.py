@@ -19,6 +19,32 @@ class User(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
 
+class LoginEvent(db.Model):
+    __tablename__ = "login_events"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    email = db.Column(db.String(255), nullable=False)
+    ip_address = db.Column(db.String(64), nullable=False)
+    user_agent = db.Column(db.String(500), nullable=False)
+    success = db.Column(db.Boolean, default=False, nullable=False)
+    is_suspicious = db.Column(db.Boolean, default=False, nullable=False)
+    suspicion_reasons = db.Column(db.String(500), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class LoginAlert(db.Model):
+    __tablename__ = "login_alerts"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    login_event_id = db.Column(
+        db.Integer, db.ForeignKey("login_events.id"), nullable=False
+    )
+    alert_type = db.Column(db.String(80), nullable=False)
+    message = db.Column(db.String(500), nullable=False)
+    acknowledged = db.Column(db.Boolean, default=False, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
 class Category(db.Model):
     __tablename__ = "categories"
     id = db.Column(db.Integer, primary_key=True)

@@ -11,6 +11,31 @@ CREATE TABLE IF NOT EXISTS users (
 ALTER TABLE users
   ADD COLUMN IF NOT EXISTS preferred_currency VARCHAR(10) NOT NULL DEFAULT 'INR';
 
+CREATE TABLE IF NOT EXISTS login_events (
+  id SERIAL PRIMARY KEY,
+  user_id INT REFERENCES users(id) ON DELETE CASCADE,
+  email VARCHAR(255) NOT NULL,
+  ip_address VARCHAR(64) NOT NULL,
+  user_agent VARCHAR(500) NOT NULL,
+  success BOOLEAN NOT NULL DEFAULT FALSE,
+  is_suspicious BOOLEAN NOT NULL DEFAULT FALSE,
+  suspicion_reasons VARCHAR(500),
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_login_events_user_created ON login_events(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_login_events_user_success ON login_events(user_id, success, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS login_alerts (
+  id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  login_event_id INT NOT NULL REFERENCES login_events(id) ON DELETE CASCADE,
+  alert_type VARCHAR(80) NOT NULL,
+  message VARCHAR(500) NOT NULL,
+  acknowledged BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_login_alerts_user_created ON login_alerts(user_id, created_at DESC);
+
 CREATE TABLE IF NOT EXISTS categories (
   id SERIAL PRIMARY KEY,
   user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
