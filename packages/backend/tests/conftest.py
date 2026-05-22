@@ -1,10 +1,37 @@
 import os
+import fnmatch
 import pytest
 from app import create_app
 from app.config import Settings
 from app.extensions import db
-from app.extensions import redis_client
 from app import models  # noqa: F401 - ensure models are registered
+
+
+class FakeRedis:
+    def __init__(self):
+        self.store = {}
+
+    def setex(self, key, _ttl, value):
+        self.store[key] = value
+
+    def set(self, key, value):
+        self.store[key] = value
+
+    def get(self, key):
+        return self.store.get(key)
+
+    def delete(self, *keys):
+        for key in keys:
+            self.store.pop(key, None)
+
+    def scan(self, cursor=0, match=None, count=100):
+        keys = sorted(self.store)
+        if match:
+            keys = [key for key in keys if fnmatch.fnmatch(key, match)]
+        return 0, keys[:count]
+
+    def flushdb(self):
+        self.store.clear()
 
 
 class TestSettings(Settings):
@@ -30,9 +57,15 @@ def app_fixture():
     )
     app = create_app(settings)
     app.config.update(TESTING=True)
+    fake_redis = FakeRedis()
+    import app.routes.auth as auth_routes
+    import app.services.cache as cache_service
+
+    auth_routes.redis_client = fake_redis
+    cache_service.redis_client = fake_redis
     _setup_db(app)
     try:
-        redis_client.flushdb()
+        fake_redis.flushdb()
     except Exception:
         pass
     yield app
@@ -40,7 +73,7 @@ def app_fixture():
         db.session.remove()
         db.drop_all()
     try:
-        redis_client.flushdb()
+        fake_redis.flushdb()
     except Exception:
         pass
 
