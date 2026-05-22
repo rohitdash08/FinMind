@@ -40,10 +40,16 @@ flowchart LR
   API -->|reminder jobs| SCH
   SCH --> TW
   SCH --> SMTP
-  AI --> OAI
-```
+SCH --> TW
+SCH --> SMTP
+AI --> OAI
 
-## PostgreSQL Schema (DDL)
+## Login Anomaly Detection
+- Detect unusual login behavior and alert users.
+- Uses `audit_logs` table to track login attempts.
+- Alerts are sent via Twilio WhatsApp or Email Provider.
+
+
 See `backend/app/db/schema.sql`. Key tables:
 - users, categories, expenses, bills, reminders
 - ad_impressions, subscription_plans, user_subscriptions
