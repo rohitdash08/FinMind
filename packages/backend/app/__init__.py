@@ -110,10 +110,69 @@ def _ensure_schema_compatibility(app: Flask) -> None:
             NOT NULL DEFAULT 'INR'
             """
         )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS login_events (
+              id SERIAL PRIMARY KEY,
+              user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              ip_hash VARCHAR(64) NOT NULL,
+              user_agent_hash VARCHAR(64) NOT NULL,
+              user_agent VARCHAR(255) NOT NULL,
+              suspicious BOOLEAN NOT NULL DEFAULT FALSE,
+              reason VARCHAR(255),
+              created_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+            """
+        )
+        cur.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_login_events_user_created
+            ON login_events(user_id, created_at DESC)
+            """
+        )
+        cur.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_login_events_user_ip
+            ON login_events(user_id, ip_hash)
+            """
+        )
+        cur.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_login_events_user_agent
+            ON login_events(user_id, user_agent_hash)
+            """
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS security_alerts (
+              id SERIAL PRIMARY KEY,
+              user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              alert_type VARCHAR(50) NOT NULL,
+              severity VARCHAR(20) NOT NULL DEFAULT 'medium',
+              message VARCHAR(500) NOT NULL,
+              details JSONB NOT NULL DEFAULT '{}'::jsonb,
+              read BOOLEAN NOT NULL DEFAULT FALSE,
+              read_at TIMESTAMP,
+              created_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+            """
+        )
+        cur.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_security_alerts_user_created
+            ON security_alerts(user_id, created_at DESC)
+            """
+        )
+        cur.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_security_alerts_user_unread
+            ON security_alerts(user_id, read)
+            """
+        )
         conn.commit()
     except Exception:
         app.logger.exception(
-            "Schema compatibility patch failed for users.preferred_currency"
+            "Schema compatibility patch failed for auth security tables"
         )
         conn.rollback()
     finally:
