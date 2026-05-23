@@ -481,6 +481,56 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
 
+  /insights/weekly-digest:
+    get:
+      summary: Get weekly financial digest
+      tags: [Insights]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: end_date
+          required: false
+          schema: { type: string, format: date }
+          description: Last day of the seven-day digest window. Defaults to today.
+      responses:
+        '200':
+          description: Weekly summary, trend comparison, top categories, and bills due next week
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+              example:
+                period:
+                  start_date: 2026-03-08
+                  end_date: 2026-03-14
+                  days: 7
+                summary:
+                  income: 1200
+                  expenses: 120
+                  net_flow: 1080
+                  transaction_count: 3
+                comparison:
+                  previous_expenses: 60
+                  expense_change: 60
+                  expense_change_pct: 100
+                top_categories:
+                  - { category_id: 1, category_name: Food, amount: 120 }
+                upcoming_bills:
+                  - { id: 3, name: Internet, amount: 50, currency: INR, next_due_date: 2026-03-17 }
+                insights:
+                  - Spending is up 100.0% versus the previous week.
+        '400':
+          description: Invalid date filter
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
 components:
   securitySchemes:
     bearerAuth:
