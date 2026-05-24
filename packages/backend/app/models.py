@@ -133,3 +133,50 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+# ---------------------------------------------------------------------------
+# Login anomaly detection (issue #124)
+# ---------------------------------------------------------------------------
+
+class LoginEvent(db.Model):
+    """Records every login attempt (success or failure) with fingerprint data."""
+    __tablename__ = "login_events"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    # SHA-256 hashes of raw IP and User-Agent (PII-safe storage)
+    ip_hash = db.Column(db.String(64), nullable=False)
+    ua_hash = db.Column(db.String(64), nullable=False)
+    # Masked IP for display: "192.168.1.xxx"
+    ip_masked = db.Column(db.String(50), nullable=True)
+    success = db.Column(db.Boolean, nullable=False)
+    # Human-readable reason on failure, e.g. "invalid_credentials"
+    reason = db.Column(db.String(100), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class AlertSeverity(str, Enum):
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+
+
+class AlertType(str, Enum):
+    NEW_IP = "new_ip"
+    NEW_DEVICE = "new_device"
+    FAILED_BURST = "failed_burst"
+    UNUSUAL_HOUR = "unusual_hour"
+
+
+class SecurityAlert(db.Model):
+    """A suspicious-activity alert raised against a user's account."""
+    __tablename__ = "security_alerts"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    alert_type = db.Column(db.String(50), nullable=False)
+    severity = db.Column(db.String(20), default=AlertSeverity.MEDIUM.value, nullable=False)
+    message = db.Column(db.String(500), nullable=False)
+    acknowledged = db.Column(db.Boolean, default=False, nullable=False)
+    # Linked login event that triggered this alert (optional)
+    event_id = db.Column(db.Integer, db.ForeignKey("login_events.id"), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)

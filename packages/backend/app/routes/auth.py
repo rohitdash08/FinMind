@@ -10,6 +10,11 @@ from flask_jwt_extended import (
 )
 from ..extensions import db, redis_client
 from ..models import User
+from ..services.anomaly import (
+    alert_to_dict,
+    check_and_create_alerts,
+    record_login_event,
+)
 import logging
 import time
 
@@ -55,15 +60,47 @@ def login():
     data = request.get_json() or {}
     email = data.get("email")
     password = data.get("password")
+    ip = (
+        request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
+        or request.remote_addr
+        or ""
+    )
+    ua = request.headers.get("User-Agent", "")
+
     user = db.session.query(User).filter_by(email=email).first()
     if not user or not check_password_hash(user.password_hash, password):
         logger.warning("Login failed for email=%s", email)
+        # Record failure if we know the user
+        if user:
+            try:
+                event = record_login_event(user.id, ip, ua, success=False,
+                                           reason="invalid_credentials")
+                check_and_create_alerts(user.id, event)
+                db.session.commit()
+            except Exception:
+                logger.exception("Failed to record failed login event")
+                db.session.rollback()
         return jsonify(error="invalid credentials"), 401
+
+    # Record successful login and run anomaly detection
+    security_alerts: list[dict] = []
+    try:
+        event = record_login_event(user.id, ip, ua, success=True)
+        new_alerts = check_and_create_alerts(user.id, event)
+        db.session.commit()
+        security_alerts = [alert_to_dict(a) for a in new_alerts]
+    except Exception:
+        logger.exception("Anomaly detection error for user_id=%s", user.id)
+        db.session.rollback()
+
     access = create_access_token(identity=str(user.id))
     refresh = create_refresh_token(identity=str(user.id))
     _store_refresh_session(refresh, str(user.id))
-    logger.info("Login success user_id=%s", user.id)
-    return jsonify(access_token=access, refresh_token=refresh)
+    logger.info("Login success user_id=%s alerts=%d", user.id, len(security_alerts))
+    resp: dict = {"access_token": access, "refresh_token": refresh}
+    if security_alerts:
+        resp["security_alerts"] = security_alerts
+    return jsonify(resp)
 
 
 @bp.get("/me")
