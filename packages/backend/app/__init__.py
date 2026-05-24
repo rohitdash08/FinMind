@@ -52,6 +52,12 @@ def create_app(settings: Settings | None = None) -> Flask:
     # Blueprint routes
     register_routes(app)
 
+    # Weekly digest scheduler – skipped when TESTING=true or DISABLE_SCHEDULER env var is set
+    import os as _os
+    if not _os.environ.get("TESTING") and not _os.environ.get("DISABLE_SCHEDULER"):
+        from .services.digest import init_digest_scheduler
+        init_digest_scheduler(app)
+
     # Backward-compatible schema patch for existing databases.
     with app.app_context():
         _ensure_schema_compatibility(app)
