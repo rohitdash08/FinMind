@@ -1,0 +1,111 @@
+global:
+  namespace: finmind
+  domain: finmind.local
+
+backend:
+  replicaCount: 1
+  image:
+    repository: finmind-backend
+    tag: latest
+    pullPolicy: Never
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  autoscaling:
+    enabled: false
+  env:
+    LOG_LEVEL: DEBUG
+    GEMINI_MODEL: gemini-1.5-flash
+
+frontend:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: finmind-frontend
+    tag: latest
+    pullPolicy: Never
+  resources:
+    requests:
+      cpu: 25m
+      memory: 32Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+  autoscaling:
+    enabled: false
+
+postgres:
+  enabled: true
+  storage:
+    size: 1Gi
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+redis:
+  enabled: true
+  resources:
+    requests:
+      cpu: 25m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+
+nginx:
+  enabled: true
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 25m
+      memory: 16Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi
+
+ingress:
+  enabled: true
+  className: nginx
+  tls:
+    enabled: false
+  hosts:
+    api: api.finmind.local
+    frontend: finmind.local
+    grafana: grafana.finmind.local
+
+certManager:
+  enabled: false
+
+monitoring:
+  enabled: true
+  prometheus:
+    retention: 7d
+    retentionSize: 500MB
+    storage:
+      size: 2Gi
+  loki:
+    retention: 72h
+    storage:
+      size: 2Gi
+  grafana:
+    storage:
+      size: 1Gi
+    adminUser: admin
+
+secrets:
+  postgres:
+    user: finmind
+    password: finmind
+    database: finmind
+  jwt:
+    secret: local-dev-jwt-secret
+  grafana:
+    adminPassword: admin

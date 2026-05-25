@@ -167,18 +167,34 @@ spec:
               rm -rf $PROMETHEUS_MULTIPROC_DIR && \
               mkdir -p $PROMETHEUS_MULTIPROC_DIR && \
               gunicorn --workers=2 --threads=4 --bind 0.0.0.0:8000 wsgi:app
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
           readinessProbe:
             httpGet:
               path: /health
               port: 8000
             initialDelaySeconds: 10
             periodSeconds: 10
+            timeoutSeconds: 5
           livenessProbe:
             httpGet:
               path: /health
               port: 8000
             initialDelaySeconds: 20
             periodSeconds: 20
+            timeoutSeconds: 5
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 30
 ---
 apiVersion: v1
 kind: Service
@@ -263,6 +279,10 @@ kind: Ingress
 metadata:
   name: finmind-backend
   namespace: finmind
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
 spec:
   ingressClassName: nginx
   rules:

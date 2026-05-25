@@ -1,0 +1,40 @@
+FinMind has been deployed!
+
+{{- if .Values.ingress.enabled }}
+
+Access your application at:
+  - Frontend: http{{ if .Values.ingress.tls.enabled }}s{{ end }}://{{ .Values.ingress.hosts.frontend }}
+  - API:      http{{ if .Values.ingress.tls.enabled }}s{{ end }}://{{ .Values.ingress.hosts.api }}
+{{- if .Values.monitoring.enabled }}
+  - Grafana:  http{{ if .Values.ingress.tls.enabled }}s{{ end }}://{{ .Values.ingress.hosts.grafana }}
+{{- end }}
+
+{{- else }}
+
+Access your application using port-forward:
+  kubectl port-forward -n {{ .Values.global.namespace }} svc/frontend 8080:80
+  kubectl port-forward -n {{ .Values.global.namespace }} svc/backend 8000:8000
+{{- if .Values.monitoring.enabled }}
+  kubectl port-forward -n {{ .Values.global.namespace }} svc/grafana 3000:3000
+{{- end }}
+
+{{- end }}
+
+{{- if .Values.monitoring.enabled }}
+
+Grafana credentials:
+  Username: {{ .Values.monitoring.grafana.adminUser }}
+  Password: (stored in secret finmind-secrets)
+
+To get the Grafana password:
+  kubectl get secret -n {{ .Values.global.namespace }} finmind-secrets -o jsonpath="{.data.GRAFANA_ADMIN_PASSWORD}" | base64 -d
+
+{{- end }}
+
+Verify deployment:
+  kubectl get pods -n {{ .Values.global.namespace }}
+  kubectl get svc -n {{ .Values.global.namespace }}
+  kubectl get ingress -n {{ .Values.global.namespace }}
+
+Check backend health:
+  kubectl run curl -n {{ .Values.global.namespace }} --rm -it --restart=Never --image=curlimages/curl -- http://backend:8000/health

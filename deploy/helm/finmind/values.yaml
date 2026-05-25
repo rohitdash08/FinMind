@@ -1,0 +1,149 @@
+global:
+  namespace: finmind
+  domain: finmind.local
+
+backend:
+  replicaCount: 2
+  image:
+    repository: ghcr.io/rohitdash08/finmind-backend
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8000
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+  env:
+    LOG_LEVEL: INFO
+    GEMINI_MODEL: gemini-1.5-flash
+
+frontend:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: ghcr.io/rohitdash08/finmind-frontend
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 80
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 70
+
+postgres:
+  enabled: true
+  image:
+    repository: postgres
+    tag: "16"
+  storage:
+    size: 10Gi
+    storageClass: ""
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+redis:
+  enabled: true
+  image:
+    repository: redis
+    tag: "7"
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+nginx:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: nginx
+    tag: 1.27-alpine
+  resources:
+    requests:
+      cpu: 50m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations: {}
+  tls:
+    enabled: false
+    secretName: finmind-tls
+  hosts:
+    api: api.finmind.local
+    frontend: finmind.local
+    grafana: grafana.finmind.local
+
+certManager:
+  enabled: false
+  issuer: letsencrypt-prod
+  email: ""
+
+monitoring:
+  enabled: true
+  prometheus:
+    retention: 14d
+    retentionSize: 1GB
+    storage:
+      size: 5Gi
+  loki:
+    retention: 168h
+    storage:
+      size: 5Gi
+  grafana:
+    storage:
+      size: 2Gi
+    adminUser: finmind_admin
+
+secrets:
+  postgres:
+    user: finmind
+    password: ""
+    database: finmind
+  jwt:
+    secret: ""
+  grafana:
+    adminPassword: ""
+  gemini:
+    apiKey: ""
+  openai:
+    apiKey: ""
+  twilio:
+    accountSid: ""
+    authToken: ""
+    whatsappFrom: ""
+  smtp:
+    url: ""
+    emailFrom: ""

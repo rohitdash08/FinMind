@@ -140,10 +140,46 @@ finmind/
 ```
 
 ## Deployment
-- Backend: Dockerized Flask to Railway/Render free tier (Postgres & Redis managed or via Compose locally).
-- Frontend: Vercel.
-- Secrets: use environment variables (.env locally, platform secrets in cloud).
-- Kubernetes manifests for full stack deployment are available in `deploy/k8s/`.
+
+### Docker Compose (Local Development)
+```bash
+docker compose up --build
+```
+
+### Kubernetes (Production)
+
+**Option 1: Helm Chart (Recommended)**
+```bash
+helm install finmind ./deploy/helm/finmind -f ./deploy/helm/finmind/values-production.yaml
+```
+
+Features:
+- Horizontal Pod Autoscaling (HPA)
+- TLS/HTTPS with cert-manager
+- Full observability stack
+- Resource limits and health probes
+
+See [deploy/helm/README.md](deploy/helm/README.md) for full documentation.
+
+**Option 2: Raw Manifests**
+```bash
+kubectl apply -f deploy/k8s/
+```
+
+See [deploy/k8s/README.md](deploy/k8s/README.md) for details.
+
+### Tilt (Local K8s Development)
+```bash
+tilt up
+```
+
+Provides live reload and hot module replacement for local Kubernetes development.
+See [deploy/tilt/README.md](deploy/tilt/README.md) for setup instructions.
+
+### Cloud Platforms
+- Backend: Railway, Render, Fly.io, AWS ECS, GCP Cloud Run, Azure Container Apps
+- Frontend: Vercel, Netlify
+- Secrets: Use environment variables (.env locally, platform secrets in cloud)
 
 ## Local Development
 1) Prereqs: Docker, Docker Compose, Node 20+, Python 3.11+
