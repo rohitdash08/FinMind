@@ -90,6 +90,43 @@ describe('SignIn page', () => {
     expect(navigateMock).toHaveBeenCalled();
   });
 
+  it('shows a security toast when login returns suspicious activity alerts', async () => {
+    (login as jest.Mock).mockResolvedValue({
+      access_token: 'a',
+      refresh_token: 'r',
+      security_alerts: [
+        {
+          id: 7,
+          alert_type: 'failed_login_burst',
+          severity: 'high',
+          message: 'Multiple failed login attempts were detected before this login.',
+          details: {},
+          acknowledged: false,
+          created_at: '2026-05-26T05:00:00',
+        },
+      ],
+    });
+
+    render(
+      <MemoryRouter>
+        <SignIn />
+      </MemoryRouter>
+    );
+
+    await userEvent.type(screen.getByLabelText(/email/i), 'demo@finmind.local');
+    await userEvent.type(screen.getByLabelText(/password/i), 'DemoPass123!');
+    await userEvent.click(screen.getByRole('button', { name: /sign in to your account/i }));
+
+    await waitFor(() =>
+      expect(toastMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'Security alert',
+          description: expect.stringMatching(/failed login attempts/i),
+        }),
+      ),
+    );
+  });
+
   it('shows error toast on failed login', async () => {
     (login as jest.Mock).mockRejectedValue(new Error('invalid credentials'));
 

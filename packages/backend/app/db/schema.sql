@@ -11,6 +11,39 @@ CREATE TABLE IF NOT EXISTS users (
 ALTER TABLE users
   ADD COLUMN IF NOT EXISTS preferred_currency VARCHAR(10) NOT NULL DEFAULT 'INR';
 
+CREATE TABLE IF NOT EXISTS login_events (
+  id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  email VARCHAR(255) NOT NULL,
+  ip_address VARCHAR(64) NOT NULL,
+  user_agent VARCHAR(500) NOT NULL,
+  success BOOLEAN NOT NULL DEFAULT FALSE,
+  failure_reason VARCHAR(100),
+  is_suspicious BOOLEAN NOT NULL DEFAULT FALSE,
+  suspicion_reasons TEXT NOT NULL DEFAULT '[]',
+  occurred_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_login_events_user_occurred
+  ON login_events(user_id, occurred_at DESC);
+CREATE INDEX IF NOT EXISTS idx_login_events_user_success
+  ON login_events(user_id, success, occurred_at DESC);
+
+CREATE TABLE IF NOT EXISTS security_alerts (
+  id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  login_event_id INT REFERENCES login_events(id) ON DELETE SET NULL,
+  alert_type VARCHAR(50) NOT NULL,
+  severity VARCHAR(20) NOT NULL DEFAULT 'medium',
+  message VARCHAR(500) NOT NULL,
+  details TEXT NOT NULL DEFAULT '{}',
+  acknowledged BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_security_alerts_user_created
+  ON security_alerts(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_security_alerts_user_ack
+  ON security_alerts(user_id, acknowledged);
+
 CREATE TABLE IF NOT EXISTS categories (
   id SERIAL PRIMARY KEY,
   user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
