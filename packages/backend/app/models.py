@@ -133,3 +133,42 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class LoginEvent(db.Model):
+    __tablename__ = "login_events"
+    __table_args__ = (
+        db.Index("idx_login_events_user_occurred", "user_id", "occurred_at"),
+        db.Index("idx_login_events_user_success", "user_id", "success", "occurred_at"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    email = db.Column(db.String(255), nullable=False)
+    ip_address = db.Column(db.String(64), nullable=False)
+    user_agent = db.Column(db.String(500), nullable=False)
+    success = db.Column(db.Boolean, default=False, nullable=False)
+    failure_reason = db.Column(db.String(100), nullable=True)
+    is_suspicious = db.Column(db.Boolean, default=False, nullable=False)
+    suspicion_reasons = db.Column(db.Text, default="[]", nullable=False)
+    occurred_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class SecurityAlert(db.Model):
+    __tablename__ = "security_alerts"
+    __table_args__ = (
+        db.Index("idx_security_alerts_user_created", "user_id", "created_at"),
+        db.Index("idx_security_alerts_user_ack", "user_id", "acknowledged"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    login_event_id = db.Column(
+        db.Integer, db.ForeignKey("login_events.id"), nullable=True
+    )
+    alert_type = db.Column(db.String(50), nullable=False)
+    severity = db.Column(db.String(20), default="medium", nullable=False)
+    message = db.Column(db.String(500), nullable=False)
+    details = db.Column(db.Text, default="{}", nullable=False)
+    acknowledged = db.Column(db.Boolean, default=False, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)

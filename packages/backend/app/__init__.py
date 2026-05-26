@@ -100,6 +100,8 @@ def _ensure_schema_compatibility(app: Flask) -> None:
     """Apply minimal compatibility ALTERs for existing deployments."""
     if db.engine.dialect.name != "postgresql":
         return
+    from .models import LoginEvent, SecurityAlert
+
     conn = db.engine.raw_connection()
     try:
         cur = conn.cursor()
@@ -118,3 +120,11 @@ def _ensure_schema_compatibility(app: Flask) -> None:
         conn.rollback()
     finally:
         conn.close()
+
+    try:
+        LoginEvent.__table__.create(bind=db.engine, checkfirst=True)
+        SecurityAlert.__table__.create(bind=db.engine, checkfirst=True)
+    except Exception:
+        app.logger.exception(
+            "Schema compatibility patch failed for login security tables"
+        )

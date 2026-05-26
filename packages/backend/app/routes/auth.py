@@ -9,7 +9,13 @@ from flask_jwt_extended import (
     get_jwt_identity,
 )
 from ..extensions import db, redis_client
-from ..models import User
+from ..models import LoginEvent, SecurityAlert, User
+from ..services.security import (
+    record_failed_login,
+    record_successful_login,
+    serialize_login_event,
+    serialize_security_alert,
+)
 import logging
 import time
 
@@ -57,13 +63,70 @@ def login():
     password = data.get("password")
     user = db.session.query(User).filter_by(email=email).first()
     if not user or not check_password_hash(user.password_hash, password):
+        if user:
+            record_failed_login(user, email)
         logger.warning("Login failed for email=%s", email)
         return jsonify(error="invalid credentials"), 401
+    security_alerts = record_successful_login(user)
     access = create_access_token(identity=str(user.id))
     refresh = create_refresh_token(identity=str(user.id))
     _store_refresh_session(refresh, str(user.id))
     logger.info("Login success user_id=%s", user.id)
-    return jsonify(access_token=access, refresh_token=refresh)
+    return jsonify(
+        access_token=access,
+        refresh_token=refresh,
+        security_alerts=[serialize_security_alert(alert) for alert in security_alerts],
+    )
+
+
+@bp.get("/login-history")
+@jwt_required()
+def login_history():
+    uid = int(get_jwt_identity())
+    limit = _bounded_limit(request.args.get("limit"))
+    events = (
+        db.session.query(LoginEvent)
+        .filter_by(user_id=uid)
+        .order_by(LoginEvent.occurred_at.desc(), LoginEvent.id.desc())
+        .limit(limit)
+        .all()
+    )
+    return jsonify(events=[serialize_login_event(event) for event in events])
+
+
+@bp.get("/security-alerts")
+@jwt_required()
+def security_alerts():
+    uid = int(get_jwt_identity())
+    limit = _bounded_limit(request.args.get("limit"))
+    alerts = (
+        db.session.query(SecurityAlert)
+        .filter_by(user_id=uid)
+        .order_by(SecurityAlert.created_at.desc(), SecurityAlert.id.desc())
+        .limit(limit)
+        .all()
+    )
+    unread_count = (
+        db.session.query(SecurityAlert)
+        .filter_by(user_id=uid, acknowledged=False)
+        .count()
+    )
+    return jsonify(
+        alerts=[serialize_security_alert(alert) for alert in alerts],
+        unread_count=unread_count,
+    )
+
+
+@bp.post("/security-alerts/<int:alert_id>/acknowledge")
+@jwt_required()
+def acknowledge_security_alert(alert_id: int):
+    uid = int(get_jwt_identity())
+    alert = db.session.get(SecurityAlert, alert_id)
+    if not alert or alert.user_id != uid:
+        return jsonify(error="not found"), 404
+    alert.acknowledged = True
+    db.session.commit()
+    return jsonify(serialize_security_alert(alert))
 
 
 @bp.get("/me")
@@ -137,3 +200,11 @@ def _store_refresh_session(refresh_token: str, uid: str):
         return
     ttl = max(int(exp - time.time()), 1)
     redis_client.setex(_refresh_key(jti), ttl, uid)
+
+
+def _bounded_limit(raw_limit: str | None, default: int = 50) -> int:
+    try:
+        limit = int(raw_limit or default)
+    except (TypeError, ValueError):
+        limit = default
+    return max(1, min(limit, 100))

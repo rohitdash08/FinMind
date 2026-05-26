@@ -65,12 +65,90 @@ paths:
               example:
                 access_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
                 refresh_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                security_alerts: []
         '401':
           description: Invalid credentials
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
               example: { error: "invalid credentials" }
+  /auth/login-history:
+    get:
+      summary: List recent login events
+      tags: [Auth]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+      responses:
+        '200':
+          description: Login events for the current user
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  events:
+                    type: array
+                    items: { $ref: '#/components/schemas/LoginEvent' }
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /auth/security-alerts:
+    get:
+      summary: List login security alerts
+      tags: [Auth]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+      responses:
+        '200':
+          description: Security alerts for the current user
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  alerts:
+                    type: array
+                    items: { $ref: '#/components/schemas/SecurityAlert' }
+                  unread_count: { type: integer }
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /auth/security-alerts/{alertId}/acknowledge:
+    post:
+      summary: Acknowledge a login security alert
+      tags: [Auth]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: alertId
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Updated security alert
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SecurityAlert' }
+        '404':
+          description: Alert not found for current user
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
   /auth/refresh:
     post:
       summary: Refresh access token
@@ -498,6 +576,38 @@ components:
       properties:
         access_token: { type: string }
         refresh_token: { type: string }
+        security_alerts:
+          type: array
+          items: { $ref: '#/components/schemas/SecurityAlert' }
+    LoginEvent:
+      type: object
+      properties:
+        id: { type: integer }
+        email: { type: string, format: email }
+        ip_address: { type: string }
+        user_agent: { type: string }
+        success: { type: boolean }
+        failure_reason: { type: string, nullable: true }
+        is_suspicious: { type: boolean }
+        suspicion_reasons:
+          type: array
+          items: { type: string }
+        occurred_at: { type: string, format: date-time }
+    SecurityAlert:
+      type: object
+      properties:
+        id: { type: integer }
+        login_event_id: { type: integer, nullable: true }
+        alert_type:
+          type: string
+          enum: [new_ip, new_device, unusual_hour, failed_login_burst]
+        severity: { type: string, enum: [medium, high] }
+        message: { type: string }
+        details:
+          type: object
+          additionalProperties: true
+        acknowledged: { type: boolean }
+        created_at: { type: string, format: date-time }
     Category:
       type: object
       properties:

@@ -46,6 +46,7 @@ flowchart LR
 ## PostgreSQL Schema (DDL)
 See `backend/app/db/schema.sql`. Key tables:
 - users, categories, expenses, bills, reminders
+- login_events, security_alerts
 - ad_impressions, subscription_plans, user_subscriptions
 - refresh_tokens (optional if rotating), audit_logs
 
@@ -61,11 +62,13 @@ See `backend/app/db/schema.sql`. Key tables:
 
 ## API Endpoints
 OpenAPI: `backend/app/openapi.yaml`
-- Auth: `/auth/register`, `/auth/login`, `/auth/refresh`
+- Auth: `/auth/register`, `/auth/login`, `/auth/refresh`, `/auth/login-history`, `/auth/security-alerts`, `/auth/security-alerts/{id}/acknowledge`
 - Expenses: CRUD `/expenses`
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
 - Insights: `/insights/monthly`, `/insights/budget-suggestion`
+
+Login responses include `security_alerts` when a known account signs in from a new IP address, new device/browser, unusual hour, or after a burst of failed attempts. The frontend shows returned login alerts immediately and lists recent security alerts in Account Settings, where users can mark them reviewed.
 
 ## MVP UI/UX Plan
 - Auth screens: register/login.

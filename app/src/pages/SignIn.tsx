@@ -132,6 +132,17 @@ export function SignIn() {
                       title: 'Welcome back 👋',
                       description: 'You have successfully signed in.',
                     });
+                    const securityAlert = res.security_alerts?.[0];
+                    if (securityAlert) {
+                      toast({
+                        variant:
+                          securityAlert.severity === 'high'
+                            ? 'destructive'
+                            : undefined,
+                        title: 'Security alert',
+                        description: securityAlert.message,
+                      });
+                    }
                     nav(from, { replace: true });
                   } catch (err: unknown) {
                     const message = err instanceof Error ? err.message : 'Invalid email or password';
