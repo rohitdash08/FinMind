@@ -121,5 +121,6 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   id SERIAL PRIMARY KEY,
   user_id INT REFERENCES users(id) ON DELETE SET NULL,
   action VARCHAR(100) NOT NULL,
+  ip_address VARCHAR(45),
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );

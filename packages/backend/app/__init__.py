@@ -118,3 +118,22 @@ def _ensure_schema_compatibility(app: Flask) -> None:
         conn.rollback()
     finally:
         conn.close()
+
+    # GDPR: add ip_address column to audit_logs if missing
+    conn = db.engine.raw_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            ALTER TABLE audit_logs
+            ADD COLUMN IF NOT EXISTS ip_address VARCHAR(45)
+            """
+        )
+        conn.commit()
+    except Exception:
+        app.logger.exception(
+            "Schema compatibility patch failed for audit_logs.ip_address"
+        )
+        conn.rollback()
+    finally:
+        conn.close()

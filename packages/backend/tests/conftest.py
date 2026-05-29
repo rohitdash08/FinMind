@@ -1,5 +1,6 @@
 import os
 import pytest
+from unittest.mock import MagicMock
 from app import create_app
 from app.config import Settings
 from app.extensions import db
@@ -17,6 +18,42 @@ class TestSettings(Settings):
 def _setup_db(app):
     with app.app_context():
         db.create_all()
+
+
+@pytest.fixture(autouse=True)
+def _mock_redis(monkeypatch):
+    """Mock the global redis_client so tests don't need a live Redis server.
+
+    Patch at every import site because modules capture the reference at
+    import time (``from ..extensions import redis_client``).
+    """
+    mock = MagicMock()
+    mock.setex.return_value = True
+    mock.get.return_value = None
+    mock.delete.return_value = True
+    mock.exists.return_value = False
+    mock.keys.return_value = []
+    mock.set.return_value = True
+    mock.expire.return_value = True
+    mock.ttl.return_value = -1
+    mock.ping.return_value = True
+
+    # Patch the canonical location
+    monkeypatch.setattr("app.extensions.redis_client", mock)
+    # Patch every module that imported the reference
+    try:
+        monkeypatch.setattr("app.routes.auth.redis_client", mock)
+    except AttributeError:
+        pass
+    try:
+        monkeypatch.setattr("app.routes.bills.redis_client", mock)
+    except AttributeError:
+        pass
+    try:
+        monkeypatch.setattr("app.routes.reminders.redis_client", mock)
+    except AttributeError:
+        pass
+    yield mock
 
 
 @pytest.fixture()
