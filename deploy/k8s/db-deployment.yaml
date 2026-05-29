@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: finmind-db
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: finmind-db
+  template:
+    metadata:
+      labels:
+        app: finmind-db
+    spec:
+      containers:
+        - name: finmind-db
+          image: postgres:13
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              value: "user"
+            - name: POSTGRES_PASSWORD
+              value: "password"
+            - name: POSTGRES_DB
+              value: "finmind"
+          volumeMounts:
+            - name: db-data
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: db-data
+          persistentVolumeClaim:
+            claimName: db-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: finmind-db
+spec:
+  selector:
+    app: finmind-db
+  ports:
+    - protocol: TCP
+      port: 5432
+      targetPort: 5432

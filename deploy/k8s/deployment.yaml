@@ -1,0 +1,109 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: finmind-web
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: finmind-web
+  template:
+    metadata:
+      labels:
+        app: finmind-web
+    spec:
+      containers:
+        - name: finmind-web
+          image: finmind-web:latest
+          ports:
+            - containerPort: 5000
+          env:
+            - name: FLASK_ENV
+              value: "production"
+            - name: DATABASE_URL
+              value: "postgresql://user:password@finmind-db:5432/finmind"
+            - name: REDIS_URL
+              value: "redis://finmind-redis:6379/0"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "250m"
+            limits:
+              memory: "128Mi"
+              cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: finmind-web
+spec:
+  selector:
+    app: finmind-web
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 5000
+  type: LoadBalancer
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: finmind-web
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: finmind-web
+  minReplicas: 1
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 50
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: finmind-secrets
+type: Opaque
+data:
+  POSTGRES_PASSWORD: cGFzc3dvcmQ=
+  REDIS_PASSWORD: cGFzc3dvcmQ=
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: finmind-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  tls:
+    - hosts:
+        - finmind.example.com
+      secretName: finmind-tls
+  rules:
+    - host: finmind.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: finmind-web
+                port:
+                  number: 80

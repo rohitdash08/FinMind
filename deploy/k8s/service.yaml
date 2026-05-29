@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: finmind-backend
+spec:
+  selector:
+    app: finmind-backend
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 5000
+  type: LoadBalancer

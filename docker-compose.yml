@@ -1,45 +1,66 @@
+# Production-ready Docker Compose for FinMind
+version: "3.9"
+
 services:
-  postgres:
-    image: postgres:16
+    environment:
+    image: postgres:15-alpine
+    container_name: finmind-db
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-finmind}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-finmind}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-finmind}
-      POSTGRES_DB: ${POSTGRES_DB:-finmind}
-    ports: ["5432:5432"]
-    volumes: ["pgdata:/var/lib/postgresql/data"]
-    restart: unless-stopped
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-finmind} -d ${POSTGRES_DB:-finmind}"]
       interval: 10s
-      timeout: 5s
-      retries: 10
-
-  redis:
-    image: redis:7
-    ports: ["6379:6379"]
+    image: redis:7-alpine
+    container_name: finmind-redis
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   backend:
-    build: ./packages/backend
-    env_file:
-      - .env
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_started
-    ports: ["8000:8000"]
-    volumes:
-      - ./packages/backend/app:/app/app
-      - ./packages/backend/wsgi.py:/app/wsgi.py
-      - ./packages/backend/tests:/app/tests
-      - ./.flake8:/app/.flake8:ro
-      - ./.bandit:/app/.bandit:ro
-    command: sh -c "python -m flask --app wsgi:app init-db && export PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus_multiproc && rm -rf $$PROMETHEUS_MULTIPROC_DIR && mkdir -p $$PROMETHEUS_MULTIPROC_DIR && gunicorn --reload --workers=2 --threads=4 --bind 0.0.0.0:8000 wsgi:app"
+    build:
     restart: unless-stopped
 
-  nginx:
-    image: nginx:1.27-alpine
+    container_name: finmind-backend
+    restart: unless-stopped
+    command: gunicorn -w 4 -b 0.0.0.0:5000 "app:create_app()"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-finmind}:${POSTGRES_PASSWORD:-changeme}@db:5432/${POSTGRES_DB:-finmind}
+      REDIS_URL: redis://redis:6379/0
+        condition: service_healthy
+      - db
+      - redis
+    ports:
+      - "5000:5000"
+    deploy:
+      replicas: 2
+
+  frontend:
+    build:
+      - ./.flake8:/app/.flake8:ro
+    container_name: finmind-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    deploy:
+      replicas: 2
     depends_on: [backend]
     ports: ["8080:80"]
     volumes:
