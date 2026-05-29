@@ -244,6 +244,34 @@ data:
           - action: labeldrop
             regex: filename
 ---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: promtail
+  namespace: finmind
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: finmind-promtail
+rules:
+  - apiGroups: [""]
+    resources: [nodes, nodes/proxy, pods, services, endpoints]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: finmind-promtail
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: finmind-promtail
+subjects:
+  - kind: ServiceAccount
+    name: promtail
+    namespace: finmind
+---
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
@@ -258,6 +286,7 @@ spec:
       labels:
         app: promtail
     spec:
+      serviceAccountName: promtail
       containers:
         - name: promtail
           image: grafana/promtail:3.0.0

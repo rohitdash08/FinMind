@@ -144,6 +144,7 @@ finmind/
 - Frontend: Vercel.
 - Secrets: use environment variables (.env locally, platform secrets in cloud).
 - Kubernetes manifests for full stack deployment are available in `deploy/k8s/`.
+- Tilt local Kubernetes development loop is available with `tilt up`; see `deploy/TILT.md`.
 
 ## Local Development
 1) Prereqs: Docker, Docker Compose, Node 20+, Python 3.11+
