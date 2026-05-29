@@ -1,4 +1,4 @@
-allow_k8s_contexts("kind-kind", "kind-finmind", "minikube", "docker-desktop")
+allow_k8s_contexts(["kind-kind", "kind-finmind", "minikube", "docker-desktop"])
 
 local("test -f deploy/k8s/secrets.yaml || cp deploy/k8s/secrets.example.yaml deploy/k8s/secrets.yaml")
 
