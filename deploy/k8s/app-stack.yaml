@@ -296,8 +296,6 @@ spec:
         - name: postgres-exporter
           image: quay.io/prometheuscommunity/postgres-exporter:v0.16.0
           env:
-            - name: DATA_SOURCE_NAME
-              value: postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:5432/$(POSTGRES_DB)?sslmode=disable
             - name: POSTGRES_USER
               valueFrom:
                 secretKeyRef:
@@ -313,6 +311,8 @@ spec:
                 secretKeyRef:
                   name: finmind-secrets
                   key: POSTGRES_DB
+            - name: DATA_SOURCE_NAME
+              value: postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:5432/$(POSTGRES_DB)?sslmode=disable
           ports:
             - containerPort: 9187
 ---
