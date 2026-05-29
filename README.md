@@ -66,6 +66,12 @@ OpenAPI: `backend/app/openapi.yaml`
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
 - Insights: `/insights/monthly`, `/insights/budget-suggestion`
+- Privacy: ZIP export `/privacy/export`, confirmed account deletion `/privacy/me`
+
+## Privacy Workflow
+- `GET /privacy/export` creates a ZIP archive for the authenticated user with `manifest.json`, `profile.json`, `data.json`, and per-table CSV files. The package includes profile, categories, expenses, recurring expenses, bills, reminders, ad impressions, subscriptions, and audit logs, but excludes password hashes and other users' records.
+- `DELETE /privacy/me` requires `{"confirm":"DELETE_MY_DATA"}` and permanently removes the requesting user's owned records in dependency order. Existing audit logs are anonymized, a deletion completion audit entry is retained, user-scoped cache keys are removed, and matching refresh sessions are revoked from Redis.
+- Backend coverage: `REDIS_URL=redis://localhost:6379/15 python -m pytest tests/test_privacy.py tests/test_auth.py` from `packages/backend`.
 
 ## MVP UI/UX Plan
 - Auth screens: register/login.
@@ -186,6 +192,7 @@ finmind/
 ## Security & Scalability
 - JWT access/refresh, secure cookies OR Authorization header.
 - RBAC-ready via roles on `users.role`.
+- GDPR-ready account export/delete endpoints with audit logs and confirmation guard.
 - N+1 avoided via SQLAlchemy eager loading.
 - Redis caching for hot paths to cut DB load.
 - 12-factor app env config; stateless API.

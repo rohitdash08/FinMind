@@ -1,4 +1,5 @@
-import { api } from './client';
+import { api, baseURL } from './client';
+import { getToken } from '../lib/auth';
 
 export type LoginResponse = { access_token: string; refresh_token?: string };
 
@@ -34,4 +35,37 @@ export async function updateMe(payload: {
   preferred_currency: string;
 }): Promise<MeResponse> {
   return api<MeResponse>('/auth/me', { method: 'PATCH', body: payload });
+}
+
+export async function exportPrivacyData(): Promise<Blob> {
+  const token = getToken();
+  const res = await fetch(`${baseURL}/privacy/export`, {
+    method: 'GET',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    credentials: 'include',
+  });
+  if (!res.ok) {
+    let message = `HTTP ${res.status}`;
+    try {
+      const payload = (await res.json()) as { error?: string; message?: string };
+      message = payload.error || payload.message || message;
+    } catch {
+      // Keep status-based fallback for non-JSON failures.
+    }
+    throw new Error(message);
+  }
+  return res.blob();
+}
+
+export async function deleteAccount(confirm: string): Promise<{
+  message: string;
+  deleted_records: Record<string, number>;
+  anonymized_audit_logs: number;
+  deleted_cache_keys: number;
+  revoked_refresh_sessions: number;
+}> {
+  return api('/privacy/me', {
+    method: 'DELETE',
+    body: { confirm },
+  });
 }
