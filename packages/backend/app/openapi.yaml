@@ -12,6 +12,7 @@ tags:
   - name: Bills
   - name: Reminders
   - name: Insights
+  - name: Privacy
 paths:
   /auth/register:
     post:
@@ -477,6 +478,79 @@ paths:
                 tips: ["Cap dining spend to 80% of last month", "Automate weekly transfer to savings"]
         '401':
           description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /privacy/export:
+    get:
+      summary: Export authenticated user's personal data
+      tags: [Privacy]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: ZIP archive containing manifest, JSON, and CSV files
+          content:
+            application/zip:
+              schema:
+                type: string
+                format: binary
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /privacy/me:
+    delete:
+      summary: Permanently delete authenticated user's account and owned records
+      tags: [Privacy]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [confirm]
+              properties:
+                confirm:
+                  type: string
+                  enum: [DELETE_MY_DATA]
+            example:
+              confirm: DELETE_MY_DATA
+      responses:
+        '200':
+          description: Deletion result and removed record counts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  deleted_records:
+                    type: object
+                    additionalProperties: { type: integer }
+                  anonymized_audit_logs: { type: integer }
+                  deleted_cache_keys: { type: integer }
+                  revoked_refresh_sessions: { type: integer }
+        '400':
+          description: Missing or invalid confirmation
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404':
+          description: User not found
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
