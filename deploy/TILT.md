@@ -10,6 +10,7 @@ This repository includes Docker Compose and Kubernetes manifests. The root `Tilt
   - `kind-finmind`
   - `minikube`
   - `docker-desktop`
+  - `colima`
 - `kubectl`
 - `tilt`
 - Node 20 for the local frontend dev server
