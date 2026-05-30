@@ -1,0 +1,44 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "containerGroupName": {
+      "type": "string",
+      "defaultValue": "finmind-backend"
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]"
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.ContainerInstance/containerGroups",
+      "apiVersion": "2021-10-01",
+      "name": "[parameters('containerGroupName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "containers": [
+          {
+            "name": "backend",
+            "properties": {
+              "image": "ghcr.io/rohitdash08/finmind-backend:latest",
+              "ports": [{ "port": 8000, "protocol": "TCP" }],
+              "resources": {
+                "requests": { "cpu": 1.0, "memoryInGB": 1.5 }
+              },
+              "environmentVariables": [
+                { "name": "LOG_LEVEL", "value": "INFO" },
+                { "name": "GEMINI_MODEL", "value": "gemini-1.5-flash" },
+                { "name": "DATABASE_URL", "secureValue": "postgresql+psycopg2://user:pass@finmind-pg.postgres.database.azure.com:5432/finmind" },
+                { "name": "JWT_SECRET", "secureValue": "change-me" }
+              ]
+            }
+          }
+        ],
+        "osType": "Linux",
+        "restartPolicy": "Always"
+      }
+    }
+  ]
+}

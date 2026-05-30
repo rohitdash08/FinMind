@@ -1,0 +1,29 @@
+{
+  "name": "FinMind",
+  "description": "AI-Powered Budget & Bill Tracking",
+  "repository": "https://github.com/rohitdash08/FinMind",
+  "logo": "https://raw.githubusercontent.com/rohitdash08/FinMind/main/app/public/favicon.ico",
+  "keywords": ["finance", "budget", "bills", "tracking", "ai"],
+  "env": {
+    "JWT_SECRET": {
+      "description": "Secret key for JWT token signing",
+      "generator": "secret"
+    },
+    "LOG_LEVEL": {
+      "value": "INFO"
+    }
+  },
+  "addons": [
+    {
+      "plan": "heroku-postgresql:mini"
+    },
+    {
+      "plan": "heroku-redis:mini"
+    }
+  ],
+  "buildpacks": [
+    {
+      "url": "heroku/python"
+    }
+  ]
+}
