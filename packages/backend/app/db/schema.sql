@@ -123,3 +123,24 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   action VARCHAR(100) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS savings_goals (
+  id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name VARCHAR(200) NOT NULL,
+  target_amount NUMERIC(12,2) NOT NULL,
+  current_amount NUMERIC(12,2) NOT NULL DEFAULT 0,
+  currency VARCHAR(10) NOT NULL DEFAULT 'INR',
+  target_date DATE,
+  icon VARCHAR(50),
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_savings_goals_user ON savings_goals(user_id);
+
+CREATE TABLE IF NOT EXISTS goal_contributions (
+  id SERIAL PRIMARY KEY,
+  goal_id INT NOT NULL REFERENCES savings_goals(id) ON DELETE CASCADE,
+  amount NUMERIC(12,2) NOT NULL,
+  contributed_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_goal_contributions_goal ON goal_contributions(goal_id);
