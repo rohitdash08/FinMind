@@ -8,15 +8,20 @@ bp = Blueprint("categories", __name__)
 logger = logging.getLogger("finmind.categories")
 
 
+def _fetch_categories(uid: int) -> list[dict]:
+    items = (
+        db.session.query(Category).filter_by(user_id=uid).order_by(Category.name).all()
+    )
+    return [{"id": c.id, "name": c.name} for c in items]
+
+
 @bp.get("")
 @jwt_required()
 def list_categories():
     uid = int(get_jwt_identity())
-    items = (
-        db.session.query(Category).filter_by(user_id=uid).order_by(Category.name).all()
-    )
-    logger.info("List categories for user=%s count=%s", uid, len(items))
-    return jsonify([{"id": c.id, "name": c.name} for c in items])
+    data = _fetch_categories(uid)
+    logger.info("List categories for user=%s count=%s", uid, len(data))
+    return jsonify(data)
 
 
 @bp.post("")

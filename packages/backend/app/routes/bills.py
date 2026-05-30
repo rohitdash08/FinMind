@@ -10,33 +10,36 @@ bp = Blueprint("bills", __name__)
 logger = logging.getLogger("finmind.bills")
 
 
-@bp.get("")
-@jwt_required()
-def list_bills():
-    uid = int(get_jwt_identity())
+def _fetch_upcoming_bills(uid: int) -> list[dict]:
     items = (
         db.session.query(Bill)
         .filter_by(user_id=uid, active=True)
         .order_by(Bill.next_due_date)
         .all()
     )
-    logger.info("List bills user=%s count=%s", uid, len(items))
-    return jsonify(
-        [
-            {
-                "id": b.id,
-                "name": b.name,
-                "amount": float(b.amount),
-                "currency": b.currency,
-                "next_due_date": b.next_due_date.isoformat(),
-                "cadence": b.cadence.value,
-                "autopay_enabled": b.autopay_enabled,
-                "channel_whatsapp": b.channel_whatsapp,
-                "channel_email": b.channel_email,
-            }
-            for b in items
-        ]
-    )
+    return [
+        {
+            "id": b.id,
+            "name": b.name,
+            "amount": float(b.amount),
+            "currency": b.currency,
+            "next_due_date": b.next_due_date.isoformat(),
+            "cadence": b.cadence.value,
+            "autopay_enabled": b.autopay_enabled,
+            "channel_whatsapp": b.channel_whatsapp,
+            "channel_email": b.channel_email,
+        }
+        for b in items
+    ]
+
+
+@bp.get("")
+@jwt_required()
+def list_bills():
+    uid = int(get_jwt_identity())
+    data = _fetch_upcoming_bills(uid)
+    logger.info("List bills user=%s count=%s", uid, len(data))
+    return jsonify(data)
 
 
 @bp.post("")
