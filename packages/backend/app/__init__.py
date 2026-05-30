@@ -1,3 +1,4 @@
+import json
 from flask import Flask, jsonify
 from .config import Settings
 from .extensions import db, jwt
@@ -8,6 +9,8 @@ from .observability import (
     finalize_request,
     init_request_context,
 )
+from .services.compression import init_compression
+from .services.serialization import CompactJSONEncoder
 from flask_cors import CORS
 import click
 import os
@@ -47,6 +50,10 @@ def create_app(settings: Settings | None = None) -> Flask:
     app.extensions["observability"] = Observability()
     # CORS for local dev frontend
     CORS(app, resources={r"*": {"origins": "*"}}, supports_credentials=True)
+
+    app.json_encoder = CompactJSONEncoder
+
+    init_compression(app)
 
     # Redis (already global)
     # Blueprint routes
