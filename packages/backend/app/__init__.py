@@ -13,6 +13,7 @@ import click
 import os
 import logging
 from datetime import timedelta
+from . import models_jobs  # noqa: F401
 
 
 def create_app(settings: Settings | None = None) -> Flask:
