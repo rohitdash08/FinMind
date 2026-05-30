@@ -10,6 +10,7 @@ tags:
   - name: Categories
   - name: Expenses
   - name: Bills
+  - name: Accounts
   - name: Reminders
   - name: Insights
 paths:
@@ -329,6 +330,157 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
 
+  /accounts:
+    get:
+      summary: List financial accounts
+      tags: [Accounts]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: User-owned financial accounts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FinancialAccount'
+              example:
+                - { id: 1, name: Everyday Checking, account_type: CHECKING, balance: 1250.75, currency: USD, institution: FinBank, is_default: true, notes: Primary account }
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+    post:
+      summary: Create financial account
+      tags: [Accounts]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewFinancialAccount'
+            example:
+              name: Brokerage
+              account_type: INVESTMENT
+              balance: 5000
+              currency: USD
+              institution: FinInvest
+              is_default: false
+              notes: Long-term investments
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FinancialAccount'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /accounts/overview:
+    get:
+      summary: Get consolidated financial overview
+      tags: [Accounts]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Net worth and account totals for the authenticated user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FinancialAccountsOverview'
+              example:
+                account_count: 3
+                total_assets: 8250.75
+                total_liabilities: 900.0
+                net_worth: 7350.75
+                by_type:
+                  CHECKING: 1250.75
+                  INVESTMENT: 5000
+                  CREDIT: 900
+                accounts: []
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /accounts/{accountId}:
+    get:
+      summary: Get financial account
+      tags: [Accounts]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: accountId
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Financial account
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FinancialAccount'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+    patch:
+      summary: Update financial account
+      tags: [Accounts]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: accountId
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewFinancialAccount'
+      responses:
+        '200':
+          description: Updated financial account
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FinancialAccount'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+    delete:
+      summary: Delete financial account
+      tags: [Accounts]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: accountId
+          required: true
+          schema: { type: integer }
+      responses:
+        '204': { description: Deleted }
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
   /reminders:
     get:
       summary: List reminders
@@ -572,6 +724,46 @@ components:
         autopay_enabled: { type: boolean, default: false }
         channel_email: { type: boolean, default: true }
         channel_whatsapp: { type: boolean, default: false }
+    FinancialAccount:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        account_type: { type: string, enum: [CHECKING, SAVINGS, CREDIT, INVESTMENT, CASH, OTHER] }
+        balance: { type: number, format: float }
+        currency: { type: string }
+        institution: { type: string, nullable: true }
+        is_default: { type: boolean }
+        notes: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    NewFinancialAccount:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        account_type: { type: string, enum: [CHECKING, SAVINGS, CREDIT, INVESTMENT, CASH, OTHER], default: CHECKING }
+        balance: { type: number, format: float, default: 0 }
+        currency: { type: string }
+        institution: { type: string, nullable: true }
+        is_default: { type: boolean, default: false }
+        notes: { type: string, nullable: true }
+    FinancialAccountsOverview:
+      type: object
+      properties:
+        account_count: { type: integer }
+        total_assets: { type: number, format: float }
+        total_liabilities: { type: number, format: float }
+        net_worth: { type: number, format: float }
+        by_type:
+          type: object
+          additionalProperties:
+            type: number
+            format: float
+        accounts:
+          type: array
+          items:
+            $ref: '#/components/schemas/FinancialAccount'
     Reminder:
       type: object
       properties:

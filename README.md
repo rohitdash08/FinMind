@@ -64,6 +64,7 @@ OpenAPI: `backend/app/openapi.yaml`
 - Auth: `/auth/register`, `/auth/login`, `/auth/refresh`
 - Expenses: CRUD `/expenses`
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
+- Accounts: CRUD `/accounts`, consolidated net-worth overview `/accounts/overview`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
 - Insights: `/insights/monthly`, `/insights/budget-suggestion`
 
@@ -71,6 +72,7 @@ OpenAPI: `backend/app/openapi.yaml`
 - Auth screens: register/login.
 - Dashboard:
   - Monthly spend chart, category breakdown donut.
+  - Multi-account net worth overview with assets, liabilities, and balances by account type.
   - Upcoming bills list with due dates and pay status.
   - AI budget suggestion card.
 - Expenses page: add expense (amount, category, notes, date), list & filter.
