@@ -10,7 +10,12 @@ import {
   FinancialCardTitle,
 } from '@/components/ui/financial-card';
 import { useToast } from '@/hooks/use-toast';
-import { getBudgetSuggestion, type BudgetSuggestion } from '@/api/insights';
+import {
+  getBudgetSuggestion,
+  getWeeklySummary,
+  type BudgetSuggestion,
+  type WeeklySummary,
+} from '@/api/insights';
 import { formatMoney } from '@/lib/currency';
 
 const PERSONAS = [
@@ -22,22 +27,28 @@ const PERSONAS = [
 export function Analytics() {
   const { toast } = useToast();
   const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  const [weekStart, setWeekStart] = useState(() => new Date().toISOString().slice(0, 10));
   const [persona, setPersona] = useState(PERSONAS[0]);
   const [geminiKey, setGeminiKey] = useState('');
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<BudgetSuggestion | null>(null);
+  const [weeklyData, setWeeklyData] = useState<WeeklySummary | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
     setError(null);
     try {
-      const payload = await getBudgetSuggestion({
-        month,
-        persona,
-        geminiApiKey: geminiKey.trim() || undefined,
-      });
-      setData(payload);
+      const [budgetPayload, weeklyPayload] = await Promise.all([
+        getBudgetSuggestion({
+          month,
+          persona,
+          geminiApiKey: geminiKey.trim() || undefined,
+        }),
+        getWeeklySummary({ weekStart }),
+      ]);
+      setData(budgetPayload);
+      setWeeklyData(weeklyPayload);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to load insights';
       setError(message);
@@ -61,6 +72,10 @@ export function Analytics() {
     ];
   }, [data]);
 
+  const trendLabel = weeklyData?.comparison.expense_delta_pct == null
+    ? 'New baseline'
+    : `${weeklyData.comparison.expense_delta_pct.toFixed(2)}%`;
+
   return (
     <div className="page-wrap space-y-6">
       <div className="page-header">
@@ -71,7 +86,7 @@ export function Analytics() {
               Live spending analytics with Gemini-powered budget coaching.
             </p>
           </div>
-          <div className="grid gap-2 md:grid-cols-4">
+          <div className="grid gap-2 md:grid-cols-5">
             <div>
               <Label htmlFor="analytics-month">Month</Label>
               <Input
@@ -80,6 +95,16 @@ export function Analytics() {
                 type="month"
                 value={month}
                 onChange={(e) => setMonth(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label htmlFor="analytics-week">Week</Label>
+              <Input
+                id="analytics-week"
+                aria-label="analytics week"
+                type="date"
+                value={weekStart}
+                onChange={(e) => setWeekStart(e.target.value)}
               />
             </div>
             <div>
@@ -169,6 +194,106 @@ export function Analytics() {
               </div>
             </FinancialCardContent>
           </FinancialCard>
+
+          {weeklyData ? (
+            <FinancialCard variant="financial">
+              <FinancialCardHeader>
+                <FinancialCardTitle>Weekly Digest</FinancialCardTitle>
+                <FinancialCardDescription>
+                  {weeklyData.period.week_start} to {weeklyData.period.week_end}
+                </FinancialCardDescription>
+              </FinancialCardHeader>
+              <FinancialCardContent>
+                <div className="grid gap-3 md:grid-cols-4">
+                  <div className="rounded-lg border p-3">
+                    <div className="text-sm text-muted-foreground">Income</div>
+                    <div className="font-semibold">
+                      {formatMoney(weeklyData.summary.income, weeklyData.currency)}
+                    </div>
+                  </div>
+                  <div className="rounded-lg border p-3">
+                    <div className="text-sm text-muted-foreground">Expenses</div>
+                    <div className="font-semibold">
+                      {formatMoney(weeklyData.summary.expenses, weeklyData.currency)}
+                    </div>
+                  </div>
+                  <div className="rounded-lg border p-3">
+                    <div className="text-sm text-muted-foreground">Net Flow</div>
+                    <div className="font-semibold">
+                      {formatMoney(weeklyData.summary.net_flow, weeklyData.currency)}
+                    </div>
+                  </div>
+                  <div className="rounded-lg border p-3">
+                    <div className="text-sm text-muted-foreground">WoW Change</div>
+                    <div className="font-semibold">{trendLabel}</div>
+                  </div>
+                </div>
+
+                <div className="mt-5 grid gap-5 lg:grid-cols-2">
+                  <div>
+                    <h4 className="mb-3 font-semibold">Top Categories</h4>
+                    {weeklyData.category_breakdown.length ? (
+                      <div className="space-y-3">
+                        {weeklyData.category_breakdown.slice(0, 5).map((category) => (
+                          <div key={category.category_id ?? category.category_name}>
+                            <div className="mb-1 flex items-center justify-between text-sm">
+                              <span>{category.category_name}</span>
+                              <span>
+                                {formatMoney(category.amount, weeklyData.currency)} -{' '}
+                                {category.share_pct.toFixed(1)}%
+                              </span>
+                            </div>
+                            <div className="h-2 rounded-full bg-muted">
+                              <div
+                                className="h-2 rounded-full bg-primary"
+                                style={{ width: `${Math.min(category.share_pct, 100)}%` }}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-sm text-muted-foreground">No category spend this week.</div>
+                    )}
+                  </div>
+
+                  <div>
+                    <h4 className="mb-3 font-semibold">Daily Flow</h4>
+                    <div className="space-y-2">
+                      {weeklyData.daily_breakdown.map((day) => (
+                        <div
+                          key={day.date}
+                          className="flex items-center justify-between rounded-lg border px-3 py-2 text-sm"
+                        >
+                          <span>{day.date}</span>
+                          <span>{formatMoney(day.net_flow, weeklyData.currency)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-5 grid gap-5 lg:grid-cols-2">
+                  <div>
+                    <h4 className="mb-3 font-semibold">Insights</h4>
+                    <ul className="list-disc pl-5 space-y-1 text-sm">
+                      {weeklyData.insights.map((insight) => (
+                        <li key={insight}>{insight}</li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div>
+                    <h4 className="mb-3 font-semibold">Recommendations</h4>
+                    <ul className="list-disc pl-5 space-y-1 text-sm">
+                      {weeklyData.recommendations.map((recommendation) => (
+                        <li key={recommendation}>{recommendation}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </FinancialCardContent>
+            </FinancialCard>
+          ) : null}
 
           <FinancialCard variant="financial">
             <FinancialCardHeader>

@@ -65,7 +65,17 @@ OpenAPI: `backend/app/openapi.yaml`
 - Expenses: CRUD `/expenses`
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
-- Insights: `/insights/monthly`, `/insights/budget-suggestion`
+- Insights: `/insights/monthly`, `/insights/budget-suggestion`,
+  `/insights/weekly-summary?week_start=YYYY-MM-DD&currency=USD`
+
+### Weekly Financial Summary
+
+`GET /insights/weekly-summary` returns an authenticated smart digest for the
+selected ISO week. It normalizes any `week_start` date to Monday, compares
+expenses with the previous week, groups spending by category, returns seven
+daily buckets, highlights the largest expenses, includes bills due that week,
+and emits deterministic insights plus recommendations. Omit `week_start` for
+the current week and omit `currency` to include all currencies.
 
 ## MVP UI/UX Plan
 - Auth screens: register/login.
