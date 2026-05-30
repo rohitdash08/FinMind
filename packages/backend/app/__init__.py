@@ -52,6 +52,11 @@ def create_app(settings: Settings | None = None) -> Flask:
     # Blueprint routes
     register_routes(app)
 
+    # Background job scheduler (retry + monitoring) — skipped in test/CI mode
+    if not os.environ.get("TESTING") and not os.environ.get("DISABLE_SCHEDULER"):
+        from .services.job_retry import init_job_scheduler
+        init_job_scheduler(app)
+
     # Backward-compatible schema patch for existing databases.
     with app.app_context():
         _ensure_schema_compatibility(app)

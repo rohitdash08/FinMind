@@ -11,6 +11,7 @@ tags:
   - name: Expenses
   - name: Bills
   - name: Reminders
+  - name: Jobs
   - name: Insights
 paths:
   /auth/register:
@@ -385,6 +386,73 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
 
+  /jobs/status:
+    get:
+      summary: Get background job status
+      tags: [Jobs]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Current execution state for registered background jobs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobStatus'
+              example:
+                job_count: 1
+                jobs:
+                  - name: reminder_dispatch
+                    status: idle
+                    run_count: 0
+                    success_count: 0
+                    failure_count: 0
+                    last_run: null
+                    last_success: null
+                    last_failure: null
+                    last_error: null
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /jobs/trigger/{jobId}:
+    post:
+      summary: Trigger a scheduled background job
+      tags: [Jobs]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: jobId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Job trigger scheduled
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+              example:
+                message: "job 'reminder_dispatch' triggered"
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404':
+          description: Job not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '503':
+          description: Scheduler not running
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
   /reminders/bills/{billId}/schedule:
     post:
       summary: Create bill reminders with default/override offsets
@@ -587,3 +655,23 @@ components:
         message: { type: string }
         send_at: { type: string, format: date-time }
         channel: { type: string, enum: [email, whatsapp], default: email }
+    JobRecord:
+      type: object
+      properties:
+        name: { type: string }
+        status: { type: string, enum: [idle, running, success, failed] }
+        run_count: { type: integer }
+        success_count: { type: integer }
+        failure_count: { type: integer }
+        last_run: { type: string, format: date-time, nullable: true }
+        last_success: { type: string, format: date-time, nullable: true }
+        last_failure: { type: string, format: date-time, nullable: true }
+        last_error: { type: string, nullable: true }
+    JobStatus:
+      type: object
+      properties:
+        job_count: { type: integer }
+        jobs:
+          type: array
+          items:
+            $ref: '#/components/schemas/JobRecord'

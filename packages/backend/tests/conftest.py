@@ -7,6 +7,36 @@ from app.extensions import redis_client
 from app import models  # noqa: F401 - ensure models are registered
 
 
+class InMemoryRedis:
+    """Minimal Redis test double for auth refresh-token operations."""
+
+    def __init__(self):
+        self._store = {}
+
+    def setex(self, key, _ttl, value):
+        self._store[key] = value
+        return True
+
+    def get(self, key):
+        return self._store.get(key)
+
+    def delete(self, key):
+        existed = key in self._store
+        self._store.pop(key, None)
+        return int(existed)
+
+    def flushdb(self):
+        self._store.clear()
+        return True
+
+
+_test_redis = InMemoryRedis()
+redis_client.setex = _test_redis.setex
+redis_client.get = _test_redis.get
+redis_client.delete = _test_redis.delete
+redis_client.flushdb = _test_redis.flushdb
+
+
 class TestSettings(Settings):
     # Override defaults for tests
     database_url: str = "sqlite+pysqlite:///:memory:"

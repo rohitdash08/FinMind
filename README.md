@@ -65,6 +65,7 @@ OpenAPI: `backend/app/openapi.yaml`
 - Expenses: CRUD `/expenses`
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
+- Jobs: status `/jobs/status`, manual trigger `/jobs/trigger/{job_id}`
 - Insights: `/insights/monthly`, `/insights/budget-suggestion`
 
 ## MVP UI/UX Plan
@@ -173,6 +174,7 @@ finmind/
   - request count by endpoint/status
   - request duration histograms (latency, including dashboard p95 KPI)
   - reminder event counters (engagement KPI)
+- Background job monitoring is available at `/jobs/status`; scheduled jobs can be triggered manually with `/jobs/trigger/{job_id}`.
 - Logs are emitted as JSON with `request_id` and shipped to Loki via Promtail.
 - Pre-provisioned Grafana dashboard: `FinMind Operations and KPI`.
 
