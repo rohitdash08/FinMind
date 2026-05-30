@@ -133,3 +133,47 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class FinancialTwin(db.Model):
+    __tablename__ = "financial_twins"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    name = db.Column(db.String(100), default="My Financial Twin", nullable=False)
+    monthly_income = db.Column(db.Numeric(12, 2), default=0, nullable=False)
+    monthly_expenses = db.Column(db.Numeric(12, 2), default=0, nullable=False)
+    savings_rate_pct = db.Column(db.Numeric(5, 2), default=20, nullable=False)
+    current_savings = db.Column(db.Numeric(12, 2), default=0, nullable=False)
+    risk_tolerance = db.Column(db.String(20), default="moderate", nullable=False)
+    retirement_age = db.Column(db.Integer, default=65, nullable=False)
+    inflation_rate_pct = db.Column(db.Numeric(5, 2), default=6, nullable=False)
+    return_rate_pct = db.Column(db.Numeric(5, 2), default=8, nullable=False)
+    active = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class SimulationRun(db.Model):
+    __tablename__ = "simulation_runs"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    twin_id = db.Column(db.Integer, db.ForeignKey("financial_twins.id"), nullable=False)
+    scenario_name = db.Column(db.String(100), default="baseline", nullable=False)
+    projection_years = db.Column(db.Integer, default=30, nullable=False)
+    num_simulations = db.Column(db.Integer, default=1000, nullable=False)
+    result_json = db.Column(db.Text, nullable=False)
+    success_probability = db.Column(db.Numeric(5, 2), nullable=True)
+    median_net_worth = db.Column(db.Numeric(14, 2), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class TwinGoal(db.Model):
+    __tablename__ = "twin_goals"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    twin_id = db.Column(db.Integer, db.ForeignKey("financial_twins.id"), nullable=False)
+    name = db.Column(db.String(200), nullable=False)
+    target_amount = db.Column(db.Numeric(12, 2), nullable=False)
+    target_date = db.Column(db.Date, nullable=False)
+    priority = db.Column(db.String(20), default="medium", nullable=False)
+    achieved = db.Column(db.Boolean, default=False, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
