@@ -133,3 +133,112 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class Device(db.Model):
+    __tablename__ = "devices"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    fingerprint = db.Column(db.String(255), nullable=False)
+    user_agent = db.Column(db.String(500), nullable=True)
+    ip_address = db.Column(db.String(45), nullable=True)
+    accept_language = db.Column(db.String(100), nullable=True)
+    trust_score = db.Column(db.Integer, default=0, nullable=False)
+    last_seen_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class LoginAttemptLevel(str, Enum):
+    INFO = "INFO"
+    SUSPICIOUS = "SUSPICIOUS"
+    BLOCKED = "BLOCKED"
+
+
+class LoginAttempt(db.Model):
+    __tablename__ = "login_attempts"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    email = db.Column(db.String(255), nullable=False)
+    ip_address = db.Column(db.String(45), nullable=True)
+    user_agent = db.Column(db.String(500), nullable=True)
+    location = db.Column(db.String(255), nullable=True)
+    success = db.Column(db.Boolean, default=False, nullable=False)
+    level = db.Column(SAEnum(LoginAttemptLevel), default=LoginAttemptLevel.INFO, nullable=False)
+    reason = db.Column(db.String(500), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class SuspiciousActivity(db.Model):
+    __tablename__ = "suspicious_activities"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    activity_type = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.String(500), nullable=False)
+    severity = db.Column(db.String(20), default="medium", nullable=False)
+    acknowledged = db.Column(db.Boolean, default=False, nullable=False)
+    metadata_json = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class ReminderDeliveryStatus(str, Enum):
+    PENDING = "PENDING"
+    SENT = "SENT"
+    DELIVERED = "DELIVERED"
+    CLICKED = "CLICKED"
+    FAILED = "FAILED"
+
+
+class ReminderDelivery(db.Model):
+    __tablename__ = "reminder_deliveries"
+    id = db.Column(db.Integer, primary_key=True)
+    reminder_id = db.Column(db.Integer, db.ForeignKey("reminders.id"), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    channel = db.Column(db.String(20), nullable=False)
+    status = db.Column(SAEnum(ReminderDeliveryStatus), default=ReminderDeliveryStatus.PENDING, nullable=False)
+    attempt_count = db.Column(db.Integer, default=0, nullable=False)
+    last_attempt_at = db.Column(db.DateTime, nullable=True)
+    delivered_at = db.Column(db.DateTime, nullable=True)
+    clicked_at = db.Column(db.DateTime, nullable=True)
+    error_message = db.Column(db.String(500), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class NotificationPriority(str, Enum):
+    URGENT = "URGENT"
+    HIGH = "HIGH"
+    NORMAL = "NORMAL"
+    LOW = "LOW"
+
+
+class Notification(db.Model):
+    __tablename__ = "notifications"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    title = db.Column(db.String(200), nullable=False)
+    body = db.Column(db.String(1000), nullable=False)
+    notification_type = db.Column(db.String(50), default="general", nullable=False)
+    priority = db.Column(SAEnum(NotificationPriority), default=NotificationPriority.NORMAL, nullable=False)
+    group_key = db.Column(db.String(100), nullable=True)
+    read = db.Column(db.Boolean, default=False, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class SpendingCategory(db.Model):
+    __tablename__ = "spending_categories"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    category_id = db.Column(db.Integer, db.ForeignKey("categories.id"), nullable=False)
+    is_essential = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class SavingsSuggestion(db.Model):
+    __tablename__ = "savings_suggestions"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    suggestion_type = db.Column(db.String(50), nullable=False)
+    title = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.String(1000), nullable=False)
+    estimated_savings = db.Column(db.Numeric(12, 2), nullable=True)
+    dismissed = db.Column(db.Boolean, default=False, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
