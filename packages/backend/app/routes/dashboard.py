@@ -5,7 +5,11 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from ..extensions import db
 from ..models import Bill, Expense, Category
-from ..services.cache import cache_get, cache_set, dashboard_summary_key
+from ..services.cache import (
+    cache_aside,
+    dashboard_summary_key,
+    DASHBOARD_TTL,
+)
 
 bp = Blueprint("dashboard", __name__)
 
@@ -18,10 +22,15 @@ def dashboard_summary():
     if not _is_valid_month(ym):
         return jsonify(error="invalid month, expected YYYY-MM"), 400
     key = dashboard_summary_key(uid, ym)
-    cached = cache_get(key)
-    if cached:
-        return jsonify(cached)
+    payload = cache_aside(
+        key,
+        lambda: _compute_dashboard_summary(uid, ym),
+        ttl_seconds=DASHBOARD_TTL,
+    )
+    return jsonify(payload)
 
+
+def _compute_dashboard_summary(uid: int, ym: str) -> dict:
     payload = {
         "period": {"month": ym},
         "summary": {
@@ -164,8 +173,7 @@ def dashboard_summary():
     except Exception:
         payload["errors"].append("category_breakdown_unavailable")
 
-    cache_set(key, payload, ttl_seconds=300)
-    return jsonify(payload)
+    return payload
 
 
 def _is_valid_month(ym: str) -> bool:
