@@ -10,6 +10,14 @@ from flask_jwt_extended import (
 )
 from ..extensions import db, redis_client
 from ..models import User
+from ..services.device_trust import (
+    compute_fingerprint,
+    is_new_device,
+    register_device,
+    request_device_info,
+)
+from ..services.reminders import send_email
+from ..config import Settings
 import logging
 import time
 
@@ -63,6 +71,15 @@ def login():
     refresh = create_refresh_token(identity=str(user.id))
     _store_refresh_session(refresh, str(user.id))
     logger.info("Login success user_id=%s", user.id)
+
+    device_info = request_device_info()
+    fingerprint = compute_fingerprint(**device_info)
+    if is_new_device(user.id, fingerprint):
+        logger.warning("New device login user_id=%s fingerprint=%s", user.id, fingerprint[:16])
+        _notify_new_device(user, device_info)
+    else:
+        register_device(user_id=user.id, **device_info)
+
     return jsonify(access_token=access, refresh_token=refresh)
 
 
@@ -127,6 +144,21 @@ def logout():
 
 def _refresh_key(jti: str) -> str:
     return f"auth:refresh:{jti}"
+
+
+def _notify_new_device(user: User, device_info: dict):
+    settings = Settings()
+    subject = "New device login detected"
+    body = (
+        f"Hi {user.email},\n\n"
+        f"A new device was used to log in to your account.\n"
+        f"IP: {device_info.get('ip_address', 'unknown')}\n"
+        f"User-Agent: {device_info.get('user_agent', 'unknown')}\n\n"
+        f"If this was you, you can ignore this message.\n"
+        f"If not, please change your password immediately."
+    )
+    send_email(to_email=user.email, subject=subject, body=body)
+    logger.info("New device notification sent to %s", user.email)
 
 
 def _store_refresh_session(refresh_token: str, uid: str):

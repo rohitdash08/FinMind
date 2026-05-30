@@ -123,3 +123,17 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   action VARCHAR(100) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS devices (
+  id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  fingerprint VARCHAR(255) NOT NULL,
+  user_agent VARCHAR(500),
+  ip_address VARCHAR(45),
+  accept_language VARCHAR(100),
+  trust_score INT NOT NULL DEFAULT 0,
+  last_seen_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_devices_user_fingerprint ON devices(user_id, fingerprint);
+CREATE INDEX IF NOT EXISTS idx_devices_user_ip ON devices(user_id, ip_address);
