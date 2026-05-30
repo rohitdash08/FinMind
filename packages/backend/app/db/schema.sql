@@ -123,3 +123,20 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   action VARCHAR(100) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS backup_exports (
+  id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  filename VARCHAR(255) NOT NULL,
+  encrypted_payload TEXT NOT NULL,
+  encryption_iv VARCHAR(64) NOT NULL,
+  encryption_tag VARCHAR(64) NOT NULL,
+  export_type VARCHAR(20) NOT NULL DEFAULT 'full',
+  status VARCHAR(20) NOT NULL DEFAULT 'completed',
+  record_count INT NOT NULL DEFAULT 0,
+  size_bytes INT NOT NULL DEFAULT 0,
+  password_hash VARCHAR(255) NOT NULL,
+  expires_at TIMESTAMP,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_backup_exports_user ON backup_exports(user_id, created_at DESC);
