@@ -8,6 +8,7 @@ from ..extensions import db
 from ..models import Expense, RecurringCadence, RecurringExpense, User
 from ..services.cache import cache_delete_patterns, monthly_summary_key
 from ..services import expense_import
+from ..services.serialization import paginated_response
 import logging
 
 bp = Blueprint("expenses", __name__)
@@ -41,15 +42,16 @@ def list_expenses():
     if search:
         q = q.filter(Expense.notes.ilike(f"%{search}%"))
 
+    total = q.count()
     items = (
         q.order_by(Expense.spent_at.desc())
         .offset((page - 1) * page_size)
         .limit(page_size)
         .all()
     )
-    logger.info("List expenses user=%s count=%s", uid, len(items))
+    logger.info("List expenses user=%s count=%s total=%s", uid, len(items), total)
     data = [_expense_to_dict(e) for e in items]
-    return jsonify(data)
+    return jsonify(paginated_response(data, total, page, page_size))
 
 
 @bp.post("")
