@@ -481,6 +481,89 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
 
+  /insights/weekly-summary:
+    get:
+      summary: Get smart weekly financial summary
+      tags: [Insights]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: week_start
+          required: false
+          description: Any date in the target ISO week; normalized to Monday.
+          schema: { type: string, format: date }
+        - in: query
+          name: currency
+          required: false
+          description: Optional currency filter, for example USD or INR.
+          schema: { type: string }
+      responses:
+        '200':
+          description: Weekly digest with totals, trends, categories, bills and recommendations
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WeeklySummary'
+              example:
+                period:
+                  week_start: 2026-05-25
+                  week_end: 2026-05-31
+                  previous_week_start: 2026-05-18
+                  previous_week_end: 2026-05-24
+                currency: USD
+                summary:
+                  income: 800
+                  expenses: 200
+                  net_flow: 600
+                  transaction_count: 3
+                  expense_count: 2
+                  income_count: 1
+                  average_daily_expense: 28.57
+                comparison:
+                  previous_expenses: 50
+                  expense_delta: 150
+                  expense_delta_pct: 300
+                  expense_trend: up
+                category_breakdown:
+                  - category_id: 1
+                    category_name: Dining
+                    amount: 120
+                    share_pct: 60
+                daily_breakdown:
+                  - date: 2026-05-25
+                    income: 800
+                    expenses: 0
+                    net_flow: 800
+                top_expenses:
+                  - id: 11
+                    description: Team dinner
+                    amount: 120
+                    currency: USD
+                    date: 2026-05-26
+                    category_id: 1
+                upcoming_bills:
+                  - id: 5
+                    name: Internet
+                    amount: 40
+                    currency: USD
+                    next_due_date: 2026-05-29
+                    cadence: MONTHLY
+                insights:
+                  - Weekly expenses rose by 300.0% compared with the previous week.
+                recommendations:
+                  - Set a temporary cap for Dining next week.
+                method: deterministic
+        '400':
+          description: Invalid week_start
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -572,6 +655,74 @@ components:
         autopay_enabled: { type: boolean, default: false }
         channel_email: { type: boolean, default: true }
         channel_whatsapp: { type: boolean, default: false }
+    WeeklySummary:
+      type: object
+      properties:
+        period:
+          type: object
+          properties:
+            week_start: { type: string, format: date }
+            week_end: { type: string, format: date }
+            previous_week_start: { type: string, format: date }
+            previous_week_end: { type: string, format: date }
+        currency: { type: string }
+        summary:
+          type: object
+          properties:
+            income: { type: number }
+            expenses: { type: number }
+            net_flow: { type: number }
+            transaction_count: { type: integer }
+            expense_count: { type: integer }
+            income_count: { type: integer }
+            average_daily_expense: { type: number }
+        comparison:
+          type: object
+          properties:
+            previous_expenses: { type: number }
+            expense_delta: { type: number }
+            expense_delta_pct: { type: number, nullable: true }
+            expense_trend: { type: string, enum: [up, down, flat] }
+        category_breakdown:
+          type: array
+          items:
+            type: object
+            properties:
+              category_id: { type: integer, nullable: true }
+              category_name: { type: string }
+              amount: { type: number }
+              share_pct: { type: number }
+        daily_breakdown:
+          type: array
+          items:
+            type: object
+            properties:
+              date: { type: string, format: date }
+              income: { type: number }
+              expenses: { type: number }
+              net_flow: { type: number }
+        top_expenses:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: integer }
+              description: { type: string }
+              amount: { type: number }
+              currency: { type: string }
+              date: { type: string, format: date }
+              category_id: { type: integer, nullable: true }
+        upcoming_bills:
+          type: array
+          items:
+            $ref: '#/components/schemas/Bill'
+        insights:
+          type: array
+          items: { type: string }
+        recommendations:
+          type: array
+          items: { type: string }
+        method: { type: string }
     Reminder:
       type: object
       properties:
