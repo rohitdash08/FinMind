@@ -1,6 +1,6 @@
 from datetime import datetime, date
 from enum import Enum
-from sqlalchemy import Enum as SAEnum
+from sqlalchemy import Enum as SAEnum, Index
 from .extensions import db
 
 
@@ -21,6 +21,7 @@ class User(db.Model):
 
 class Category(db.Model):
     __tablename__ = "categories"
+    __table_args__ = (Index("idx_categories_user_id", "user_id"),)
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     name = db.Column(db.String(100), nullable=False)
@@ -29,6 +30,7 @@ class Category(db.Model):
 
 class Expense(db.Model):
     __tablename__ = "expenses"
+    __table_args__ = (Index("idx_expenses_user_spent_at", "user_id", db.text("spent_at DESC")),)
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     category_id = db.Column(db.Integer, db.ForeignKey("categories.id"), nullable=True)
@@ -75,6 +77,7 @@ class BillCadence(str, Enum):
 
 class Bill(db.Model):
     __tablename__ = "bills"
+    __table_args__ = (Index("idx_bills_user_due", "user_id", "next_due_date"),)
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     name = db.Column(db.String(200), nullable=False)
@@ -91,6 +94,7 @@ class Bill(db.Model):
 
 class Reminder(db.Model):
     __tablename__ = "reminders"
+    __table_args__ = (Index("idx_reminders_user_created", "user_id", "created_at"),)
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     bill_id = db.Column(db.Integer, db.ForeignKey("bills.id"), nullable=True)
@@ -98,6 +102,7 @@ class Reminder(db.Model):
     send_at = db.Column(db.DateTime, nullable=False)
     sent = db.Column(db.Boolean, default=False, nullable=False)
     channel = db.Column(db.String(20), default="email", nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
 
 class AdImpression(db.Model):
