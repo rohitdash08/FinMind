@@ -5,6 +5,7 @@ from .routes import register_routes
 from .observability import (
     Observability,
     configure_logging,
+    enable_query_performance_logging,
     finalize_request,
     init_request_context,
 )
@@ -45,6 +46,7 @@ def create_app(settings: Settings | None = None) -> Flask:
     db.init_app(app)
     jwt.init_app(app)
     app.extensions["observability"] = Observability()
+    enable_query_performance_logging(min_duration_ms=100.0)
     # CORS for local dev frontend
     CORS(app, resources={r"*": {"origins": "*"}}, supports_credentials=True)
 

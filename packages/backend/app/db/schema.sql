@@ -94,6 +94,7 @@ CREATE TABLE IF NOT EXISTS reminders (
   channel VARCHAR(20) NOT NULL DEFAULT 'email'
 );
 CREATE INDEX IF NOT EXISTS idx_reminders_due ON reminders(user_id, sent, send_at);
+CREATE INDEX IF NOT EXISTS idx_reminders_user ON reminders(user_id, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS ad_impressions (
   id SERIAL PRIMARY KEY,
@@ -123,3 +124,15 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   action VARCHAR(100) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+CREATE INDEX IF NOT EXISTS idx_audit_logs_user_action ON audit_logs(user_id, action, created_at DESC);
+
+-- Additional performance indexes for financial queries
+CREATE INDEX IF NOT EXISTS idx_expenses_user_category ON expenses(user_id, category_id);
+CREATE INDEX IF NOT EXISTS idx_expenses_user_type_spent ON expenses(user_id, expense_type, spent_at DESC);
+CREATE INDEX IF NOT EXISTS idx_expenses_user_recurring ON expenses(user_id, source_recurring_id);
+CREATE INDEX IF NOT EXISTS idx_bills_user_active ON bills(user_id, active, next_due_date);
+CREATE INDEX IF NOT EXISTS idx_categories_user_id ON categories(user_id);
+CREATE INDEX IF NOT EXISTS idx_categories_user_name ON categories(user_id, name);
+CREATE INDEX IF NOT EXISTS idx_reminders_user ON reminders(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_ad_impressions_user_place ON ad_impressions(user_id, placement, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_user_subscriptions_user_active ON user_subscriptions(user_id, active);

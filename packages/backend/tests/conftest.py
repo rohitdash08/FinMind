@@ -1,9 +1,10 @@
 import os
+from unittest.mock import MagicMock, patch
+
 import pytest
 from app import create_app
 from app.config import Settings
 from app.extensions import db
-from app.extensions import redis_client
 from app import models  # noqa: F401 - ensure models are registered
 
 
@@ -14,6 +15,34 @@ class TestSettings(Settings):
     jwt_secret: str = "test-secret"
 
 
+class _FakeRedis:
+    def __init__(self):
+        self._data: dict[str, str] = {}
+
+    def get(self, key):
+        return self._data.get(key)
+
+    def setex(self, key, ttl, value):
+        self._data[key] = value
+
+    def set(self, key, value):
+        self._data[key] = value
+
+    def delete(self, *keys):
+        for k in keys:
+            self._data.pop(k, None)
+
+    def flushdb(self):
+        self._data.clear()
+
+    def scan(self, cursor=0, match=None, count=100):
+        return (0, [])
+
+
+def _mock_redis():
+    return _FakeRedis()
+
+
 def _setup_db(app):
     with app.app_context():
         db.create_all()
@@ -21,7 +50,6 @@ def _setup_db(app):
 
 @pytest.fixture()
 def app_fixture():
-    # Ensure a clean env for tests
     os.environ.setdefault("FLASK_ENV", "testing")
     settings = TestSettings(
         database_url="sqlite+pysqlite:///:memory:",
@@ -31,18 +59,10 @@ def app_fixture():
     app = create_app(settings)
     app.config.update(TESTING=True)
     _setup_db(app)
-    try:
-        redis_client.flushdb()
-    except Exception:
-        pass
     yield app
     with app.app_context():
         db.session.remove()
         db.drop_all()
-    try:
-        redis_client.flushdb()
-    except Exception:
-        pass
 
 
 @pytest.fixture()
@@ -50,9 +70,26 @@ def client(app_fixture):
     return app_fixture.test_client()
 
 
+_REDIS_MOCK = _mock_redis()
+
+
+@pytest.fixture(autouse=True)
+def _patch_redis():
+    targets = [
+        "app.extensions.redis_client",
+        "app.routes.auth.redis_client",
+        "app.services.cache.redis_client",
+    ]
+    patchers = [patch(t, _REDIS_MOCK) for t in targets]
+    for p in patchers:
+        p.start()
+    yield
+    for p in patchers:
+        p.stop()
+
+
 @pytest.fixture()
 def auth_header(client):
-    # Register and login a default user, return auth header
     email = "test@example.com"
     password = "password123"
     r = client.post("/auth/register", json={"email": email, "password": password})
@@ -61,7 +98,7 @@ def auth_header(client):
         200,
         201,
         409,
-    ), register_debug  # 409 if already exists
+    ), register_debug
     r = client.post("/auth/login", json={"email": email, "password": password})
     assert r.status_code == 200
     access = r.get_json()["access_token"]

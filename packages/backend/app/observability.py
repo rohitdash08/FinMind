@@ -13,6 +13,39 @@ from prometheus_client import (
     generate_latest,
     multiprocess,
 )
+from sqlalchemy import event as sa_event
+from sqlalchemy.engine import Engine
+
+
+_logger = logging.getLogger("finmind.db")
+
+_query_log_enabled = False
+
+
+def enable_query_performance_logging(min_duration_ms: float = 50.0):
+    global _query_log_enabled
+    _query_log_enabled = True
+
+    @sa_event.listens_for(Engine, "before_cursor_execute")
+    def _before_cursor_execute(
+        conn, cursor, statement, parameters, context, executemany
+    ):
+        conn._query_start_time = time.perf_counter()
+
+    @sa_event.listens_for(Engine, "after_cursor_execute")
+    def _after_cursor_execute(
+        conn, cursor, statement, parameters, context, executemany
+    ):
+        total = time.perf_counter() - conn._query_start_time
+        ms = round(total * 1000, 2)
+        if ms >= min_duration_ms:
+            truncated = statement[:300]
+            _logger.warning(
+                "SLOW_QUERY duration_ms=%s query=%s", ms, truncated
+            )
+        elif _query_log_enabled:
+            truncated = statement[:200]
+            _logger.debug("QUERY duration_ms=%s query=%s", ms, truncated)
 
 
 class JsonLogFormatter(logging.Formatter):
