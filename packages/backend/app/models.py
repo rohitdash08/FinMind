@@ -133,3 +133,82 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class AutoTagRule(db.Model):
+    __tablename__ = "auto_tag_rules"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    name = db.Column(db.String(200), nullable=False)
+    rule_type = db.Column(db.String(20), nullable=False)
+    match_value = db.Column(db.String(500), nullable=False)
+    target_category_id = db.Column(db.Integer, db.ForeignKey("categories.id"), nullable=True)
+    priority = db.Column(db.Integer, default=0, nullable=False)
+    enabled = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class TagCorrection(db.Model):
+    __tablename__ = "tag_corrections"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    expense_id = db.Column(db.Integer, db.ForeignKey("expenses.id"), nullable=False)
+    rule_id = db.Column(db.Integer, db.ForeignKey("auto_tag_rules.id"), nullable=True)
+    applied_category_id = db.Column(db.Integer, nullable=True)
+    corrected_category_id = db.Column(db.Integer, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class AnomalyAlert(db.Model):
+    __tablename__ = "anomaly_alerts"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    recurring_id = db.Column(db.Integer, db.ForeignKey("recurring_expenses.id"), nullable=True)
+    alert_type = db.Column(db.String(20), nullable=False)
+    description = db.Column(db.String(500), nullable=False)
+    severity = db.Column(db.String(10), default="info", nullable=False)
+    dismissed = db.Column(db.Boolean, default=False, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class DetectedSubscription(db.Model):
+    __tablename__ = "detected_subscriptions"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    name = db.Column(db.String(200), nullable=False)
+    amount = db.Column(db.Numeric(12, 2), nullable=False)
+    currency = db.Column(db.String(10), default="INR", nullable=False)
+    interval = db.Column(db.String(20), nullable=False)
+    category_id = db.Column(db.Integer, db.ForeignKey("categories.id"), nullable=True)
+    last_detected = db.Column(db.Date, nullable=False)
+    confirmed = db.Column(db.Boolean, default=False, nullable=False)
+    active = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class SubscriptionPriceHistory(db.Model):
+    __tablename__ = "subscription_price_history"
+    id = db.Column(db.Integer, primary_key=True)
+    subscription_id = db.Column(db.Integer, db.ForeignKey("detected_subscriptions.id"), nullable=False)
+    amount = db.Column(db.Numeric(12, 2), nullable=False)
+    detected_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class EngagementEvent(db.Model):
+    __tablename__ = "engagement_events"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    event_type = db.Column(db.String(50), nullable=False)
+    channel = db.Column(db.String(20), nullable=False)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class ReminderABTest(db.Model):
+    __tablename__ = "reminder_ab_tests"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    test_group = db.Column(db.String(50), nullable=False)
+    variant = db.Column(db.String(20), nullable=False)
+    metric = db.Column(db.String(50), nullable=False)
+    value = db.Column(db.Float, default=0.0, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)

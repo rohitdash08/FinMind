@@ -1,17 +1,20 @@
 import os
+from unittest.mock import patch
 import pytest
+import redis as redis_module
 from app import create_app
 from app.config import Settings
 from app.extensions import db
-from app.extensions import redis_client
-from app import models  # noqa: F401 - ensure models are registered
+import app.models  # noqa: F401 - ensure models are registered
 
 
 class TestSettings(Settings):
-    # Override defaults for tests
     database_url: str = "sqlite+pysqlite:///:memory:"
-    redis_url: str = "redis://localhost:6379/15"  # not used in tests
+    redis_url: str = "redis://localhost:6379/15"
     jwt_secret: str = "test-secret"
+
+
+mock_redis_instance = redis_module.Redis.from_url("redis://localhost:6379", decode_responses=True)
 
 
 def _setup_db(app):
@@ -21,26 +24,32 @@ def _setup_db(app):
 
 @pytest.fixture()
 def app_fixture():
-    # Ensure a clean env for tests
     os.environ.setdefault("FLASK_ENV", "testing")
     settings = TestSettings(
         database_url="sqlite+pysqlite:///:memory:",
         redis_url="redis://localhost:6379/15",
         jwt_secret="test-secret-with-32-plus-chars-1234567890",
     )
+    try:
+        mock_redis_instance.flushdb()
+    except Exception:
+        pass
     app = create_app(settings)
     app.config.update(TESTING=True)
     _setup_db(app)
-    try:
-        redis_client.flushdb()
-    except Exception:
-        pass
+    import app.routes.auth as _auth_mod
+    _auth_mod.redis_client = mock_redis_instance
+    import app.extensions as _ext_mod
+    _ext_mod.redis_client = mock_redis_instance
+    import app.services.cache as _cache_mod
+    _cache_mod.redis_client = mock_redis_instance
+
     yield app
     with app.app_context():
         db.session.remove()
         db.drop_all()
     try:
-        redis_client.flushdb()
+        mock_redis_instance.flushdb()
     except Exception:
         pass
 
