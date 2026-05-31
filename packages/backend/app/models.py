@@ -133,3 +133,33 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class EngagementEvent(db.Model):
+    __tablename__ = "engagement_events"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    event_type = db.Column(db.String(50), nullable=False)
+    channel = db.Column(db.String(20), nullable=False)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class ReminderABTest(db.Model):
+    __tablename__ = "reminder_ab_tests"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    test_group = db.Column(db.String(50), nullable=False)
+    variant = db.Column(db.String(20), nullable=False)
+    metric = db.Column(db.String(50), nullable=False)
+    value = db.Column(db.Float, default=0.0, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class ReminderPerformanceMetric(db.Model):
+    __tablename__ = "reminder_performance_metrics"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    metric_type = db.Column(db.String(50), nullable=False)
+    metric_value = db.Column(db.Float, nullable=False)
+    channel = db.Column(db.String(20), nullable=True)
+    recorded_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
