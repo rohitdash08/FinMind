@@ -1,0 +1,32 @@
+runtime: custom
+env: flex
+service: finmind-backend
+
+resources:
+  cpu: 1
+  memory_gb: 1
+  disk_size_gb: 10
+
+automatic_scaling:
+  min_num_instances: 1
+  max_num_instances: 5
+  cool_down_period_sec: 120
+  cpu_utilization:
+    target_utilization: 0.7
+
+env_variables:
+  LOG_LEVEL: INFO
+  GEMINI_MODEL: gemini-1.5-flash
+
+beta_settings:
+  cloud_sql_instances: finmind-db:us-central1:finmind-postgres
+
+liveness_check:
+  path: /health
+  check_interval_sec: 30
+  timeout_sec: 5
+
+readiness_check:
+  path: /health
+  check_interval_sec: 10
+  timeout_sec: 5

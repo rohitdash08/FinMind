@@ -1,0 +1,38 @@
+services:
+  - type: web
+    name: finmind-backend
+    env: docker
+    dockerfilePath: packages/backend/Dockerfile
+    plan: free
+    region: oregon
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: finmind-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: finmind-redis
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: LOG_LEVEL
+        value: INFO
+
+databases:
+  - name: finmind-db
+    plan: free
+    region: oregon
+    databaseName: finmind
+    user: finmind
+    version: "16"
+
+redis:
+  - name: finmind-redis
+    plan: free
+    region: oregon
+    maxmemoryPolicy: allkeys-lru

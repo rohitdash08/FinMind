@@ -1,0 +1,31 @@
+apiVersion: 2021-10-01
+location: eastus
+name: finmind-backend
+properties:
+  containers:
+  - name: backend
+    properties:
+      image: ghcr.io/rohitdash08/finmind-backend:latest
+      ports:
+      - port: 8000
+        protocol: TCP
+      resources:
+        requests:
+          cpu: 1.0
+          memoryInGB: 1.5
+      environmentVariables:
+      - name: LOG_LEVEL
+        value: INFO
+      - name: GEMINI_MODEL
+        value: gemini-1.5-flash
+      - name: DATABASE_URL
+        secureValue: postgresql+psycopg2://user:password@finmind-pg.postgres.database.azure.com:5432/finmind
+      - name: JWT_SECRET
+        secureValue: change-me-to-random
+  imageRegistryCredentials: []
+  restartPolicy: Always
+  osType: Linux
+tags:
+  app: finmind
+  env: production
+type: Microsoft.ContainerInstance/containerGroups
