@@ -8,6 +8,7 @@ from ..extensions import db
 from ..models import Expense, RecurringCadence, RecurringExpense, User
 from ..services.cache import cache_delete_patterns, monthly_summary_key
 from ..services import expense_import
+from ..services.auto_tag import apply_auto_tags
 import logging
 
 bp = Blueprint("expenses", __name__)
@@ -75,6 +76,8 @@ def create_expense():
         spent_at=date.fromisoformat(raw_date) if raw_date else date.today(),
     )
     db.session.add(e)
+    db.session.flush()
+    apply_auto_tags(e)
     db.session.commit()
     logger.info("Created expense id=%s user=%s amount=%s", e.id, uid, e.amount)
     # Invalidate caches
@@ -303,6 +306,8 @@ def import_commit():
             spent_at=date.fromisoformat(t["date"]),
         )
         db.session.add(expense)
+        db.session.flush()
+        apply_auto_tags(expense)
         inserted += 1
         touched_months.add(t["date"][:7])
     db.session.commit()
