@@ -1,4 +1,5 @@
 from datetime import datetime, date
+from decimal import Decimal
 from enum import Enum
 from sqlalchemy import Enum as SAEnum
 from .extensions import db
@@ -125,6 +126,26 @@ class UserSubscription(db.Model):
     )
     active = db.Column(db.Boolean, default=False, nullable=False)
     started_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class MerchantAlias(db.Model):
+    __tablename__ = "merchant_aliases"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    canonical_name = db.Column(db.String(200), nullable=False)
+    alias = db.Column(db.String(200), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    __table_args__ = (db.UniqueConstraint("user_id", "alias"),)
+
+
+class CategoryBudget(db.Model):
+    __tablename__ = "category_budgets"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    category_id = db.Column(db.Integer, db.ForeignKey("categories.id"), nullable=False)
+    monthly_limit = db.Column(db.Numeric(12, 2), nullable=False)
+    warning_threshold_pct = db.Column(db.Numeric(5, 2), default=Decimal("80.00"))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
 
 class AuditLog(db.Model):
