@@ -123,3 +123,45 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   action VARCHAR(100) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS financial_twins (
+  id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name VARCHAR(100) NOT NULL DEFAULT 'My Financial Twin',
+  monthly_income NUMERIC(12,2) NOT NULL DEFAULT 0,
+  monthly_expenses NUMERIC(12,2) NOT NULL DEFAULT 0,
+  savings_rate_pct NUMERIC(5,2) NOT NULL DEFAULT 20,
+  current_savings NUMERIC(12,2) NOT NULL DEFAULT 0,
+  risk_tolerance VARCHAR(20) NOT NULL DEFAULT 'moderate',
+  retirement_age INT NOT NULL DEFAULT 65,
+  inflation_rate_pct NUMERIC(5,2) NOT NULL DEFAULT 6,
+  return_rate_pct NUMERIC(5,2) NOT NULL DEFAULT 8,
+  active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS simulation_runs (
+  id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  twin_id INT NOT NULL REFERENCES financial_twins(id) ON DELETE CASCADE,
+  scenario_name VARCHAR(100) NOT NULL DEFAULT 'baseline',
+  projection_years INT NOT NULL DEFAULT 30,
+  num_simulations INT NOT NULL DEFAULT 1000,
+  result_json TEXT NOT NULL,
+  success_probability NUMERIC(5,2),
+  median_net_worth NUMERIC(14,2),
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_simulation_runs_twin ON simulation_runs(twin_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS twin_goals (
+  id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  twin_id INT NOT NULL REFERENCES financial_twins(id) ON DELETE CASCADE,
+  name VARCHAR(200) NOT NULL,
+  target_amount NUMERIC(12,2) NOT NULL,
+  target_date DATE NOT NULL,
+  priority VARCHAR(20) NOT NULL DEFAULT 'medium',
+  achieved BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
