@@ -9,6 +9,7 @@ import { Budgets } from "./pages/Budgets";
 import { Bills } from "./pages/Bills";
 import { Analytics } from "./pages/Analytics";
 import Reminders from "./pages/Reminders";
+import SearchPage from "./pages/Search";
 import Expenses from "./pages/Expenses";
 import { SignIn } from "./pages/SignIn";
 import { Register } from "./pages/Register";
@@ -88,6 +89,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Account />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="search"
+              element={
+                <ProtectedRoute>
+                  <SearchPage />
                 </ProtectedRoute>
               }
             />
