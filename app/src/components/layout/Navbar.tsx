@@ -13,6 +13,7 @@ const navigation = [
   { name: 'Reminders', href: '/reminders' },
   { name: 'Expenses', href: '/expenses' },
   { name: 'Analytics', href: '/analytics' },
+  { name: 'Review', href: '/review' },
 ];
 
 export function Navbar() {
