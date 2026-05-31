@@ -73,6 +73,72 @@
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
 
+  .dark {
+    --background: 220 34% 8%;
+    --foreground: 210 20% 92%;
+
+    --card: 220 34% 11%;
+    --card-foreground: 210 20% 92%;
+
+    --popover: 220 34% 11%;
+    --popover-foreground: 210 20% 92%;
+
+    --primary: 161 70% 42%;
+    --primary-foreground: 0 0% 100%;
+    --primary-hover: 161 70% 38%;
+    --primary-light: 161 40% 15%;
+
+    --secondary: 219 30% 70%;
+    --secondary-foreground: 220 34% 8%;
+    --secondary-hover: 219 30% 65%;
+    --secondary-light: 218 25% 18%;
+
+    --accent: 44 93% 56%;
+    --accent-foreground: 220 34% 8%;
+    --accent-hover: 44 93% 50%;
+    --accent-light: 45 50% 18%;
+
+    --success: 142 60% 50%;
+    --success-foreground: 0 0% 100%;
+    --success-light: 142 40% 15%;
+
+    --warning: 36 90% 55%;
+    --warning-foreground: 0 0% 100%;
+    --warning-light: 36 50% 16%;
+
+    --destructive: 0 70% 55%;
+    --destructive-foreground: 0 0% 100%;
+    --destructive-light: 0 50% 18%;
+
+    --muted: 220 25% 16%;
+    --muted-foreground: 218 20% 70%;
+    --muted-dark: 216 18% 25%;
+
+    --border: 215 18% 22%;
+    --input: 215 18% 22%;
+    --ring: 161 70% 42%;
+
+    --gradient-primary: linear-gradient(135deg, hsl(161 70% 42%), hsl(167 70% 48%));
+    --gradient-secondary: linear-gradient(135deg, hsl(219 30% 70%), hsl(221 25% 75%));
+    --gradient-hero: linear-gradient(135deg, hsl(220 34% 8%), hsl(161 70% 42%) 65%, hsl(44 93% 56%));
+    --gradient-card: linear-gradient(150deg, hsl(220 34% 11%), hsl(220 34% 14%));
+
+    --shadow-sm: 0 6px 20px hsl(220 40% 10% / 0.4);
+    --shadow-md: 0 12px 30px hsl(220 40% 10% / 0.5);
+    --shadow-lg: 0 20px 48px hsl(220 40% 10% / 0.6);
+    --shadow-xl: 0 28px 64px hsl(220 40% 10% / 0.7);
+    --shadow-primary: 0 14px 36px hsl(161 70% 42% / 0.35);
+
+    --sidebar-background: 220 34% 10%;
+    --sidebar-foreground: 210 20% 85%;
+    --sidebar-primary: 161 70% 42%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 25% 18%;
+    --sidebar-accent-foreground: 210 20% 92%;
+    --sidebar-border: 215 18% 22%;
+    --sidebar-ring: 217.2 70% 55%;
+  }
+
   * {
     @apply border-border;
   }
@@ -85,6 +151,14 @@
       radial-gradient(circle at 92% 7%, hsl(var(--accent) / 0.08), transparent 22%),
       radial-gradient(circle at 80% 88%, hsl(var(--secondary) / 0.06), transparent 26%);
     min-height: 100vh;
+  }
+
+  .dark body,
+  .dark {
+    background-image:
+      radial-gradient(circle at 8% 12%, hsl(var(--primary) / 0.12), transparent 25%),
+      radial-gradient(circle at 92% 7%, hsl(var(--accent) / 0.14), transparent 22%),
+      radial-gradient(circle at 80% 88%, hsl(var(--secondary) / 0.10), transparent 26%);
   }
 
   h1,
@@ -120,6 +194,11 @@
     background-color: hsl(0 0% 100% / 0.75);
   }
 
+  .dark .page-header {
+    border-color: hsl(215 18% 22% / 0.6);
+    background-color: hsl(220 34% 11% / 0.85);
+  }
+
   .page-header::before {
     content: '';
     position: absolute;
@@ -142,10 +221,20 @@
     background-color: hsl(0 0% 100% / 0.72);
   }
 
+  .dark .glass-nav {
+    border-color: hsl(215 18% 22% / 0.5);
+    background-color: hsl(220 34% 8% / 0.82);
+  }
+
   .card {
     @apply rounded-2xl border p-5 shadow-md backdrop-blur;
     border-color: hsl(0 0% 100% / 0.5);
     background-color: hsl(0 0% 100% / 0.9);
+  }
+
+  .dark .card {
+    border-color: hsl(215 18% 22% / 0.5);
+    background-color: hsl(220 34% 11% / 0.9);
   }
 
   .card-interactive {
@@ -236,6 +325,13 @@
     --tw-ring-color: hsl(var(--primary) / 0.2);
   }
 
+  .dark .input,
+  .dark input.input,
+  .dark select.input,
+  .dark textarea.input {
+    @apply bg-card text-foreground;
+  }
+
   .muted {
     @apply text-sm text-muted-foreground;
   }
@@ -252,6 +348,10 @@
 
   .btn.secondary {
     @apply border border-input bg-white text-foreground hover:bg-muted;
+  }
+
+  .dark .btn.secondary {
+    @apply bg-card text-foreground hover:bg-muted;
   }
 
   .list {
@@ -280,6 +380,15 @@
       hsl(var(--background)),
       hsl(0 0% 100%),
       hsl(var(--primary-light) / 0.4)
+    );
+  }
+
+  .dark .auth-shell {
+    background-image: linear-gradient(
+      to bottom right,
+      hsl(220 34% 8%),
+      hsl(220 34% 11%),
+      hsl(var(--primary-light) / 0.3)
     );
   }
 
