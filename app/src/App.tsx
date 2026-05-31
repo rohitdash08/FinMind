@@ -52,6 +52,14 @@ const App = () => (
               }
             />
             <Route
+              path="goals"
+              element={
+                <ProtectedRoute>
+                  <Goals />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="bills"
               element={
                 <ProtectedRoute>
