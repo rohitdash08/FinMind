@@ -133,3 +133,95 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class EngagementEvent(db.Model):
+    __tablename__ = "engagement_events"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    event_type = db.Column(db.String(50), nullable=False)
+    channel = db.Column(db.String(20), nullable=False)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class ReminderABTest(db.Model):
+    __tablename__ = "reminder_ab_tests"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    test_group = db.Column(db.String(50), nullable=False)
+    variant = db.Column(db.String(20), nullable=False)
+    metric = db.Column(db.String(50), nullable=False)
+    value = db.Column(db.Float, default=0.0, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class AutoTagRule(db.Model):
+    __tablename__ = "auto_tag_rules"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    name = db.Column(db.String(100), nullable=False)
+    condition_field = db.Column(db.String(50), nullable=False)
+    condition_operator = db.Column(db.String(20), nullable=False)
+    condition_value = db.Column(db.String(200), nullable=False)
+    target_category_id = db.Column(db.Integer, db.ForeignKey("categories.id"), nullable=True)
+    priority = db.Column(db.Integer, default=0, nullable=False)
+    active = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class TagFeedback(db.Model):
+    __tablename__ = "tag_feedbacks"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    expense_id = db.Column(db.Integer, db.ForeignKey("expenses.id"), nullable=False)
+    old_category_id = db.Column(db.Integer, nullable=True)
+    new_category_id = db.Column(db.Integer, nullable=True)
+    rule_id = db.Column(db.Integer, db.ForeignKey("auto_tag_rules.id"), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class AnomalyAlert(db.Model):
+    __tablename__ = "anomaly_alerts"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    recurring_expense_id = db.Column(db.Integer, db.ForeignKey("recurring_expenses.id"), nullable=True)
+    alert_type = db.Column(db.String(50), nullable=False)
+    severity = db.Column(db.String(20), nullable=False)
+    message = db.Column(db.String(500), nullable=False)
+    details = db.Column(db.Text, nullable=True)
+    acknowledged = db.Column(db.Boolean, default=False, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class SubscriptionDetection(db.Model):
+    __tablename__ = "subscription_detections"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    merchant = db.Column(db.String(200), nullable=False)
+    amount = db.Column(db.Numeric(12, 2), nullable=False)
+    interval_days = db.Column(db.Integer, nullable=False)
+    category = db.Column(db.String(100), nullable=True)
+    last_detected = db.Column(db.Date, nullable=False)
+    status = db.Column(db.String(20), default="active", nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class SubscriptionPriceSnapshot(db.Model):
+    __tablename__ = "subscription_price_snapshots"
+    id = db.Column(db.Integer, primary_key=True)
+    subscription_id = db.Column(db.Integer, db.ForeignKey("subscription_detections.id"), nullable=False)
+    amount = db.Column(db.Numeric(12, 2), nullable=False)
+    detected_at = db.Column(db.Date, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class PriceIncreaseAlert(db.Model):
+    __tablename__ = "price_increase_alerts"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    subscription_id = db.Column(db.Integer, db.ForeignKey("subscription_detections.id"), nullable=False)
+    old_amount = db.Column(db.Numeric(12, 2), nullable=False)
+    new_amount = db.Column(db.Numeric(12, 2), nullable=False)
+    increase_pct = db.Column(db.Numeric(6, 2), nullable=False)
+    acknowledged = db.Column(db.Boolean, default=False, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
