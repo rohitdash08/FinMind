@@ -1,16 +1,16 @@
 import os
 import pytest
+import redis
 from app import create_app
 from app.config import Settings
 from app.extensions import db
-from app.extensions import redis_client
+from app.extensions import redis_client as _orig_redis
 from app import models  # noqa: F401 - ensure models are registered
 
 
 class TestSettings(Settings):
-    # Override defaults for tests
     database_url: str = "sqlite+pysqlite:///:memory:"
-    redis_url: str = "redis://localhost:6379/15"  # not used in tests
+    redis_url: str = "redis://localhost:6379/15"
     jwt_secret: str = "test-secret"
 
 
@@ -20,8 +20,11 @@ def _setup_db(app):
 
 
 @pytest.fixture()
-def app_fixture():
-    # Ensure a clean env for tests
+def app_fixture(monkeypatch):
+    local_redis = redis.Redis.from_url("redis://localhost:6379/15", decode_responses=True)
+    monkeypatch.setattr("app.extensions.redis_client", local_redis)
+    monkeypatch.setattr("app.routes.auth.redis_client", local_redis)
+    monkeypatch.setattr("app.services.cache.redis_client", local_redis)
     os.environ.setdefault("FLASK_ENV", "testing")
     settings = TestSettings(
         database_url="sqlite+pysqlite:///:memory:",
@@ -32,7 +35,7 @@ def app_fixture():
     app.config.update(TESTING=True)
     _setup_db(app)
     try:
-        redis_client.flushdb()
+        local_redis.flushdb()
     except Exception:
         pass
     yield app
@@ -40,7 +43,7 @@ def app_fixture():
         db.session.remove()
         db.drop_all()
     try:
-        redis_client.flushdb()
+        local_redis.flushdb()
     except Exception:
         pass
 

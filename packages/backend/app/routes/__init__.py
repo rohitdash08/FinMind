@@ -7,6 +7,12 @@ from .insights import bp as insights_bp
 from .categories import bp as categories_bp
 from .docs import bp as docs_bp
 from .dashboard import bp as dashboard_bp
+from .merchant_aliases import bp as merchant_aliases_bp
+from .import_validation import bp as import_validation_bp
+from .heatmap import bp as heatmap_bp
+from .overspend_warnings import bp as overspend_warnings_bp
+from .lifestyle_inflation import bp as lifestyle_inflation_bp
+from .i18n import bp as i18n_bp
 
 
 def register_routes(app: Flask):
@@ -18,3 +24,9 @@ def register_routes(app: Flask):
     app.register_blueprint(categories_bp, url_prefix="/categories")
     app.register_blueprint(docs_bp, url_prefix="/docs")
     app.register_blueprint(dashboard_bp, url_prefix="/dashboard")
+    app.register_blueprint(merchant_aliases_bp, url_prefix="/merchant-aliases")
+    app.register_blueprint(import_validation_bp, url_prefix="/import-validation")
+    app.register_blueprint(heatmap_bp, url_prefix="/insights/heatmap")
+    app.register_blueprint(overspend_warnings_bp, url_prefix="/insights/overspend")
+    app.register_blueprint(lifestyle_inflation_bp, url_prefix="/insights/lifestyle-inflation")
+    app.register_blueprint(i18n_bp, url_prefix="/i18n")
