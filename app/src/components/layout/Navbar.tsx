@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { Menu, X, TrendingUp, ShieldCheck } from 'lucide-react';
 import { getToken, getRefreshToken, clearToken, clearRefreshToken } from '@/lib/auth';
 import { useToast } from '@/components/ui/use-toast';
@@ -80,7 +81,8 @@ export function Navbar() {
           </div>
 
           <div className="hidden items-center gap-3 md:flex">
-            <div className="flex items-center gap-1 rounded-full border border-border/70 bg-white/70 px-3 py-1 text-[11px] text-muted-foreground">
+            <ThemeToggle />
+            <div className="flex items-center gap-1 rounded-full border border-border/70 bg-white/70 px-3 py-1 text-[11px] text-muted-foreground dark:bg-card dark:border-border">
               <ShieldCheck className="h-3.5 w-3.5 text-primary" />
               Enterprise-grade security
             </div>
