@@ -127,6 +127,21 @@ class UserSubscription(db.Model):
     started_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
 
+class SavingsGoal(db.Model):
+    __tablename__ = "savings_goals"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    title = db.Column(db.String(200), nullable=False)
+    target_amount = db.Column(db.Numeric(12, 2), nullable=False)
+    current_amount = db.Column(db.Numeric(12, 2), nullable=False, default=0)
+    currency = db.Column(db.String(10), default="INR", nullable=False)
+    deadline = db.Column(db.Date, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(
+        db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+    )
+
+
 class AuditLog(db.Model):
     __tablename__ = "audit_logs"
     id = db.Column(db.Integer, primary_key=True)
