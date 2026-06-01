@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { FinancialCard, FinancialCardContent, FinancialCardDescription, FinancialCardFooter, FinancialCardHeader, FinancialCardTitle } from '@/components/ui/financial-card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, DollarSign, Plus, PieChart, TrendingDown, TrendingUp, Target, AlertCircle, Settings } from 'lucide-react';
+import { Calendar, DollarSign, Plus, PieChart, TrendingDown, TrendingUp, Target, AlertCircle, Settings, Loader2 } from 'lucide-react';
+import { listSavingsGoals, type SavingsGoal } from '@/api/savings';
 
 const budgetCategories = [
   {
@@ -67,42 +68,40 @@ const budgetCategories = [
   }
 ];
 
-const budgetGoals = [
-  {
-    id: 1,
-    title: 'Emergency Fund',
-    target: 10000,
-    current: 7250,
-    deadline: 'Dec 2025',
-    monthlyTarget: 458,
-    status: 'on-track'
-  },
-  {
-    id: 2,
-    title: 'Vacation Fund',
-    target: 3000,
-    current: 1850,
-    deadline: 'Jun 2025',
-    monthlyTarget: 383,
-    status: 'behind'
-  },
-  {
-    id: 3,
-    title: 'New Car',
-    target: 25000,
-    current: 15600,
-    deadline: 'Mar 2026',
-    monthlyTarget: 625,
-    status: 'ahead'
-  }
-];
-
 export function Budgets() {
   const [selectedPeriod] = useState('monthly');
-  
+  const [savingsGoals, setSavingsGoals] = useState<SavingsGoal[]>([]);
+  const [goalsLoading, setGoalsLoading] = useState(true);
+
+  useEffect(() => {
+    listSavingsGoals()
+      .then(setSavingsGoals)
+      .catch(() => setSavingsGoals([]))
+      .finally(() => setGoalsLoading(false));
+  }, []);
+
   const totalAllocated = budgetCategories.reduce((sum, cat) => sum + cat.allocated, 0);
   const totalSpent = budgetCategories.reduce((sum, cat) => sum + cat.spent, 0);
   const totalRemaining = totalAllocated - totalSpent;
+
+  const statusLabel = (status: SavingsGoal['status']) => {
+    if (status === 'on-track') return 'On Track';
+    if (status === 'ahead') return 'Ahead';
+    if (status === 'completed') return 'Completed';
+    return 'Behind';
+  };
+
+  const statusVariant = (status: SavingsGoal['status']): 'default' | 'secondary' | 'destructive' => {
+    if (status === 'on-track') return 'default';
+    if (status === 'ahead' || status === 'completed') return 'secondary';
+    return 'destructive';
+  };
+
+  const formatDeadline = (deadline: string | null) => {
+    if (!deadline) return '—';
+    const d = new Date(deadline);
+    return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+  };
 
   return (
     <div className="page-wrap">
@@ -211,7 +210,7 @@ export function Budgets() {
                   {budgetCategories.map((category) => {
                     const percentage = (category.spent / category.allocated) * 100;
                     const isOverBudget = category.remaining < 0;
-                    
+
                     return (
                       <div key={category.id} className="space-y-3 interactive-row">
                         <div className="flex items-center justify-between">
@@ -278,48 +277,58 @@ export function Budgets() {
                 </FinancialCardDescription>
               </FinancialCardHeader>
               <FinancialCardContent>
-                <div className="space-y-4">
-                  {budgetGoals.map((goal) => {
-                    const percentage = (goal.current / goal.target) * 100;
-                    
-                    return (
-                      <div key={goal.id} className="interactive-row p-3 rounded-lg border border-border">
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="font-medium text-foreground text-sm">
-                            {goal.title}
+                {goalsLoading ? (
+                  <div className="flex justify-center py-6">
+                    <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : savingsGoals.length === 0 ? (
+                  <div className="text-center py-6 text-muted-foreground text-sm">
+                    No savings goals yet. Add one to get started!
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {savingsGoals.map((goal) => {
+                      const percentage = Math.min((goal.current / goal.target) * 100, 100);
+                      return (
+                        <div key={goal.id} className="interactive-row p-3 rounded-lg border border-border">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="font-medium text-foreground text-sm">
+                              {goal.title}
+                            </div>
+                            <Badge
+                              variant={statusVariant(goal.status)}
+                              className="text-xs"
+                            >
+                              {statusLabel(goal.status)}
+                            </Badge>
                           </div>
-                          <Badge 
-                            variant={
-                              goal.status === 'on-track' ? 'default' :
-                              goal.status === 'ahead' ? 'secondary' : 'destructive'
-                            }
-                            className="text-xs"
-                          >
-                            {goal.status === 'on-track' ? 'On Track' :
-                             goal.status === 'ahead' ? 'Ahead' : 'Behind'}
-                          </Badge>
+                          <div className="space-y-2">
+                            <div className="flex justify-between text-sm">
+                              <span className="text-muted-foreground">
+                                {goal.currency} {goal.current.toLocaleString()} / {goal.target.toLocaleString()}
+                              </span>
+                              <span className="text-foreground font-medium">
+                                {percentage.toFixed(0)}%
+                              </span>
+                            </div>
+                            <div className="chart-track">
+                              <div
+                                className="chart-fill-success"
+                                style={{ width: `${percentage}%` }}
+                              />
+                            </div>
+                            <div className="flex justify-between text-xs text-muted-foreground">
+                              <span>Target: {formatDeadline(goal.deadline)}</span>
+                              {goal.monthlyTarget > 0 && (
+                                <span>{goal.currency} {goal.monthlyTarget.toLocaleString()}/mo</span>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                        <div className="space-y-2">
-                          <div className="flex justify-between text-sm">
-                            <span className="text-muted-foreground">
-                              ${goal.current.toLocaleString()} / ${goal.target.toLocaleString()}
-                            </span>
-                            <span className="text-foreground font-medium">
-                              {percentage.toFixed(0)}%
-                            </span>
-                          </div>
-                          <div className="chart-track">
-                            <div className="chart-fill-success" style={{ width: `${Math.min(percentage, 100)}%` }} />
-                          </div>
-                          <div className="flex justify-between text-xs text-muted-foreground">
-                            <span>Target: {goal.deadline}</span>
-                            <span>${goal.monthlyTarget}/mo</span>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                      );
+                    })}
+                  </div>
+                )}
               </FinancialCardContent>
               <FinancialCardFooter>
                 <Button variant="financial" size="sm" className="w-full">
