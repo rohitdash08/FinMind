@@ -69,8 +69,8 @@ def create_backup(user_id: int, encryption_key: bytes = None) -> bytes:
                 "amount": str(exp.amount),
                 "currency": exp.currency,
                 "type": exp.expense_type,
-                "date": exp.spent_at.isoformat(),
-                "description": exp.description,
+                "date": exp.spent_at.isoformat() if exp.spent_at else None,
+                "notes": exp.notes,
             })
         offset += page_size
     
@@ -82,23 +82,28 @@ def create_backup(user_id: int, encryption_key: bytes = None) -> bytes:
             "color": cat.color,
         })
     
-    # Collect recurring expenses (FIXED: was missing)
+    # Collect recurring expenses
     for rec in RecurringExpense.query.filter_by(user_id=user_id).all():
         data["recurring"].append({
             "amount": str(rec.amount),
             "currency": rec.currency,
-            "frequency": rec.frequency,
-            "description": rec.description,
-            "next_date": rec.next_date.isoformat() if rec.next_date else None,
+            "cadence": rec.cadence.value if rec.cadence else None,
+            "notes": rec.notes,
+            "start_date": rec.start_date.isoformat() if rec.start_date else None,
+            "end_date": rec.end_date.isoformat() if rec.end_date else None,
+            "active": rec.active,
         })
     
-    # Collect bills (FIXED: was missing)
+    # Collect bills
     for bill in Bill.query.filter_by(user_id=user_id).all():
         data["bills"].append({
             "name": bill.name,
             "amount": str(bill.amount),
-            "due_date": bill.due_date.isoformat() if bill.due_date else None,
-            "paid": bill.paid,
+            "currency": bill.currency,
+            "next_due_date": bill.next_due_date.isoformat() if bill.next_due_date else None,
+            "cadence": bill.cadence.value if bill.cadence else None,
+            "autopay_enabled": bill.autopay_enabled,
+            "active": bill.active,
         })
     
     # Compress
