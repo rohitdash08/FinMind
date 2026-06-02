@@ -133,3 +133,84 @@ class AuditLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+# Bank Sync Models
+class BankConnection(db.Model):
+    __tablename__ = "bank_connections"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    connector_id = db.Column(db.String(50), nullable=False)
+    connection_id = db.Column(db.String(255), unique=True, nullable=False)
+    institution_name = db.Column(db.String(200), nullable=True)
+    access_token = db.Column(db.String(500), nullable=True)
+    refresh_token = db.Column(db.String(500), nullable=True)
+    token_expires_at = db.Column(db.DateTime, nullable=True)
+    status = db.Column(db.String(20), default="connected", nullable=False)
+    last_sync_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "connector_id": self.connector_id,
+            "connection_id": self.connection_id,
+            "institution_name": self.institution_name,
+            "status": self.status,
+            "last_sync_at": self.last_sync_at.isoformat() if self.last_sync_at else None,
+            "created_at": self.created_at.isoformat(),
+        }
+
+
+class BankAccount(db.Model):
+    __tablename__ = "bank_accounts"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    connection_id = db.Column(db.Integer, db.ForeignKey("bank_connections.id"), nullable=False)
+    account_id = db.Column(db.String(255), nullable=False)
+    name = db.Column(db.String(200), nullable=False)
+    account_type = db.Column(db.String(50), nullable=False)
+    currency = db.Column(db.String(10), default="USD", nullable=False)
+    balance = db.Column(db.Numeric(12, 2), nullable=True)
+    masked_number = db.Column(db.String(20), nullable=True)
+    last_sync_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "account_id": self.account_id,
+            "name": self.name,
+            "account_type": self.account_type,
+            "currency": self.currency,
+            "balance": float(self.balance) if self.balance else None,
+            "masked_number": self.masked_number,
+            "last_sync_at": self.last_sync_at.isoformat() if self.last_sync_at else None,
+        }
+
+
+class BankTransaction(db.Model):
+    __tablename__ = "bank_transactions"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    account_id = db.Column(db.Integer, db.ForeignKey("bank_accounts.id"), nullable=False)
+    transaction_id = db.Column(db.String(255), nullable=False)
+    amount = db.Column(db.Numeric(12, 2), nullable=False)
+    currency = db.Column(db.String(10), default="USD", nullable=False)
+    description = db.Column(db.String(500), nullable=False)
+    merchant_name = db.Column(db.String(200), nullable=True)
+    transaction_date = db.Column(db.Date, nullable=False)
+    pending = db.Column(db.Boolean, default=False, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "transaction_id": self.transaction_id,
+            "amount": float(self.amount),
+            "currency": self.currency,
+            "description": self.description,
+            "merchant_name": self.merchant_name,
+            "transaction_date": self.transaction_date.isoformat(),
+            "pending": self.pending,
+        }
