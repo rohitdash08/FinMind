@@ -3,11 +3,9 @@ Tests for GDPR PII export and delete workflow.
 """
 import pytest
 from datetime import datetime
-from app.services.gdpr_pii import (
-    export_user_pii,
-    delete_user_pii,
-    anonymize_user_data,
-    get_pii_export_status,
+from app.services.pii_service import (
+    export_user_data,
+    delete_user_data,
 )
 from app.extensions import db
 
@@ -17,7 +15,7 @@ class TestExportUserPII:
 
     def test_export_user_pii_success(self, app, db, sample_user):
         with app.app_context():
-            result = export_user_pii(user_id=sample_user.id)
+            result = export_user_data(user_id=sample_user.id)
 
             assert result["status"] == "success"
             assert "export_id" in result
@@ -31,14 +29,14 @@ class TestExportUserPII:
 
     def test_export_user_pii_not_found(self, app, db):
         with app.app_context():
-            result = export_user_pii(user_id=999)
+            result = export_user_data(user_id=999)
 
             assert result["status"] == "error"
             assert "not found" in result["message"].lower()
 
     def test_export_user_pii_empty_data(self, app, db, sample_user_no_data):
         with app.app_context():
-            result = export_user_pii(user_id=sample_user_no_data.id)
+            result = export_user_data(user_id=sample_user_no_data.id)
 
             assert result["status"] == "success"
             assert result["data"]["financial_data"] == []
@@ -51,11 +49,11 @@ class TestDeleteUserPII:
     def test_delete_user_pii_success(self, app, db, sample_user):
         with app.app_context():
             # First export
-            export_result = export_user_pii(user_id=sample_user.id)
+            export_result = export_user_data(user_id=sample_user.id)
             export_id = export_result["export_id"]
 
             # Then delete
-            result = delete_user_pii(user_id=sample_user.id, export_id=export_id)
+            result = delete_user_data(user_id=sample_user.id, export_id=export_id)
 
             assert result["status"] == "success"
             assert result["deleted_records"] > 0
@@ -67,7 +65,7 @@ class TestDeleteUserPII:
 
     def test_delete_user_pii_without_export(self, app, db, sample_user):
         with app.app_context():
-            result = delete_user_pii(user_id=sample_user.id, export_id=None)
+            result = delete_user_data(user_id=sample_user.id, export_id=None)
 
             # Should still work but warn
             assert result["status"] == "success"
@@ -75,7 +73,7 @@ class TestDeleteUserPII:
 
     def test_delete_user_pii_not_found(self, app, db):
         with app.app_context():
-            result = delete_user_pii(user_id=999, export_id=None)
+            result = delete_user_data(user_id=999, export_id=None)
 
             assert result["status"] == "error"
             assert "not found" in result["message"].lower()
@@ -83,10 +81,10 @@ class TestDeleteUserPII:
     def test_delete_user_pii_already_deleted(self, app, db, sample_user):
         with app.app_context():
             # Delete once
-            delete_user_pii(user_id=sample_user.id, export_id=None)
+            delete_user_data(user_id=sample_user.id, export_id=None)
 
             # Try to delete again
-            result = delete_user_pii(user_id=sample_user.id, export_id=None)
+            result = delete_user_data(user_id=sample_user.id, export_id=None)
 
             assert result["status"] == "error"
             assert "already" in result["message"].lower()
@@ -138,7 +136,7 @@ class TestGetPIIExportStatus:
     def test_get_export_status_pending(self, app, db, sample_user):
         with app.app_context():
             # Start export
-            export_result = export_user_pii(user_id=sample_user.id)
+            export_result = export_user_data(user_id=sample_user.id)
             export_id = export_result["export_id"]
 
             # Check status
@@ -150,7 +148,7 @@ class TestGetPIIExportStatus:
     def test_get_export_status_completed(self, app, db, sample_user):
         with app.app_context():
             # Complete export
-            export_result = export_user_pii(user_id=sample_user.id)
+            export_result = export_user_data(user_id=sample_user.id)
             export_id = export_result["export_id"]
 
             # Check status
