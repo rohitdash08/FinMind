@@ -1,3 +1,4 @@
+from datetime import timezone
 """
 AuditLog model for GDPR compliance logging.
 Add this to models.py in the FinMind backend.
@@ -15,7 +16,7 @@ class AuditLog(db.Model):
     action = db.Column(db.String(50), nullable=False)  # PII_EXPORT, PII_DELETE, etc.
     details = db.Column(db.Text, nullable=True)
     ip_address = db.Column(db.String(45), nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.now(timezone.utc), nullable=False)
     
     def __repr__(self):
         return f"<AuditLog {self.action} user={self.user_id}>"
