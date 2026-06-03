@@ -54,6 +54,20 @@ def create_notification(user_id: int, message: str, priority: str = "normal", gr
     return {"grouped": False, "count": 1}
 
 
+def get_user_notifications(user_id: int) -> list:
+    """Get all notification groups for a user.
+    
+    Args:
+        user_id: User ID to fetch notifications for
+        
+    Returns:
+        List of NotificationGroup objects for the user
+    """
+    return NotificationGroup.query.filter_by(user_id=user_id).order_by(
+        NotificationGroup.updated_at.desc()
+    ).all()
+
+
 def priority_order(priority: str) -> int:
     """Get numeric order for priority comparison."""
     return {"low": 0, "normal": 1, "high": 2, "urgent": 3}.get(priority, 1)
