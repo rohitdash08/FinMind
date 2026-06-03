@@ -4,14 +4,15 @@ Aggregates data across multiple accounts for a unified view.
 """
 from ..extensions import db
 from ..models import User, Expense, Category
-from sqlalchemy import func
+from sqlalchemy import func, extract
 from datetime import datetime, timedelta
+from typing import Optional, List
 
 
-def get_multi_account_summary(user_id: int, category_ids: list = [], 
-                              start_date: datetime = None, 
-                              end_date: datetime = None) -> dict:
-    """Get aggregated financial summary across multiple categories.
+def get_financial_summary(user_id: int, category_ids: Optional[List[int]] = None,
+                          start_date: Optional[datetime] = None,
+                          end_date: Optional[datetime] = None) -> dict:
+    """Get aggregated financial summary across categories.
     
     Args:
         user_id: User ID
@@ -22,17 +23,16 @@ def get_multi_account_summary(user_id: int, category_ids: list = [],
     Returns:
         dict with financial summary
     """
+    # Base query for aggregations
     query = db.session.query(
         func.sum(Expense.amount).label("total"),
         func.count(Expense.id).label("count"),
         func.avg(Expense.amount).label("avg_amount")
     ).filter(Expense.user_id == user_id)
     
-    # Apply category filter
+    # Apply filters
     if category_ids:
         query = query.filter(Expense.category_id.in_(category_ids))
-    
-    # Apply date range filter
     if start_date:
         query = query.filter(Expense.spent_at >= start_date)
     if end_date:
@@ -57,9 +57,11 @@ def get_multi_account_summary(user_id: int, category_ids: list = [],
     
     by_category = by_category_query.group_by(Category.name).all()
     
-    # Get monthly trend
+    # Get monthly trend - use database-agnostic approach
+    # Use extract() which works on both SQLite and PostgreSQL
     monthly_query = db.session.query(
-        func.strftime('%Y-%m', Expense.spent_at).label('month'),
+        extract('year', Expense.spent_at).label('year'),
+        extract('month', Expense.spent_at).label('month'),
         func.sum(Expense.amount).label('total')
     ).filter(Expense.user_id == user_id)
     
@@ -70,16 +72,27 @@ def get_multi_account_summary(user_id: int, category_ids: list = [],
     if end_date:
         monthly_query = monthly_query.filter(Expense.spent_at <= end_date)
     
-    monthly = monthly_query.group_by('month').order_by('month').all()
+    monthly_raw = monthly_query.group_by('year', 'month').order_by('year', 'month').all()
+    
+    # Format monthly trend as "YYYY-MM": total
+    monthly_trend = {}
+    for year, month, total in monthly_raw:
+        if year and month:
+            key = f"{int(year)}-{int(month):02d}"
+            monthly_trend[key] = float(total)
     
     return {
         "total_spent": float(result.total or 0),
         "transaction_count": result.count or 0,
         "average_transaction": float(result.avg_amount or 0),
         "by_category": {name: float(total) for name, total in by_category},
-        "monthly_trend": {month: float(total) for month, total in monthly},
+        "monthly_trend": monthly_trend,
         "date_range": {
             "start": start_date.isoformat() if start_date else None,
             "end": end_date.isoformat() if end_date else None,
         }
     }
+
+
+# Keep backward compatibility alias
+get_multi_account_summary = get_financial_summary
