@@ -1,3 +1,4 @@
+from datetime import timezone
 """
 Device trust management and recognition.
 Tracks trusted devices and flags new/suspicious logins.
@@ -53,7 +54,7 @@ def is_trusted_device(user_id: int, fingerprint: str) -> bool:
     
     if device:
         # Update last_seen
-        device.last_seen = datetime.utcnow()
+        device.last_seen = datetime.now(timezone.utc)
         db.session.commit()
         return True
     
@@ -73,7 +74,7 @@ def register_device(user_id: int, fingerprint: str, name: str = None, ip: str = 
     
     if existing:
         # Update existing device
-        existing.last_seen = datetime.utcnow()
+        existing.last_seen = datetime.now(timezone.utc)
         if ip_hash:
             existing.ip_address_hash = ip_hash
         if name:
@@ -104,7 +105,7 @@ def trust_device(user_id: int, fingerprint: str) -> bool:
     
     if device:
         device.trusted = True
-        device.last_seen = datetime.utcnow()
+        device.last_seen = datetime.now(timezone.utc)
         db.session.commit()
         return True
     
