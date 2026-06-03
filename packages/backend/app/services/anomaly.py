@@ -1,3 +1,4 @@
+from datetime import timezone
 """
 Login anomaly detection and suspicious activity alerts.
 """
@@ -61,7 +62,7 @@ def detect_anomaly(user_id: int, ip: str, user_agent: str = "", success: bool = 
     # Get recent events for analysis
     recent = LoginEvent.query.filter(
         LoginEvent.user_id == user_id,
-        LoginEvent.created_at > datetime.utcnow() - timedelta(days=30)
+        LoginEvent.created_at > datetime.now(timezone.utc) - timedelta(days=30)
     ).all()
     
     if len(recent) <= 1:
@@ -72,12 +73,12 @@ def detect_anomaly(user_id: int, ip: str, user_agent: str = "", success: bool = 
     new_ip = ip_hash not in known_ips
     
     # Check for rapid attempts
-    last_hour = [e for e in recent if e.created_at > datetime.utcnow() - timedelta(hours=1)]
+    last_hour = [e for e in recent if e.created_at > datetime.now(timezone.utc) - timedelta(hours=1)]
     rapid_attempts = len(last_hour) > 5
     
     # Check for failed logins
     recent_failures = [e for e in recent[:-1] if not e.success and 
-                       e.created_at > datetime.utcnow() - timedelta(hours=24)]
+                       e.created_at > datetime.now(timezone.utc) - timedelta(hours=24)]
     has_failures = len(recent_failures) > 3
     
     # Calculate score with configurable threshold
