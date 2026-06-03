@@ -1,3 +1,4 @@
+from datetime import timezone
 """
 PII Export & Delete Service (GDPR-ready)
 
@@ -33,7 +34,7 @@ def export_user_data(user_id: int) -> bytes:
     export_data = {
         "export_metadata": {
             "user_id": user_id,
-            "exported_at": datetime.utcnow().isoformat() + "Z",
+            "exported_at": datetime.now(timezone.utc).isoformat() + "Z",
             "format_version": "1.0",
             "data_controller": "FinMind",
         },
@@ -130,7 +131,7 @@ def export_user_data(user_id: int) -> bytes:
             "README.md",
             f"# FinMind Data Export\n\n"
             f"User ID: {user_id}\n"
-            f"Exported: {datetime.utcnow().isoformat()}Z\n"
+            f"Exported: {datetime.now(timezone.utc).isoformat()}Z\n"
             f"Format: JSON\n\n"
             f"## Files\n"
             f"- user_data.json: All your personal data\n"
@@ -165,7 +166,7 @@ def delete_user_data(user_id: int, confirm: bool = False) -> dict:
 
     summary = {
         "user_id": user_id,
-        "deleted_at": datetime.utcnow().isoformat() + "Z",
+        "deleted_at": datetime.now(timezone.utc).isoformat() + "Z",
         "records_deleted": {},
     }
 
@@ -219,7 +220,7 @@ def _log_audit(user_id: int, action: str, details: str):
             action=action,
             details=details,
             ip_address=None,
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
         )
         db.session.add(audit)
         db.session.commit()
