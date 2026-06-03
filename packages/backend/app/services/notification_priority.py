@@ -1,3 +1,4 @@
+from datetime import timezone
 
 """
 Notification priority and grouping system.
@@ -37,7 +38,7 @@ def create_notification(user_id: int, message: str, priority: str = "normal", gr
         if existing:
             existing.count += 1
             existing.last_message = message
-            existing.updated_at = datetime.utcnow()
+            existing.updated_at = datetime.now(timezone.utc)
             if priority_order(priority) > priority_order(existing.priority):
                 existing.priority = priority
             db.session.commit()
@@ -45,7 +46,7 @@ def create_notification(user_id: int, message: str, priority: str = "normal", gr
     
     group = NotificationGroup(
         user_id=user_id,
-        group_key=group_key or f"single_{datetime.utcnow().timestamp()}",
+        group_key=group_key or f"single_{datetime.now(timezone.utc).timestamp()}",
         priority=priority,
         last_message=message,
     )
