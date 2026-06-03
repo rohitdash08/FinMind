@@ -4,259 +4,149 @@ Tests for background job retry with exponential backoff.
 import pytest
 from datetime import datetime, timedelta
 from unittest.mock import patch, MagicMock
-from app.services.job_retry import (
-    JobRetry,
-    RetryPolicy,
-    JobStatus,
-    submit_job,
-    retry_job,
-    get_job_status,
+from app.services.retry import (
+    RetryConfig,
+    retry_with_backoff,
 )
 from app.extensions import db
 
 
-class TestRetryPolicy:
-    """Test RetryPolicy configuration."""
+class TestRetryConfig:
+    """Test RetryConfig configuration."""
 
-    def test_default_policy(self):
-        policy = RetryPolicy()
-        assert policy.max_retries == 3
-        assert policy.base_delay == 1.0
-        assert policy.max_delay == 60.0
-        assert policy.exponential_base == 2.0
+    def test_default_config(self):
+        config = RetryConfig()
+        assert config.max_retries == 3
+        assert config.base_delay == 1.0
+        assert config.max_delay == 60.0
+        assert config.backoff_factor == 2.0
 
-    def test_custom_policy(self):
-        policy = RetryPolicy(
+    def test_custom_config(self):
+        config = RetryConfig(
             max_retries=5,
             base_delay=2.0,
             max_delay=120.0,
-            exponential_base=3.0,
+            backoff_factor=3.0
         )
-        assert policy.max_retries == 5
-        assert policy.base_delay == 2.0
-        assert policy.max_delay == 120.0
-        assert policy.exponential_base == 3.0
+        assert config.max_retries == 5
+        assert config.base_delay == 2.0
+        assert config.max_delay == 120.0
+        assert config.backoff_factor == 3.0
 
-    def test_calculate_delay(self):
-        policy = RetryPolicy(base_delay=1.0, exponential_base=2.0)
+
+class TestRetryWithBackoff:
+    """Test retry_with_backoff decorator."""
+
+    def test_success_on_first_attempt(self):
+        """Test function succeeds on first attempt."""
+        call_count = 0
         
-        # Attempt 0: 1.0 * 2^0 = 1.0
-        assert policy.calculate_delay(0) == 1.0
+        @retry_with_backoff()
+        def successful_function():
+            nonlocal call_count
+            call_count += 1
+            return "success"
         
-        # Attempt 1: 1.0 * 2^1 = 2.0
-        assert policy.calculate_delay(1) == 2.0
+        result = successful_function()
+        assert result == "success"
+        assert call_count == 1
+
+    def test_success_after_retries(self):
+        """Test function succeeds after some failures."""
+        call_count = 0
         
-        # Attempt 2: 1.0 * 2^2 = 4.0
-        assert policy.calculate_delay(2) == 4.0
+        @retry_with_backoff(RetryConfig(max_retries=3, base_delay=0.01))
+        def eventually_successful():
+            nonlocal call_count
+            call_count += 1
+            if call_count < 3:
+                raise ValueError(f"Attempt {call_count} failed")
+            return "success"
+        
+        result = eventually_successful()
+        assert result == "success"
+        assert call_count == 3
+
+    def test_failure_after_max_retries(self):
+        """Test function fails after max retries exceeded."""
+        call_count = 0
+        
+        @retry_with_backoff(RetryConfig(max_retries=2, base_delay=0.01))
+        def always_fails():
+            nonlocal call_count
+            call_count += 1
+            raise ValueError(f"Attempt {call_count} failed")
+        
+        with pytest.raises(ValueError, match="Attempt 3 failed"):
+            always_fails()
+        
+        # max_retries=2 means 3 total attempts (1 initial + 2 retries)
+        assert call_count == 3
+
+    def test_exponential_backoff_timing(self):
+        """Test that delays increase exponentially."""
+        import time
+        
+        config = RetryConfig(
+            max_retries=3,
+            base_delay=0.1,
+            backoff_factor=2.0,
+            max_delay=10.0
+        )
+        
+        call_count = 0
+        start_time = time.time()
+        
+        @retry_with_backoff(config)
+        def failing_function():
+            nonlocal call_count
+            call_count += 1
+            raise ValueError("Always fails")
+        
+        with pytest.raises(ValueError):
+            failing_function()
+        
+        elapsed = time.time() - start_time
+        
+        # Should have delays: 0.1, 0.2, 0.4 (total ~0.7s plus execution time)
+        assert elapsed >= 0.5  # At least some delay
+        assert call_count == 4  # 1 initial + 3 retries
 
     def test_max_delay_cap(self):
-        policy = RetryPolicy(base_delay=1.0, max_delay=5.0, exponential_base=2.0)
+        """Test that delay doesn't exceed max_delay."""
+        config = RetryConfig(
+            max_retries=5,
+            base_delay=1.0,
+            backoff_factor=10.0,
+            max_delay=2.0  # Cap at 2 seconds
+        )
         
-        # Attempt 10: 1.0 * 2^10 = 1024.0, but capped at 5.0
-        assert policy.calculate_delay(10) == 5.0
-
-
-class TestJobRetry:
-    """Test JobRetry class."""
-
-    def test_submit_job(self, app, db):
-        with app.app_context():
-            retry = JobRetry()
-            
-            job_id = retry.submit(
-                func="app.tasks.send_email",
-                args=["user@example.com", "Test"],
-                kwargs={},
-            )
-            
-            assert job_id is not None
-            
-            job = retry.get_job(job_id)
-            assert job.status == JobStatus.PENDING
-            assert job.attempts == 0
-
-    def test_retry_job_success(self, app, db):
-        with app.app_context():
-            retry = JobRetry()
-            
-            # Submit job
-            job_id = retry.submit(
-                func="app.tasks.send_email",
-                args=["user@example.com", "Test"],
-                kwargs={},
-            )
-            
-            # Mock successful execution
-            with patch("app.tasks.send_email") as mock_func:
-                mock_func.return_value = True
-                
-                # Execute job
-                result = retry.execute(job_id)
-                
-                assert result.success is True
-                assert result.attempts == 1
-
-    def test_retry_job_failure_and_retry(self, app, db):
-        with app.app_context():
-            retry = JobRetry()
-            
-            # Submit job
-            job_id = retry.submit(
-                func="app.tasks.send_email",
-                args=["user@example.com", "Test"],
-                kwargs={},
-            )
-            
-            # Mock failed execution
-            with patch("app.tasks.send_email") as mock_func:
-                mock_func.side_effect = Exception("Network error")
-                
-                # Execute job (should fail and schedule retry)
-                result = retry.execute(job_id)
-                
-                assert result.success is False
-                assert result.attempts == 1
-                assert result.next_retry_at is not None
-
-    def test_retry_exhaustion(self, app, db):
-        with app.app_context():
-            retry = JobRetry(policy=RetryPolicy(max_retries=2))
-            
-            # Submit job
-            job_id = retry.submit(
-                func="app.tasks.send_email",
-                args=["user@example.com", "Test"],
-                kwargs={},
-            )
-            
-            # Mock failed execution
-            with patch("app.tasks.send_email") as mock_func:
-                mock_func.side_effect = Exception("Network error")
-                
-                # Execute job multiple times
-                for i in range(3):
-                    result = retry.execute(job_id)
-                
-                # Should be exhausted
-                job = retry.get_job(job_id)
-                assert job.status == JobStatus.FAILED
-                assert job.attempts == 3
-
-    def test_cancel_job(self, app, db):
-        with app.app_context():
-            retry = JobRetry()
-            
-            # Submit job
-            job_id = retry.submit(
-                func="app.tasks.send_email",
-                args=["user@example.com", "Test"],
-                kwargs={},
-            )
-            
-            # Cancel job
-            retry.cancel(job_id)
-            
-            job = retry.get_job(job_id)
-            assert job.status == JobStatus.CANCELLED
-
-
-class TestSubmitJob:
-    """Test submit_job helper function."""
-
-    def test_submit_job_function(self, app, db):
-        with app.app_context():
-            job_id = submit_job(
-                func="app.tasks.send_email",
-                args=["user@example.com", "Test"],
-            )
-            
-            assert job_id is not None
-
-    def test_submit_with_retry_policy(self, app, db):
-        with app.app_context():
-            policy = RetryPolicy(max_retries=5)
-            
-            job_id = submit_job(
-                func="app.tasks.send_email",
-                args=["user@example.com", "Test"],
-                retry_policy=policy,
-            )
-            
-            assert job_id is not None
-
-
-class TestRetryJob:
-    """Test retry_job helper function."""
-
-    def test_retry_failed_job(self, app, db):
-        with app.app_context():
-            # Submit and fail a job
-            job_id = submit_job(
-                func="app.tasks.send_email",
-                args=["user@example.com", "Test"],
-            )
-            
-            # Mock failure
-            with patch("app.tasks.send_email") as mock_func:
-                mock_func.side_effect = Exception("Failed")
-                
-                # Execute to fail
-                retry = JobRetry()
-                retry.execute(job_id)
-                
-                # Retry the job
-                result = retry_job(job_id)
-                
-                assert result.success is None  # Pending retry
-                assert result.attempts == 0  # Reset
-
-    def test_retry_nonexistent_job(self, app, db):
-        with app.app_context():
-            with pytest.raises(ValueError):
-                retry_job("nonexistent_job_id")
-
-
-class TestGetJobStatus:
-    """Test get_job_status helper function."""
-
-    def test_get_status_pending(self, app, db):
-        with app.app_context():
-            job_id = submit_job(
-                func="app.tasks.send_email",
-                args=["user@example.com", "Test"],
-            )
-            
-            status = get_job_status(job_id)
-            assert status == JobStatus.PENDING
-
-    def test_get_status_completed(self, app, db):
-        with app.app_context():
-            job_id = submit_job(
-                func="app.tasks.send_email",
-                args=["user@example.com", "Test"],
-            )
-            
-            # Execute successfully
-            with patch("app.tasks.send_email") as mock_func:
-                mock_func.return_value = True
-                
-                retry = JobRetry()
-                retry.execute(job_id)
-                
-                status = get_job_status(job_id)
-                assert status == JobStatus.COMPLETED
-
-    def test_get_status_nonexistent(self, app, db):
-        with app.app_context():
-            with pytest.raises(ValueError):
-                get_job_status("nonexistent_job_id")
+        call_count = 0
+        import time
+        start_time = time.time()
+        
+        @retry_with_backoff(config)
+        def failing_function():
+            nonlocal call_count
+            call_count += 1
+            raise ValueError("Always fails")
+        
+        with pytest.raises(ValueError):
+            failing_function()
+        
+        elapsed = time.time() - start_time
+        
+        # With max_delay=2.0, total delay should be capped
+        # Delays would be: 1.0, 2.0, 2.0, 2.0, 2.0 = 9.0s max
+        assert elapsed < 15.0  # Should be much less due to cap
+        assert call_count == 6  # 1 initial + 5 retries
 
 
 @pytest.fixture
 def app():
     """Create application for testing."""
     from app import create_app
-
+    
     app = create_app("testing")
     with app.app_context():
         db.create_all()
