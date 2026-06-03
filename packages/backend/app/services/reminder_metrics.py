@@ -1,3 +1,4 @@
+from datetime import timezone
 """
 Reminder reliability tracking and delivery metrics.
 """
@@ -39,7 +40,7 @@ def track_delivery(reminder_id: int, user_id: int, channel: str, status: str, la
 
 def get_delivery_metrics(user_id: int, days: int = 30) -> dict:
     """Get delivery reliability metrics."""
-    cutoff = datetime.utcnow() - timedelta(days=days)
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
     
     deliveries = ReminderDelivery.query.filter(
         ReminderDelivery.user_id == user_id,
