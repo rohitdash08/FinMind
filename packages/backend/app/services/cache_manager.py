@@ -1,3 +1,4 @@
+from datetime import timezone
 
 import logging
 from functools import wraps
@@ -57,7 +58,7 @@ class CacheManager:
                 # Fall through to local cache
         
         entry = self._local.get(key)
-        if entry and entry["exp"] > datetime.utcnow():
+        if entry and entry["exp"] > datetime.now(timezone.utc):
             return entry["val"]
         return None
 
@@ -77,7 +78,7 @@ class CacheManager:
         
         self._local[key] = {
             "val": value,
-            "exp": datetime.utcnow() + timedelta(seconds=ttl),
+            "exp": datetime.now(timezone.utc) + timedelta(seconds=ttl),
             "tags": tags or []
         }
         self._evict_local_if_needed()
