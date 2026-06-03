@@ -1,3 +1,4 @@
+from datetime import timezone
 """
 Goal-based savings tracking with milestones.
 """
@@ -152,12 +153,12 @@ def deposit(goal_id: int, user_id: int, amount: float, notes: str = "") -> dict:
     for milestone in goal.milestones.filter_by(reached=False).all():
         if goal.current_amount >= milestone.target_amount:
             milestone.reached = True
-            milestone.reached_at = datetime.utcnow()
+            milestone.reached_at = datetime.now(timezone.utc)
     
     # Check if goal completed
     if goal.current_amount >= goal.target_amount:
         goal.status = "completed"
-        goal.completed_at = datetime.utcnow()
+        goal.completed_at = datetime.now(timezone.utc)
     
     db.session.commit()
     
