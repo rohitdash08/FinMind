@@ -1,3 +1,4 @@
+from datetime import timezone
 """
 Secure backup and encrypted export options.
 """
@@ -43,7 +44,7 @@ def create_backup(user_id: int, encryption_key: bytes = None) -> bytes:
     
     data = {
         "version": "1.0",
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
         "user_id": user_id,
         "user_profile": {
             "email": user.email,
