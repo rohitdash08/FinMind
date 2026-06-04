@@ -15,6 +15,7 @@ import time
 
 bp = Blueprint("auth", __name__)
 logger = logging.getLogger("finmind.auth")
+_refresh_fallback_sessions: dict[str, tuple[str, int]] = {}
 SUPPORTED_CURRENCIES = {
     "USD",
     "INR",
@@ -106,7 +107,12 @@ def update_me():
 def refresh():
     claims = get_jwt()
     jti = claims.get("jti")
-    if not jti or not redis_client.get(_refresh_key(jti)):
+    try:
+        known_refresh = redis_client.get(_refresh_key(jti)) if jti else None
+    except Exception:
+        logger.warning("Refresh falling back to in-process token store")
+        known_refresh = _get_fallback_refresh_session(jti)
+    if not known_refresh:
         logger.warning("Refresh rejected: revoked/unknown token jti=%s", jti)
         return jsonify(error="refresh token revoked"), 401
     uid = get_jwt_identity()
@@ -121,7 +127,11 @@ def logout():
     claims = get_jwt()
     jti = claims.get("jti")
     if jti:
-        redis_client.delete(_refresh_key(jti))
+        try:
+            redis_client.delete(_refresh_key(jti))
+        except Exception:
+            logger.warning("Logout falling back to in-process token store")
+        _refresh_fallback_sessions.pop(jti, None)
     return jsonify(message="logged out"), 200
 
 
@@ -136,4 +146,21 @@ def _store_refresh_session(refresh_token: str, uid: str):
     if not jti or not exp:
         return
     ttl = max(int(exp - time.time()), 1)
-    redis_client.setex(_refresh_key(jti), ttl, uid)
+    try:
+        redis_client.setex(_refresh_key(jti), ttl, uid)
+    except Exception:
+        logger.warning("Storing refresh token session in process-local fallback")
+        _refresh_fallback_sessions[jti] = (uid, int(exp))
+
+
+def _get_fallback_refresh_session(jti: str | None) -> str | None:
+    if not jti:
+        return None
+    session = _refresh_fallback_sessions.get(jti)
+    if not session:
+        return None
+    uid, exp = session
+    if exp <= int(time.time()):
+        _refresh_fallback_sessions.pop(jti, None)
+        return None
+    return uid

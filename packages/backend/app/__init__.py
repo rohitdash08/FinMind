@@ -1,6 +1,6 @@
 from flask import Flask, jsonify
 from .config import Settings
-from .extensions import db, jwt
+from .extensions import configure_redis, db, jwt
 from .routes import register_routes
 from .observability import (
     Observability,
@@ -44,6 +44,7 @@ def create_app(settings: Settings | None = None) -> Flask:
     # Extensions
     db.init_app(app)
     jwt.init_app(app)
+    configure_redis(cfg.redis_url)
     app.extensions["observability"] = Observability()
     # CORS for local dev frontend
     CORS(app, resources={r"*": {"origins": "*"}}, supports_credentials=True)
@@ -108,6 +109,69 @@ def _ensure_schema_compatibility(app: Flask) -> None:
             ALTER TABLE users
             ADD COLUMN IF NOT EXISTS preferred_currency VARCHAR(10)
             NOT NULL DEFAULT 'INR'
+            """
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS bank_connections (
+              id SERIAL PRIMARY KEY,
+              user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              connector_key VARCHAR(80) NOT NULL,
+              display_name VARCHAR(200) NOT NULL,
+              status VARCHAR(40) NOT NULL DEFAULT 'connected',
+              settings_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+              last_synced_at TIMESTAMP,
+              created_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+            """
+        )
+        cur.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_bank_connections_user
+            ON bank_connections(user_id, created_at DESC)
+            """
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS bank_sync_runs (
+              id SERIAL PRIMARY KEY,
+              user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              connection_id INT NOT NULL
+                REFERENCES bank_connections(id) ON DELETE CASCADE,
+              status VARCHAR(40) NOT NULL DEFAULT 'running',
+              imported_count INT NOT NULL DEFAULT 0,
+              duplicate_count INT NOT NULL DEFAULT 0,
+              started_at TIMESTAMP NOT NULL DEFAULT NOW(),
+              completed_at TIMESTAMP,
+              error VARCHAR(500)
+            )
+            """
+        )
+        cur.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_bank_sync_runs_connection
+            ON bank_sync_runs(connection_id, started_at DESC)
+            """
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS bank_imported_transactions (
+              id SERIAL PRIMARY KEY,
+              user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              connection_id INT NOT NULL
+                REFERENCES bank_connections(id) ON DELETE CASCADE,
+              expense_id INT NOT NULL REFERENCES expenses(id) ON DELETE CASCADE,
+              external_id VARCHAR(255) NOT NULL,
+              imported_at TIMESTAMP NOT NULL DEFAULT NOW(),
+              CONSTRAINT uq_bank_imported_transactions_connection_external
+                UNIQUE (connection_id, external_id)
+            )
+            """
+        )
+        cur.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_bank_imported_transactions_user
+            ON bank_imported_transactions(user_id, imported_at DESC)
             """
         )
         conn.commit()

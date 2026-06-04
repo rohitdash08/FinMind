@@ -7,7 +7,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..extensions import db
 from ..models import Expense, RecurringCadence, RecurringExpense, User
 from ..services.cache import cache_delete_patterns, monthly_summary_key
-from ..services import expense_import
+from ..services import bank_connectors, expense_import
 import logging
 
 bp = Blueprint("expenses", __name__)
@@ -200,6 +200,75 @@ def generate_recurring_expenses(recurring_id: int):
     for ym in touched_months:
         _invalidate_expense_cache(uid, ym + "-01")
     return jsonify(inserted=inserted), 200
+
+
+@bp.get("/bank-connectors")
+@jwt_required()
+def list_bank_connectors():
+    return jsonify(bank_connectors.list_connectors())
+
+
+@bp.get("/bank-connections")
+@jwt_required()
+def list_bank_connections():
+    uid = int(get_jwt_identity())
+    connections = bank_connectors.list_connections(user_id=uid)
+    return jsonify([bank_connectors.connection_to_dict(item) for item in connections])
+
+
+@bp.post("/bank-connections")
+@jwt_required()
+def create_bank_connection():
+    uid = int(get_jwt_identity())
+    data = request.get_json() or {}
+    connector_key = data.get("connector_key")
+    config = data.get("config") or {}
+    if not isinstance(config, dict):
+        return jsonify(error="config must be an object"), 400
+    try:
+        connection = bank_connectors.create_connection(
+            user_id=uid, connector_key=connector_key, config=config
+        )
+    except ValueError as exc:
+        return jsonify(error=str(exc)), 400
+    return jsonify(bank_connectors.connection_to_dict(connection)), 201
+
+
+@bp.post("/bank-connections/<int:connection_id>/import")
+@jwt_required()
+def import_bank_connection(connection_id: int):
+    uid = int(get_jwt_identity())
+    data = request.get_json() or {}
+    since = None
+    if data.get("since"):
+        try:
+            since = date.fromisoformat(data["since"])
+        except ValueError:
+            return jsonify(error="invalid since"), 400
+    try:
+        result = bank_connectors.import_connection_transactions(
+            user_id=uid, connection_id=connection_id, since=since
+        )
+    except LookupError:
+        return jsonify(error="not found"), 404
+    except ValueError as exc:
+        return jsonify(error=str(exc)), 400
+    return jsonify(result), 201
+
+
+@bp.post("/bank-connections/<int:connection_id>/refresh")
+@jwt_required()
+def refresh_bank_connection(connection_id: int):
+    uid = int(get_jwt_identity())
+    try:
+        result = bank_connectors.refresh_connection(
+            user_id=uid, connection_id=connection_id
+        )
+    except LookupError:
+        return jsonify(error="not found"), 404
+    except ValueError as exc:
+        return jsonify(error=str(exc)), 400
+    return jsonify(result), 200
 
 
 @bp.patch("/<int:expense_id>")
