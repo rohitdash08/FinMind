@@ -291,10 +291,19 @@ paths:
             schema:
               $ref: '#/components/schemas/NewBankConnection'
             example:
-              connector_key: mock
+              connector_key: account_aggregator
               config:
-                account_name: Mock Checking
-                currency: USD
+                provider_name: Setu AA
+                account_ref: masked:XXXX1234
+                display_name: HDFC Savings
+                currency: INR
+                consent_handle: consent-123
+                transactions:
+                  - external_id: aa-1
+                    posted_at: '2026-04-01'
+                    amount: '-299.00'
+                    description: UPI Grocery Store
+                    currency: INR
       responses:
         '201':
           description: Created connection

@@ -2,8 +2,66 @@ def test_bank_connector_registry_lists_mock_connector(client, auth_header):
     r = client.get("/expenses/bank-connectors", headers=auth_header)
     assert r.status_code == 200
     connectors = r.get_json()
-    assert connectors[0]["key"] == "mock"
-    assert connectors[0]["supports_refresh"] is True
+    by_key = {connector["key"]: connector for connector in connectors}
+    assert by_key["mock"]["supports_refresh"] is True
+    assert by_key["account_aggregator"]["supports_refresh"] is True
+
+
+def test_account_aggregator_connector_imports_normalized_provider_payload(
+    client, auth_header
+):
+    payload = {
+        "connector_key": "account_aggregator",
+        "config": {
+            "provider_name": "Setu AA",
+            "account_ref": "masked:XXXX1234",
+            "display_name": "HDFC Savings",
+            "currency": "INR",
+            "consent_handle": "consent-123",
+            "transactions": [
+                {
+                    "external_id": "aa-1",
+                    "posted_at": "2026-04-01",
+                    "amount": "-299.00",
+                    "description": "UPI Grocery Store",
+                    "currency": "INR",
+                }
+            ],
+        },
+    }
+
+    r = client.post("/expenses/bank-connections", json=payload, headers=auth_header)
+    assert r.status_code == 201
+    connection = r.get_json()
+    assert connection["connector_key"] == "account_aggregator"
+    assert connection["display_name"] == "HDFC Savings"
+
+    r = client.post(
+        f"/expenses/bank-connections/{connection['id']}/import",
+        json={},
+        headers=auth_header,
+    )
+    assert r.status_code == 201
+    assert r.get_json()["inserted"] == 1
+
+    r = client.get("/expenses?search=UPI%20Grocery", headers=auth_header)
+    assert r.status_code == 200
+    expenses = r.get_json()
+    assert expenses[0]["currency"] == "INR"
+    assert expenses[0]["description"] == "UPI Grocery Store"
+
+
+def test_account_aggregator_requires_provider_identity(client, auth_header):
+    r = client.post(
+        "/expenses/bank-connections",
+        json={
+            "connector_key": "account_aggregator",
+            "config": {"account_ref": "masked:XXXX1234"},
+        },
+        headers=auth_header,
+    )
+    assert r.status_code == 400
+    assert r.get_json()["error"] == "provider_name required"
 
 
 def test_mock_bank_connection_import_and_refresh_prevent_duplicates(

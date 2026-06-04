@@ -183,6 +183,10 @@ finmind/
   interface, registry, normalized transaction DTO, import flow, and refresh flow.
 - The built-in `mock` connector provides deterministic transactions for tests and
   local demos without storing real banking credentials.
+- The `account_aggregator` connector is the AA/API-provider extension point for
+  Indian bank integrations. It stores provider/account/consent references and
+  imports normalized partner-portal transaction payloads while keeping live
+  provider credentials in env-backed adapters or partner portals.
 - Future providers can be added by implementing `BankConnector` and registering
   the connector key in `CONNECTORS`.
 - Imported bank transactions reuse the existing expense duplicate guard on

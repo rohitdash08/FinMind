@@ -90,7 +90,51 @@ class MockBankConnector(BankConnector):
         return transactions
 
 
+class AccountAggregatorConnector(BankConnector):
+    key = "account_aggregator"
+    name = "Account Aggregator / API Provider"
+    description = (
+        "Generic connector for Indian AA or bank API providers using partner "
+        "portal credentials and normalized transaction payloads."
+    )
+
+    def create_connection(
+        self, *, user_id: int, config: dict[str, Any]
+    ) -> BankConnection:
+        provider_name = _required_string(config, "provider_name")
+        account_ref = _required_string(config, "account_ref")
+        display_name = str(
+            config.get("display_name") or f"{provider_name} {account_ref}"
+        ).strip()
+        return BankConnection(
+            user_id=user_id,
+            connector_key=self.key,
+            display_name=display_name[:200],
+            settings_json={
+                "provider_name": provider_name[:120],
+                "account_ref": account_ref[:160],
+                "consent_handle": str(config.get("consent_handle") or "")[:255],
+                "sync_cursor": str(config.get("sync_cursor") or "")[:255],
+                "currency": str(config.get("currency") or "INR")[:10],
+                # Partner credentials belong in provider portals/env-backed adapters.
+                # Tests and local demos can pass normalized payloads here.
+                "transactions": config.get("transactions") or [],
+            },
+        )
+
+    def fetch_transactions(
+        self, *, connection: BankConnection, since: date | None
+    ) -> list[BankTransaction]:
+        settings = connection.settings_json or {}
+        rows = settings.get("transactions") or []
+        transactions = [_transaction_from_row(row, settings) for row in rows]
+        if since:
+            transactions = [tx for tx in transactions if tx.posted_at >= since]
+        return transactions
+
+
 CONNECTORS: dict[str, BankConnector] = {
+    AccountAggregatorConnector.key: AccountAggregatorConnector(),
     MockBankConnector.key: MockBankConnector(),
 }
 
@@ -252,6 +296,13 @@ def _transaction_from_row(
         expense_type=expense_type,
         category_id=int(category_id) if category_id not in (None, "", "null") else None,
     )
+
+
+def _required_string(config: dict[str, Any], key: str) -> str:
+    value = str(config.get(key) or "").strip()
+    if not value:
+        raise ValueError(f"{key} required")
+    return value
 
 
 def _default_mock_transactions() -> list[dict[str, Any]]:
