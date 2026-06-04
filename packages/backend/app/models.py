@@ -1,6 +1,7 @@
 from datetime import datetime, date
 from enum import Enum
 from sqlalchemy import Enum as SAEnum
+from sqlalchemy import UniqueConstraint
 from .extensions import db
 
 
@@ -41,6 +42,52 @@ class Expense(db.Model):
         db.Integer, db.ForeignKey("recurring_expenses.id"), nullable=True
     )
     created_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
+
+
+class BankConnection(db.Model):
+    __tablename__ = "bank_connections"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    connector_key = db.Column(db.String(80), nullable=False)
+    display_name = db.Column(db.String(200), nullable=False)
+    status = db.Column(db.String(40), default="connected", nullable=False)
+    settings_json = db.Column(db.JSON, default=dict, nullable=False)
+    last_synced_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class BankSyncRun(db.Model):
+    __tablename__ = "bank_sync_runs"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    connection_id = db.Column(
+        db.Integer, db.ForeignKey("bank_connections.id"), nullable=False
+    )
+    status = db.Column(db.String(40), default="running", nullable=False)
+    imported_count = db.Column(db.Integer, default=0, nullable=False)
+    duplicate_count = db.Column(db.Integer, default=0, nullable=False)
+    started_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    completed_at = db.Column(db.DateTime, nullable=True)
+    error = db.Column(db.String(500), nullable=True)
+
+
+class BankImportedTransaction(db.Model):
+    __tablename__ = "bank_imported_transactions"
+    __table_args__ = (
+        UniqueConstraint(
+            "connection_id",
+            "external_id",
+            name="uq_bank_imported_transactions_connection_external",
+        ),
+    )
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    connection_id = db.Column(
+        db.Integer, db.ForeignKey("bank_connections.id"), nullable=False
+    )
+    expense_id = db.Column(db.Integer, db.ForeignKey("expenses.id"), nullable=False)
+    external_id = db.Column(db.String(255), nullable=False)
+    imported_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
 
 class RecurringCadence(str, Enum):

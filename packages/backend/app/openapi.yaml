@@ -251,6 +251,122 @@ paths:
                 properties:
                   inserted: { type: integer }
 
+  /expenses/bank-connectors:
+    get:
+      summary: List available bank sync connectors
+      tags: [Expenses]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Available connectors
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BankConnector'
+
+  /expenses/bank-connections:
+    get:
+      summary: List user bank connections
+      tags: [Expenses]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Bank connections
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BankConnection'
+    post:
+      summary: Create a bank connection
+      tags: [Expenses]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewBankConnection'
+            example:
+              connector_key: mock
+              config:
+                account_name: Mock Checking
+                currency: USD
+      responses:
+        '201':
+          description: Created connection
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BankConnection'
+        '400':
+          description: Unsupported connector or invalid config
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /expenses/bank-connections/{connectionId}/import:
+    post:
+      summary: Import transactions from a bank connection
+      tags: [Expenses]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: connectionId
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                since: { type: string, format: date, nullable: true }
+      responses:
+        '201':
+          description: Import result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BankImportResult'
+        '400':
+          description: Invalid date or connector payload
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404':
+          description: Connection not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /expenses/bank-connections/{connectionId}/refresh:
+    post:
+      summary: Refresh transactions from the last sync window
+      tags: [Expenses]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: connectionId
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Refresh result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BankImportResult'
+        '404':
+          description: Connection not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
   /bills:
     get:
       summary: List bills
@@ -548,6 +664,38 @@ components:
         cadence: { type: string, enum: [DAILY, WEEKLY, MONTHLY, YEARLY] }
         start_date: { type: string, format: date }
         end_date: { type: string, format: date, nullable: true }
+    BankConnector:
+      type: object
+      properties:
+        key: { type: string }
+        name: { type: string }
+        description: { type: string }
+        supports_refresh: { type: boolean }
+    BankConnection:
+      type: object
+      properties:
+        id: { type: integer }
+        connector_key: { type: string }
+        display_name: { type: string }
+        status: { type: string }
+        last_synced_at: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+    NewBankConnection:
+      type: object
+      required: [connector_key]
+      properties:
+        connector_key: { type: string }
+        config:
+          type: object
+          additionalProperties: true
+    BankImportResult:
+      type: object
+      properties:
+        run_id: { type: integer }
+        connection_id: { type: integer }
+        inserted: { type: integer }
+        duplicates: { type: integer }
+        status: { type: string }
     Bill:
       type: object
       properties:

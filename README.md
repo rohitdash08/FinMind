@@ -63,6 +63,8 @@ See `backend/app/db/schema.sql`. Key tables:
 OpenAPI: `backend/app/openapi.yaml`
 - Auth: `/auth/register`, `/auth/login`, `/auth/refresh`
 - Expenses: CRUD `/expenses`
+- Bank sync: `/expenses/bank-connectors`, `/expenses/bank-connections`,
+  `/expenses/bank-connections/{id}/import`, `/expenses/bank-connections/{id}/refresh`
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
 - Insights: `/insights/monthly`, `/insights/budget-suggestion`
@@ -175,6 +177,16 @@ finmind/
   - reminder event counters (engagement KPI)
 - Logs are emitted as JSON with `request_id` and shipped to Loki via Promtail.
 - Pre-provisioned Grafana dashboard: `FinMind Operations and KPI`.
+
+## Bank Sync Connector Architecture
+- `packages/backend/app/services/bank_connectors.py` defines the connector
+  interface, registry, normalized transaction DTO, import flow, and refresh flow.
+- The built-in `mock` connector provides deterministic transactions for tests and
+  local demos without storing real banking credentials.
+- Future providers can be added by implementing `BankConnector` and registering
+  the connector key in `CONNECTORS`.
+- Imported bank transactions reuse the existing expense duplicate guard on
+  `(user_id, spent_at, amount, notes)` and invalidate dashboard/insight caches.
 
 ## Contribution Policy
 - See `CONTRIBUTING.md` for fork-first contribution flow and PR requirements.

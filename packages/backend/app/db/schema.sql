@@ -59,6 +59,42 @@ CREATE INDEX IF NOT EXISTS idx_recurring_expenses_user_start ON recurring_expens
 ALTER TABLE expenses
   ADD COLUMN IF NOT EXISTS source_recurring_id INT REFERENCES recurring_expenses(id) ON DELETE SET NULL;
 
+CREATE TABLE IF NOT EXISTS bank_connections (
+  id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  connector_key VARCHAR(80) NOT NULL,
+  display_name VARCHAR(200) NOT NULL,
+  status VARCHAR(40) NOT NULL DEFAULT 'connected',
+  settings_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+  last_synced_at TIMESTAMP,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_bank_connections_user ON bank_connections(user_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS bank_sync_runs (
+  id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  connection_id INT NOT NULL REFERENCES bank_connections(id) ON DELETE CASCADE,
+  status VARCHAR(40) NOT NULL DEFAULT 'running',
+  imported_count INT NOT NULL DEFAULT 0,
+  duplicate_count INT NOT NULL DEFAULT 0,
+  started_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  completed_at TIMESTAMP,
+  error VARCHAR(500)
+);
+CREATE INDEX IF NOT EXISTS idx_bank_sync_runs_connection ON bank_sync_runs(connection_id, started_at DESC);
+
+CREATE TABLE IF NOT EXISTS bank_imported_transactions (
+  id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  connection_id INT NOT NULL REFERENCES bank_connections(id) ON DELETE CASCADE,
+  expense_id INT NOT NULL REFERENCES expenses(id) ON DELETE CASCADE,
+  external_id VARCHAR(255) NOT NULL,
+  imported_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  CONSTRAINT uq_bank_imported_transactions_connection_external UNIQUE (connection_id, external_id)
+);
+CREATE INDEX IF NOT EXISTS idx_bank_imported_transactions_user ON bank_imported_transactions(user_id, imported_at DESC);
+
 DO $$ BEGIN
   CREATE TYPE bill_cadence AS ENUM ('MONTHLY','WEEKLY','YEARLY','ONCE');
 EXCEPTION
