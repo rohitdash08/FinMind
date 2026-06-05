@@ -11,8 +11,11 @@ from .observability import (
 from flask_cors import CORS
 import click
 import os
+from .models import User
+from .services.ai import weekly_digest_suggestion
+from .services.reminders import send_email
+from datetime import date, timedelta
 import logging
-from datetime import timedelta
 
 
 def create_app(settings: Settings | None = None) -> Flask:
@@ -92,6 +95,35 @@ def create_app(settings: Settings | None = None) -> Flask:
                 click.echo("Database initialized.")
             finally:
                 conn.close()
+
+    
+    @app.cli.command("send-weekly-digests")
+    def send_weekly_digests():
+        """Generate and send weekly smart digests to all users"""
+        with app.app_context():
+            users = User.query.all()
+            end_date = date.today()
+            start_date = end_date - timedelta(days=6)
+            
+            for user in users:
+                try:
+                    digest = weekly_digest_suggestion(user.id, start_date, end_date)
+                    
+                    # Formatting the digest text
+                    text = f"Weekly Digest ({start_date} to {end_date})\n"
+                    text += f"Net Flow: ${digest['net_flow']}\n"
+                    text += f"Income: ${digest['total_income']} | Expenses: ${digest['total_expenses']}\n"
+                    text += "Insights:\n"
+                    for insight in digest.get('insights', []):
+                        text += f" - {insight}\n"
+                    
+                    # Placeholder logic to dispatch report via email
+                    # Assuming email is the user.email if it existed, falling back to a placeholder
+                    user_email = "user@example.com" 
+                    send_email(user_email, "Your Weekly FinMind Digest", text)
+                    click.echo(f"Sent digest to user {user.id}")
+                except Exception as e:
+                    click.echo(f"Failed to generate digest for user {user.id}: {e}")
 
     return app
 
