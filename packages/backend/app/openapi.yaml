@@ -481,6 +481,65 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
 
+  /insights/weekly-digest:
+    get:
+      summary: Get weekly smart financial digest
+      tags: [Insights]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: week
+          required: false
+          schema: { type: string, format: date }
+          description: Any date in the requested week. The API normalizes it to Monday.
+        - in: query
+          name: currency
+          required: false
+          schema: { type: string }
+      responses:
+        '200':
+          description: Weekly digest
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+              example:
+                week_start: 2026-06-01
+                week_end: 2026-06-07
+                currency: USD
+                summary:
+                  income: 0
+                  expenses: 180
+                  net_flow: -180
+                  transaction_count: 2
+                  category_breakdown:
+                    - category: Groceries
+                      amount: 180
+                previous_week:
+                  week_start: 2026-05-25
+                  week_end: 2026-05-31
+                  expenses: 200
+                week_over_week_change_pct: -10
+                upcoming_bills:
+                  - name: Internet
+                    amount: 75
+                    currency: USD
+                    due_date: 2026-06-05
+                insights: ["Weekly expenses are broadly stable versus last week."]
+                recommendations: ["Keep monitoring category mix for one-off spikes."]
+                method: deterministic
+        '400':
+          description: Invalid week
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
 components:
   securitySchemes:
     bearerAuth:
