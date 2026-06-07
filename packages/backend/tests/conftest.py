@@ -1,10 +1,47 @@
 import os
+from fnmatch import fnmatch
 import pytest
 from app import create_app
 from app.config import Settings
 from app.extensions import db
-from app.extensions import redis_client
 from app import models  # noqa: F401 - ensure models are registered
+
+
+class FakeRedis:
+    def __init__(self):
+        self._store = {}
+
+    def get(self, key):
+        return self._store.get(key)
+
+    def set(self, key, value):
+        self._store[key] = value
+        return True
+
+    def setex(self, key, _ttl, value):
+        self._store[key] = value
+        return True
+
+    def delete(self, *keys):
+        deleted = 0
+        for key in keys:
+            if key in self._store:
+                deleted += 1
+                del self._store[key]
+        return deleted
+
+    def scan(self, cursor=0, match=None, count=100):
+        keys = sorted(self._store)
+        if match:
+            keys = [key for key in keys if fnmatch(key, match)]
+        start = int(cursor or 0)
+        end = start + count
+        next_cursor = 0 if end >= len(keys) else end
+        return next_cursor, keys[start:end]
+
+    def flushdb(self):
+        self._store.clear()
+        return True
 
 
 class TestSettings(Settings):
@@ -20,7 +57,7 @@ def _setup_db(app):
 
 
 @pytest.fixture()
-def app_fixture():
+def app_fixture(monkeypatch):
     # Ensure a clean env for tests
     os.environ.setdefault("FLASK_ENV", "testing")
     settings = TestSettings(
@@ -28,21 +65,19 @@ def app_fixture():
         redis_url="redis://localhost:6379/15",
         jwt_secret="test-secret-with-32-plus-chars-1234567890",
     )
+    fake_redis = FakeRedis()
+    monkeypatch.setattr("app.extensions.redis_client", fake_redis)
+    monkeypatch.setattr("app.routes.auth.redis_client", fake_redis)
+    monkeypatch.setattr("app.services.cache.redis_client", fake_redis)
     app = create_app(settings)
     app.config.update(TESTING=True)
     _setup_db(app)
-    try:
-        redis_client.flushdb()
-    except Exception:
-        pass
+    fake_redis.flushdb()
     yield app
     with app.app_context():
         db.session.remove()
         db.drop_all()
-    try:
-        redis_client.flushdb()
-    except Exception:
-        pass
+    fake_redis.flushdb()
 
 
 @pytest.fixture()

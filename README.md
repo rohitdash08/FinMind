@@ -65,7 +65,11 @@ OpenAPI: `backend/app/openapi.yaml`
 - Expenses: CRUD `/expenses`
 - Bills: CRUD `/bills`, pay/mark `/bills/{id}/pay`
 - Reminders: CRUD `/reminders`, trigger `/reminders/run`
-- Insights: `/insights/monthly`, `/insights/budget-suggestion`
+- Insights: `/insights/monthly`, `/insights/budget-suggestion`, `/insights/weekly-summary`
+
+### Weekly Financial Digest
+
+`GET /insights/weekly-summary?week_start=YYYY-MM-DD&currency=INR` returns an authenticated, deterministic weekly digest. The endpoint normalizes `week_start` to the ISO week Monday and includes income, expenses, net flow, daily buckets, category shares and week-over-week deltas, top expenses, upcoming bills due that week, and plain-English trend insights. If `currency` is omitted, the user's preferred currency is used.
 
 ## MVP UI/UX Plan
 - Auth screens: register/login.
