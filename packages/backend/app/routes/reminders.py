@@ -30,6 +30,9 @@ def list_reminders():
                 "send_at": r.send_at.isoformat(),
                 "sent": r.sent,
                 "channel": r.channel,
+                "retry_count": r.retry_count,
+                "failed": r.failed,
+                "last_error": r.last_error,
             }
             for r in items
         ]
@@ -156,6 +159,9 @@ def autopay_result_followup(bill_id: int):
     return jsonify(created=created), 200
 
 
+MAX_RETRIES = 3
+
+
 @bp.post("/run")
 @jwt_required()
 def run_due():
@@ -166,17 +172,39 @@ def run_due():
         .filter(
             Reminder.user_id == uid,
             Reminder.sent.is_(False),
+            Reminder.failed.is_(False),
             Reminder.send_at <= now,
         )
         .all()
     )
+    processed = 0
     for r in items:
-        send_reminder(r)
-        r.sent = True
-        track_reminder_event(event="sent", channel=r.channel)
+        try:
+            success = send_reminder(r)
+            if success:
+                r.sent = True
+                track_reminder_event(event="sent", channel=r.channel)
+            else:
+                r.retry_count += 1
+                r.last_error = "Delivery failed or returned False"
+                if r.retry_count >= MAX_RETRIES:
+                    r.failed = True
+                    track_reminder_event(
+                        event="failed", channel=r.channel, status="max_retries_exceeded"
+                    )
+        except Exception as e:
+            logger.exception("Error sending reminder %s", r.id)
+            r.retry_count += 1
+            r.last_error = str(e)[:500]
+            if r.retry_count >= MAX_RETRIES:
+                r.failed = True
+                track_reminder_event(
+                    event="failed", channel=r.channel, status="max_retries_exceeded"
+                )
+        processed += 1
     db.session.commit()
-    logger.info("Processed due reminders user=%s count=%s", uid, len(items))
-    return jsonify(processed=len(items))
+    logger.info("Processed due reminders user=%s count=%s", uid, processed)
+    return jsonify(processed=processed)
 
 
 def _bill_channels(bill: Bill) -> list[str]:
