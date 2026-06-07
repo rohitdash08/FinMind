@@ -481,6 +481,66 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
 
+  /insights/weekly-summary:
+    get:
+      summary: Get weekly financial digest
+      tags: [Insights]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: week_start
+          required: false
+          schema: { type: string, format: date }
+          description: Any date in the requested ISO week. The API normalizes it to Monday.
+        - in: query
+          name: currency
+          required: false
+          schema: { type: string }
+          description: Currency filter. Defaults to the user's preferred currency.
+      responses:
+        '200':
+          description: Weekly digest with totals, trends, categories, daily buckets, top expenses, and due bills.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+              example:
+                week_start: 2026-03-02
+                week_end: 2026-03-08
+                currency: INR
+                totals:
+                  income: 500
+                  expenses: 200
+                  net_flow: 300
+                  transaction_count: 3
+                  average_daily_expense: 28.57
+                previous_week:
+                  expenses: 100
+                  change_amount: 100
+                  change_pct: 100
+                categories:
+                  - category_id: 1
+                    category: Groceries
+                    amount: 120
+                    share_pct: 60
+                    previous_amount: 100
+                    change_amount: 20
+                    change_pct: 20
+                    trend: UP
+                insights:
+                  - Weekly spending is 100.0% higher than last week.
+        '400':
+          description: Invalid week_start
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
 components:
   securitySchemes:
     bearerAuth:
