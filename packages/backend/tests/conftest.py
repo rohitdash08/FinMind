@@ -1,8 +1,9 @@
 import os
 import pytest
+from unittest.mock import MagicMock
 from app import create_app
 from app.config import Settings
-from app.extensions import db
+from app.extensions import db, redis_client
 from app.extensions import redis_client
 from app import models  # noqa: F401 - ensure models are registered
 
@@ -35,6 +36,7 @@ def app_fixture():
         redis_client.flushdb()
     except Exception:
         pass
+    redis_client.setex = MagicMock()
     yield app
     with app.app_context():
         db.session.remove()
