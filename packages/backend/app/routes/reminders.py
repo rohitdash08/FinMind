@@ -2,7 +2,7 @@ from datetime import datetime, time, timedelta
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..extensions import db
-from ..models import Bill, Reminder
+from ..models import Bill, Reminder, Expense
 from ..observability import track_reminder_event
 from ..services.reminders import send_reminder
 import logging
@@ -76,9 +76,10 @@ def schedule_bill_reminders(bill_id: int):
 
     channels = _bill_channels(bill)
     created = 0
+    optimal_time = _get_optimal_reminder_time(uid)
     for days_before in offsets:
         send_at = datetime.combine(
-            bill.next_due_date - timedelta(days=days_before), time(9, 0, 0)
+            bill.next_due_date - timedelta(days=days_before), optimal_time
         )
         message = (
             f"Upcoming bill reminder: {bill.name} due on "
@@ -97,7 +98,7 @@ def schedule_bill_reminders(bill_id: int):
 
     if bill.autopay_enabled:
         autopay_send_at = datetime.combine(
-            bill.next_due_date - timedelta(days=1), time(9, 0, 0)
+            bill.next_due_date - timedelta(days=1), optimal_time
         )
         autopay_message = (
             f"Autopay check: {bill.name} is due on {bill.next_due_date.isoformat()}. "
@@ -221,3 +222,28 @@ def _create_reminder_if_missing(
         )
     )
     return True
+
+
+def _get_optimal_reminder_time(user_id: int) -> time:
+    """Calculate optimal reminder time based on user's expense creation behavior."""
+    expenses = (
+        db.session.query(Expense.created_at)
+        .filter_by(user_id=user_id)
+        .order_by(Expense.created_at.desc())
+        .limit(100)
+        .all()
+    )
+    if not expenses:
+        return time(9, 0, 0)
+
+    hour_counts = {}
+    for (created_at,) in expenses:
+        if created_at:
+            h = created_at.hour
+            hour_counts[h] = hour_counts.get(h, 0) + 1
+
+    if not hour_counts:
+        return time(9, 0, 0)
+
+    best_hour = max(hour_counts.items(), key=lambda x: x[1])[0]
+    return time(best_hour, 0, 0)

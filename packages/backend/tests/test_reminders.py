@@ -1,4 +1,6 @@
-from datetime import date
+from datetime import date, datetime
+from app.models import Expense
+from app.extensions import db
 
 
 def _create_bill(client, auth_header, *, due_date: str, autopay_enabled: bool = False):
@@ -80,3 +82,40 @@ def test_autopay_generates_precheck_and_result_followup_for_both_channels(
     followups = [x for x in reminders if "Autopay succeeded" in x["message"]]
     assert len(followups) == 2
     assert sorted([x["channel"] for x in followups]) == ["email", "whatsapp"]
+
+
+def test_smart_reminder_timing_based_on_user_behavior(client, auth_header, app_fixture):
+    # Create some expenses at a specific hour, e.g., 14:00
+    with app_fixture.app_context():
+        # Get user id 1
+        for _ in range(5):
+            e = Expense(
+                user_id=1,
+                amount=10.0,
+                created_at=datetime.utcnow().replace(hour=14, minute=30, second=0),
+            )
+            db.session.add(e)
+        db.session.commit()
+
+    bill_id = _create_bill(client, auth_header, due_date="2026-04-10")
+
+    r = client.post(f"/reminders/bills/{bill_id}/schedule", headers=auth_header)
+    assert r.status_code == 200
+
+    r = client.get("/reminders", headers=auth_header)
+    assert r.status_code == 200
+    reminders = r.get_json()
+
+    # Filter for the newly scheduled bill reminders
+    # (we might have old ones from previous tests)
+    bill_reminders = [
+        x
+        for x in reminders
+        if "Upcoming bill reminder" in x["message"]
+        and "2026-04-10" in x["message"]
+    ]
+    assert len(bill_reminders) > 0
+
+    for rem in bill_reminders:
+        dt = datetime.fromisoformat(rem["send_at"])
+        assert dt.hour == 14
