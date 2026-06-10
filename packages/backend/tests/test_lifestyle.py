@@ -1,5 +1,4 @@
 from datetime import date, timedelta
-from dateutil.relativedelta import relativedelta
 
 
 def test_lifestyle_inflation(client, auth_header):
@@ -7,7 +6,7 @@ def test_lifestyle_inflation(client, auth_header):
     # 30 days ago -> recent
     recent_date = today - timedelta(days=30)
     # 120 days ago -> past
-    past_date = today - relativedelta(days=120)
+    past_date = today - timedelta(days=120)
 
     # Past expenses (small)
     r = client.post(
@@ -53,7 +52,7 @@ def test_no_lifestyle_inflation(client, auth_header):
     # 30 days ago -> recent
     recent_date = today - timedelta(days=30)
     # 120 days ago -> past
-    past_date = today - relativedelta(days=120)
+    past_date = today - timedelta(days=120)
 
     # Past expenses
     r = client.post(

@@ -1,5 +1,4 @@
-from datetime import date
-from dateutil.relativedelta import relativedelta
+from datetime import date, timedelta
 from sqlalchemy import func
 from ..models import Expense, Category
 from ..extensions import db
@@ -13,10 +12,10 @@ def detect_lifestyle_inflation(user_id: int):
     today = date.today()
     # Define periods
     period_1_end = today
-    period_1_start = today - relativedelta(days=90)
+    period_1_start = today - timedelta(days=90)
     
     period_2_end = period_1_start
-    period_2_start = period_2_end - relativedelta(days=90)
+    period_2_start = period_2_end - timedelta(days=90)
 
     # Helper to get category spending for a period
     def get_spending(start_d, end_d):
