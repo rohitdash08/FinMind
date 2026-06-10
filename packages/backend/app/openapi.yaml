@@ -481,6 +481,39 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
 
+  /insights/lifestyle-inflation:
+    get:
+      summary: Detect lifestyle inflation
+      tags: [Insights]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Lifestyle inflation report
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  inflation_detected: { type: boolean }
+                  overall_increase_percentage: { type: number, format: float }
+                  recent_total: { type: number, format: float }
+                  past_total: { type: number, format: float }
+                  period_days: { type: integer }
+                  driving_categories:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        category: { type: string }
+                        past_amount: { type: number, format: float }
+                        recent_amount: { type: number, format: float }
+                        increase_percentage: { type: number, format: float }
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
 components:
   securitySchemes:
     bearerAuth:

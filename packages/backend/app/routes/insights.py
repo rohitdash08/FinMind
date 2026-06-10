@@ -2,6 +2,7 @@ from datetime import date
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..services.ai import monthly_budget_suggestion
+from ..services.lifestyle import detect_lifestyle_inflation
 import logging
 
 bp = Blueprint("insights", __name__)
@@ -23,3 +24,12 @@ def budget_suggestion():
     )
     logger.info("Budget suggestion served user=%s month=%s", uid, ym)
     return jsonify(suggestion)
+
+
+@bp.get("/lifestyle-inflation")
+@jwt_required()
+def lifestyle_inflation():
+    uid = int(get_jwt_identity())
+    insights = detect_lifestyle_inflation(uid)
+    logger.info("Lifestyle inflation detection served user=%s", uid)
+    return jsonify(insights)
