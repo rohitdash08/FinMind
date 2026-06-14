@@ -1,4 +1,6 @@
 import os
+os.environ["FLASK_ENV"] = "testing"
+
 import pytest
 from app import create_app
 from app.config import Settings
